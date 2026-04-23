@@ -1,0 +1,570 @@
+I’m aligning on your goal: a serious, production-grade backend integration plan for the Expo app with full manual testability. I’ll first map the current mobile architecture and both backend stacks in this repo so the plan is concrete, not generic.I’m checking existing memory notes first so I can avoid duplicate planning artifacts and reuse any known architecture constraints.
+
+Read memory
+
+Read memory [](file:///c%3A/Users/harsh/AppData/Roaming/Code/User/workspaceStorage/330420a6ead1bce8daef6d252c6921aa/GitHub.copilot-chat/memory-tool/memories/repo/curator-core-context.md)
+
+I found strong prior context: the active path is Expo mobile + Django DRF, with Firebase auth already chosen and Node/Vite marked legacy. Next I’ll run focused discovery on mobile data/auth flow and Django API surface so the plan includes exact wiring points and test routes.I’m launching parallel deep scans across mobile, Django API, and infrastructure so the final plan can specify exact config keys, endpoint contracts, and manual test scripts.
+
+Map Expo mobile integration points
+
+Map Django API surface
+
+Map local/manual testing and runtime config
+
+Searched for regex `Firebase|firebase|Bearer|bearer|authentication|AUTH` (`Curator` · `curator-app/api/**`), 20 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/settings.py#1-1), lines 1 to 150
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/authentication.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/models.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/views.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/serializers.py#1-1), lines 1 to 80
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/models.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/views.py#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/settings.py#1-1), lines 1 to 150
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/requirements.txt)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/package.json)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/compose.yaml)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/backend/package.json)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/views.py#100-100), lines 100 to 127
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/health/views.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/serializers.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/services/firebase.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/settings.py#150-150), lines 150 to 154
+
+Searched for regex `env\(|environ\.Env|os\.environ|process\.env|\.env` (`**/*.{py,ts,tsx,js,jsx}`), 20 results
+
+Searched for regex `FIREBASE|SECRET_KEY|DATABASE_URL|CELERY|REDIS|API_KEY|AUTH` (`**/*.py`), 50 results
+
+Searched for files matching `**/.env*`, 5 matches
+
+Searched for regex `seed|fixture|factory|test.*user|bootstrap` (`**/*.{py,js,ts,tsx}`), 3 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/.env.example)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/backend/.env.example)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/.env.example)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/backend/src/server.ts#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/common/models.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/common/constants.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/services/provisioning.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/package.json)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/hooks)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/common/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/health/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/urls.py)
+
+Searched for files matching `**/tests.py`, 4 matches
+
+Searched for files matching `**/README* **/SETUP* **/DEV*`, no matches
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/models.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/services/firebase.py)
+
+Searched for text `redis.py CELERY` (`**/curator-app/**/*.py`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/migrations/0001_initial.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/migrations/0001_initial.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/health/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/migrations/0002_initial.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services/api-client.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services/firebase.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/auth-provider.tsx#1-1), lines 1 to 200
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/_layout.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/serializers.py#64-64), lines 64 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/settings.py#130-130), lines 130 to 150
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/managers.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/admin.py#1-1), lines 1 to 30
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/auth-provider.tsx#200-200), lines 200 to 400
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/app-providers.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/hooks/use-articles.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/index.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/views.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/models.py)
+
+Searched for text `API_URL api` (`**/mobile/**/*.{ts,tsx,js}`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/backend/prisma/schema.prisma)
+
+Searched for text `POST GET` (`**/*.{http,rest,json}`), no results
+
+Searched for files matching `**/*.postman* **/*.http **/*.rest **/*.curl`, no matches
+
+Searched for text `fetch axios` (`**/mobile/**/*`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app.config.ts)
+
+Searched for regex `EXPO_PUBLIC|process.env|Constants.expoConfig` (`Curator` · `curator-app/mobile/**/*.{ts,tsx}`), 15 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/subscription-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/saved-articles-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/collections-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28auth%29)
+
+Searched for regex `mock|static|hardcoded|TODO|FIXME|import.*data` (`Curator` · `curator-app/mobile/**/*.{ts,tsx}`), 21 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/serializers.py#100-100), lines 100 to 106
+
+Searching for regex `CSRF_COOKIE_HTTPONLY|CSRF_COOKIE_SAMESITE|SESSION_COOKIE_HTTPONLY` (`Curator` · `curator-app/api/**`)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/admin.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/common/admin.py)
+
+Searched for text `api fetch axios http` (`**/mobile/src/**/*.ts`), no results
+
+Searched for text `EXPO_PUBLIC` (`**/mobile/src/**/*.tsx`), 4 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/auth-provider.tsx#1-1), lines 1 to 50
+
+Read memory
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/data)
+
+Searched for regex `apiRequest|useQuery|useState|mock|static` (`Curator` · `curator-app/mobile/app/(app)/(tabs)/**/*.tsx`), 20 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/reading-stats-provider.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/reading-preferences-provider.tsx#1-1), lines 1 to 100
+
+Searched for text `CSRF` (`Curator` · `curator-app/api/config/settings.py`), 5 results
+
+Searched for text `SESSION` (`Curator` · `curator-app/api/config/settings.py`), 4 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services/api-client.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services/firebase.ts)
+
+Read memory [](file:///c%3A/Users/harsh/AppData/Roaming/Code/User/workspaceStorage/330420a6ead1bce8daef6d252c6921aa/GitHub.copilot-chat/memory-tool/memories/repo/curator-core-context.md)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/health/views.py)
+
+Searched for text `class Command` (`**/api/**/*.py`), no results
+
+Searched for text `seed migrate` (`**/backend/**/*.mjs`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/backend/scripts/migrate-sqlite-to-postgres.mjs#1-1), lines 1 to 100
+
+Searched for text `export` (`Curator` · `curator-app/mobile/src/data/articles.ts`), 3 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/%28tabs%29/index.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/%28tabs%29/explore.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/profile.tsx#1-1), lines 1 to 100
+
+Searched for text `HTTPONLY` (`Curator` · `curator-app/api/config/settings.py`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/common/views.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app)
+
+Searched for text `NODE_ENV DATABASE_URL` (`**/curator-app/backend/**/*.ts`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/celery.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/requirements.txt)
+
+Searched for text `permission_classes` (`Curator` · `curator-app/api/users/**`), 4 results
+
+Searched for text `permission_classes` (`Curator` · `curator-app/api/onboarding/**`), 5 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/celery.py)
+
+Searched for regex `catch|error|Error|retry|offline|ApiError|throw` (`Curator` · `curator-app/mobile/src/**/*.tsx`), 29 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/data/articles.ts#1-1), lines 1 to 50
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/lib/query-keys.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/lib/types.ts#1-1), lines 1 to 100
+
+Updated memory file [](file:///c%3A/Users/harsh/AppData/Roaming/Code/User/workspaceStorage/330420a6ead1bce8daef6d252c6921aa/GitHub.copilot-chat/memory-tool/memories/repo/curator-core-context.md)
+
+Searched for text `ALLOWED_HOSTS` (`Curator` · `curator-app/api/config/settings.py`), 2 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/wsgi.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/asgi.py)
+
+Searched for text `.` (`Curator` · `curator-app/mobile/.env*`), 20 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28auth%29/onboarding.tsx#1-1), lines 1 to 150
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28auth%29/sign-in.tsx#1-1), lines 1 to 150
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/auth-provider.tsx#300-300), lines 300 to 484
+
+Searched for text `STORAGE_KEY` (`Curator` · `curator-app/mobile/src/providers/**.tsx`), 19 results
+
+Searched for text `/api/mobile` (`Curator` · `curator-app/mobile/src/providers/auth-provider.tsx`), 6 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/audio-provider.tsx#1-1), lines 1 to 100
+
+Read memory
+
+Searched for regex `useArticles|apiRequest|useQuery|useState` (`Curator` · `curator-app/mobile/app/(app)/(tabs)/saved.tsx`), 5 results
+
+Read memory [](file:///c%3A/Users/harsh/AppData/Roaming/Code/User/workspaceStorage/330420a6ead1bce8daef6d252c6921aa/GitHub.copilot-chat/memory-tool/memories/repo/curator-core-context.md)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/account.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/toast-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/%28tabs%29/search.tsx#1-1), lines 1 to 100
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/data/briefs.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/article)
+
+Searched for regex `const.*=` (`Curator` · `curator-app/mobile/app/(app)/(tabs)/index.tsx`), 10 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/article/%5Bid%5D.tsx#1-1), lines 1 to 100
+
+Searched for text `/api/mobile` (`Curator` · `curator-app/api/*.py`), no results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/.env#1-1), lines 1 to 20
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/.env.example)
+
+Searched for text `path|url` (`Curator` · `curator-app/api/**/*.py`), 25 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/views.py#1-1), lines 1 to 100
+
+Discovery uncovered a lot, and I’m now validating the most critical integration points directly in the code so your final plan references exact real contracts and avoids any guesswork. I’ll now verify key mobile auth/session code, backend routes/auth settings, and local runtime scripts to lock the plan to authoritative source files.
+
+Searched for regex `/api/mobile|auth/session|onboarding` (`**/curator-app/mobile/**`), 20 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/auth-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services/api-client.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/settings.py)
+
+I’ve confirmed the core auth/onboarding contract exists and is already wired; next I’m extracting the remaining app modules still running on local/mock state so the plan can sequence backend endpoints by product criticality and manual verification depth. I’m now reading backend serializers/views plus mobile feature providers/hooks to map exact contract gaps (articles, saved, collections, stats, subscription).
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/urls.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/views.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/common/constants.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/views.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/serializers.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/serializers.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/authentication.py)
+
+Core backend contracts are now verified. I’m pulling the runtime and feature-state files next so the plan can include exact environment config, test matrix, and the phased replacement of mock/local state with live APIs without breaking manual QA. I’ll now gather root scripts, compose/env config, and mobile providers/hooks that currently own local data.
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/.env.example)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/package.json)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/compose.yaml)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app.config.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/hooks/use-articles.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/saved-articles-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/collections-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/reading-stats-provider.tsx)
+
+I’ve confirmed where state is still local-only; next I’m mapping exactly where each provider/hook is consumed in app screens so the plan can define a safe cutover strategy with no regressions and precise manual test checkpoints per journey. I’ll scan usage sites plus core type/query files and the remaining providers to complete the dependency graph.
+
+Searched for regex `useArticles|useArticle|useSavedArticles|useCollections|useReadingStats|useSubscription|apiRequest\(` (`**/curator-app/mobile/**`), 20 results
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/app-providers.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/providers/subscription-provider.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/lib/query-keys.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/lib/types.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/%28tabs%29/index.tsx#1-1), lines 1 to 280
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/%28tabs%29/explore.tsx)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/%28tabs%29/saved.tsx#1-1), lines 1 to 320
+
+I now have most of the integration map; I’m grabbing the remaining user-facing flows (article read tracking, account/profile, collections) plus API env/auth service files so the plan includes end-to-end manual test scenarios that mirror real user behavior, not just endpoint checks. I’ll read those final files and then move into alignment questions before drafting the full execution plan.
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/article/%5Bid%5D.tsx#1-1), lines 1 to 420
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/account.tsx#1-1), lines 1 to 320
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/profile.tsx#1-1), lines 1 to 340
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/collections.tsx#1-1), lines 1 to 340
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/app/%28app%29/collection/%5Bid%5D.tsx#1-1), lines 1 to 380
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/mobile/src/services/firebase.ts)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/.env.example)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/services/firebase.py)
+
+I’ve completed the app-side flow map and auth configuration dependencies. I’m now reading backend domain models and migration state so the plan can include a robust data-model rollout for content, saves, collections, and analytics with explicit migration and compatibility strategy. I’ll pull model definitions and current test footprint next.
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/models.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/health/tests.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/requirements.txt)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/onboarding/models.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/users/services/provisioning.py)
+
+Read [](file:///c%3A/Users/harsh/Desktop/Curator/curator-app/api/config/celery.py)
+
+The discovery phase is now complete: I verified current contracts and identified that auth/onboarding are real, while content, saved, collections, stats, and subscription remain local/mock. Before I lock the enterprise-grade execution plan, I need a few architecture decisions so I can optimize for manual testability without compromises.
+
+Analyzing your answers...
+
+Alignment is complete with your decisions: email/password first, seeded editorial content, backend entitlements with manual override, and full local/staging/prod scope. I’m now writing a high-rigor execution plan into session memory and then I’ll present the full plan with exact config checklist and manual test runbooks.
+
+Created memory file [](file:///c%3A/Users/harsh/AppData/Roaming/Code/User/workspaceStorage/330420a6ead1bce8daef6d252c6921aa/GitHub.copilot-chat/memory-tool/memories/OTkxYTFiYmUtNGI3NS00OWRhLWIyYTctY2JiYTE1N2Q0ZjM2/plan.md)
+
+## Plan: Production-Grade Mobile Backend Wiring
+
+This plan is built for a top-tier product standard, not MVP quality: contract-first APIs, backend ownership of all core state, offline-safe sync, deterministic manual QA in local/staging/prod, and rollout guardrails with measurable SLOs.
+
+### 1. Execution Plan
+
+1. Phase 0: Architecture Lock
+2. Lock api as the single production backend path for mobile integration.
+3. Treat backend as reference-only so schema and runtime ownership do not split.
+4. Define hard SLOs before coding: auth restore speed, feed load latency, mutation success rate, and sync completion reliability.
+5. Phase 1: Contract-First Backend Expansion (depends on phase 0)
+6. Keep current auth/session/onboarding contracts stable in users and onboarding.
+7. Add versioned mobile API surface under /api/mobile/v1 for new domains: briefs/feed, article detail, saves, collections, reading events, entitlements.
+8. Publish OpenAPI schema and enforce typed request/response contracts before mobile cutover.
+9. Add idempotency and validation rules for all write operations (save/unsave, add/remove collection item, read-event upserts).
+10. Phase 2: Mobile Data Layer Rewire (depends on phase 1)
+11. Replace static/mock data adapters in use-articles.ts with backend repository hooks.
+12. Migrate local-only providers to backend-first sync:
+13. saved-articles-provider.tsx
+14. collections-provider.tsx
+15. reading-stats-provider.tsx
+16. subscription-provider.tsx
+17. Preserve native feel with optimistic UI plus rollback on failed mutations.
+18. Keep auth path stable in auth-provider.tsx and continue email/password only now.
+19. Phase 3: Offline + Sync Reliability (parallel with late phase 2)
+20. Add local mutation queue with replay semantics and conflict policy.
+21. Add connectivity-aware sync status and pending-change indicators.
+22. Add retry with bounded exponential backoff and deduplication keys.
+23. Phase 4: Auth and Account Hardening (depends on phase 1, parallel with phase 2)
+24. Keep Firebase email/password only in this phase.
+25. Implement true backend account deletion workflow (not local sign-out only) from curator-app/mobile/app/(app)/account.tsx/account.tsx).
+26. Add deterministic test-user bootstrap for repeatable manual login across environments.
+27. Phase 5: QA Harness + Promotion Gates (depends on phases 2 and 4)
+28. Add seed commands for editorial content and test identities.
+29. Add manual QA scripts covering full journey: install -> login -> onboarding -> explore -> save -> collections -> article read tracking -> profile/account.
+30. Define strict pass/fail gates for local, staging, and production preflight.
+31. Phase 6: Observability, Security, and Rollout (depends on all prior phases)
+32. Add request tracing, correlation IDs, endpoint latency/error dashboards, and mobile network diagnostics tags.
+33. Harden host/origin/security settings in settings.py.
+34. Add backend integration tests and mobile integration tests for critical journeys.
+35. Roll out via canary cohort, monitor SLOs, then progressively increase traffic.
+
+### 2. Configs Needed From You
+
+1. Mobile config values (all envs)
+2. EXPO_PUBLIC_API_URL
+3. EXPO_PUBLIC_MOCK_BACKEND (local true only, staging/prod false)
+4. EXPO_PUBLIC_MOCK_PREMIUM (local true only, staging/prod false)
+5. EXPO_PUBLIC_DEV_BYPASS_AUTH (false except isolated local debugging)
+6. EXPO_PUBLIC_FIREBASE_API_KEY
+7. EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN
+8. EXPO_PUBLIC_FIREBASE_PROJECT_ID
+9. EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET
+10. EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID
+11. EXPO_PUBLIC_FIREBASE_APP_ID
+12. EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID
+13. EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE
+14. EXPO_PUBLIC_APP_BUNDLE_ID
+15. EXPO_PUBLIC_ANDROID_PACKAGE
+16. EXPO_PUBLIC_EAS_PROJECT_ID
+17. API config values (all envs)
+18. DJANGO_SECRET_KEY
+19. DJANGO_DEBUG
+20. DJANGO_ALLOWED_HOSTS
+21. DATABASE_URL
+22. CORS_ALLOWED_ORIGINS
+23. CSRF_TRUSTED_ORIGINS
+24. FIREBASE_PROJECT_ID
+25. FIREBASE_CREDENTIALS_PATH or FIREBASE_CREDENTIALS_JSON
+26. CELERY_BROKER_URL
+27. CELERY_RESULT_BACKEND
+28. Recommended security additions in settings.py
+29. SESSION_COOKIE_HTTPONLY
+30. SESSION_COOKIE_SAMESITE
+31. CSRF_COOKIE_HTTPONLY
+32. CSRF_COOKIE_SAMESITE
+33. HSTS settings for production
+34. Runtime dependency config
+35. Redis runtime for Celery and async jobs (not currently in compose.yaml)
+36. Feature flags
+37. ENABLE_OFFLINE_QUEUE
+38. ENABLE_ENTITLEMENT_OVERRIDE_FOR_QA
+39. ENABLE_VERBOSE_NETWORK_LOGS_LOCAL_ONLY
+
+### 3. Manual Testing Strategy (Built Into Plan)
+
+1. Local runbook
+2. Start DB and Redis, run migrations, seed content, bootstrap test user, run Expo against LAN-accessible API.
+3. Verify stable login/session restore (no repeated forced relogin each run).
+4. Verify onboarding transitions and persisted backend state.
+5. Verify explore/feed/detail, save/unsave, collection CRUD, read-event tracking, and account updates.
+6. Verify offline mutation queue and reconnect replay.
+7. Staging runbook
+8. Repeat full journey against staging domain/TLS settings.
+9. Validate entitlement QA override is allowed only for whitelisted QA accounts.
+10. Validate pagination, filtering, and list performance at realistic seeded volume.
+11. Production preflight runbook
+12. Health/session/feed smoke checks.
+13. One complete curated user journey with a controlled production test account.
+14. Canary monitor against SLO/error budget before broader rollout.
+
+### 4. Relevant Files To Reuse and Extend
+
+1. auth-provider.tsx
+2. api-client.ts
+3. use-articles.ts
+4. saved-articles-provider.tsx
+5. collections-provider.tsx
+6. reading-stats-provider.tsx
+7. subscription-provider.tsx
+8. app-providers.tsx
+9. curator-app/mobile/app/(app)/(tabs)/index.tsx/(tabs)/index.tsx)
+10. curator-app/mobile/app/(app)/(tabs)/explore.tsx/(tabs)/explore.tsx)
+11. curator-app/mobile/app/(app)/(tabs)/saved.tsx/(tabs)/saved.tsx)
+12. [curator-app/mobile/app/(app)/article/[id].tsx](curator-app/mobile/app/(app)/article/[id].tsx)
+13. curator-app/mobile/app/(app)/collections.tsx/collections.tsx)
+14. [curator-app/mobile/app/(app)/collection/[id].tsx](curator-app/mobile/app/(app)/collection/[id].tsx)
+15. curator-app/mobile/app/(app)/account.tsx/account.tsx)
+16. urls.py
+17. settings.py
+18. authentication.py
+19. firebase.py
+20. provisioning.py
+21. views.py
+22. compose.yaml
+23. package.json
+
+### 5. Locked Decisions From Your Input
+
+1. Email/password auth only now.
+2. Seeded editorial content from Django first.
+3. Backend entitlements + QA override now, deeper store integration later.
+4. Local + staging + production included from the start.
+5. No quality compromises, with full manual testability at each phase.
+
+If you approve this direction, I will refine this into an execution-ready phase backlog with milestone gates (M1-M6), owner lanes, and day-by-day delivery sequencing.

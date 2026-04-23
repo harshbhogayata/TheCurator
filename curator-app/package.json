@@ -1,0 +1,20 @@
+{
+  "name": "curator-workspace",
+  "private": true,
+  "scripts": {
+    "api:check": "powershell -Command \"Set-Location api; .\\.venv\\Scripts\\python.exe manage.py check\"",
+    "api:makemigrations": "powershell -Command \"Set-Location api; .\\.venv\\Scripts\\python.exe manage.py makemigrations users onboarding --noinput\"",
+    "api:migrate": "powershell -Command \"Set-Location api; .\\.venv\\Scripts\\python.exe manage.py migrate\"",
+    "api:run": "powershell -Command \"Set-Location api; .\\.venv\\Scripts\\python.exe manage.py runserver 127.0.0.1:8000\"",
+    "api:run:lan": "powershell -Command \"Set-Location api; .\\.venv\\Scripts\\python.exe manage.py runserver 0.0.0.0:8000\"",
+    "backend:generate": "npm --prefix backend run db:generate",
+    "backend:import:sqlite": "npm --prefix backend run db:import:sqlite",
+    "backend:migrate": "npm --prefix backend run db:migrate:dev",
+    "backend:migrate:deploy": "npm --prefix backend run db:migrate:deploy",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres",
+    "db:up": "docker compose up -d postgres",
+    "mobile:start": "npm --prefix mobile start",
+    "mobile:typecheck": "npm --prefix mobile run typecheck"
+  }
+}

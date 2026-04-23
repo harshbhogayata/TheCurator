@@ -1,0 +1,64 @@
+# ─── Dependencies ───────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ─── Build outputs ──────────────────────────────────────────────────────────
+dist/
+build/
+out/
+.next/
+.expo/
+.expo-shared/
+
+# ─── Env & secrets ──────────────────────────────────────────────────────────
+.env
+.env.*
+!.env.example
+
+# ─── Logs ───────────────────────────────────────────────────────────────────
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# ─── OS / editor ────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+
+# ─── Expo / React Native ────────────────────────────────────────────────────
+.expo/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+web-build/
+android/
+ios/
+
+# ─── Prisma ─────────────────────────────────────────────────────────────────
+prisma/.env
+
+# ─── Docker ─────────────────────────────────────────────────────────────────
+.docker-config/
+
+# ─── Misc / cache ───────────────────────────────────────────────────────────
+.npm-cache/
+.cache/
+*.tsbuildinfo
+coverage/
+
+# ─── Preview / scratch folders ──────────────────────────────────────────────
+Preview Design Review (1)/
+
+# ─── Claude / AI tool files ─────────────────────────────────────────────────
+.claude/

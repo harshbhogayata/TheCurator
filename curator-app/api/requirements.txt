@@ -1,0 +1,8 @@
+celery
+django
+django-cors-headers
+django-environ
+djangorestframework
+firebase-admin
+psycopg[binary]
+redis
