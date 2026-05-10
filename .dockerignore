@@ -1,0 +1,12 @@
+.git
+.env
+.env.*
+**/.env
+**/.env.*
+**/node_modules
+**/.venv
+**/__pycache__
+**/*.pyc
+curator-app/mobile/node_modules
+curator-app/frontend/node_modules
+curator-app/backend/node_modules

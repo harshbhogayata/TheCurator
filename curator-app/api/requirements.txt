@@ -4,6 +4,7 @@ django-cors-headers
 django-environ
 djangorestframework
 firebase-admin
+gunicorn
 psycopg[binary]
 redis
 requests
