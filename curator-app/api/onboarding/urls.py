@@ -8,10 +8,12 @@ from onboarding.views import (
     OnboardingStateView,
 )
 
+app_name = "onboarding"
+
 urlpatterns = [
-    path("", OnboardingStateView.as_view(), name="mobile-onboarding-state"),
-    path("profile", OnboardingProfileView.as_view(), name="mobile-onboarding-profile"),
-    path("categories", OnboardingCategoriesView.as_view(), name="mobile-onboarding-categories"),
-    path("preferences", OnboardingPreferencesView.as_view(), name="mobile-onboarding-preferences"),
-    path("complete", OnboardingCompleteView.as_view(), name="mobile-onboarding-complete"),
+    path("", OnboardingStateView.as_view(), name="state"),
+    path("profile", OnboardingProfileView.as_view(), name="profile"),
+    path("categories", OnboardingCategoriesView.as_view(), name="categories"),
+    path("preferences", OnboardingPreferencesView.as_view(), name="preferences"),
+    path("complete", OnboardingCompleteView.as_view(), name="complete"),
 ]

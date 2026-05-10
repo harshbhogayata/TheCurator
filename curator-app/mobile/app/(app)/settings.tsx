@@ -30,6 +30,7 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { useSubscription } from "../../src/providers/subscription-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useToast } from "../../src/providers/toast-provider";
+import { updatePreferences as updatePreferencesRemote } from "../../src/services/mobile-api";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
 import { type } from "../../src/ui/tokens/typography";
@@ -245,6 +246,7 @@ export default function SettingsScreen() {
     signOut,
     updateOnboardingCategories,
     updateOnboardingPreferences,
+    updateSessionPreferences,
   } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
@@ -324,9 +326,18 @@ export default function SettingsScreen() {
       setPreference(next.themePreference);
     }
 
-    void updateOnboardingPreferences(next).catch(() => {
-      showToast("error", "Couldn't update your settings right now.");
-    });
+    // Use the dedicated v1 preferences API for post-onboarding updates,
+    // and keep onboarding endpoint as fallback for session sync.
+    void updatePreferencesRemote(next)
+      .then((payload) => {
+        updateSessionPreferences(payload);
+      })
+      .catch(() => {
+        // Fall back to the session-level onboarding route.
+        void updateOnboardingPreferences(next).catch(() => {
+          showToast("error", "Couldn't update your settings right now.");
+        });
+      });
   };
 
   const handleCategoryToggle = (key: string) => {

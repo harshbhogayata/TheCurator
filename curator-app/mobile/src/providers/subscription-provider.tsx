@@ -9,7 +9,10 @@ import {
   useState,
 } from "react";
 
-import { fetchEntitlement, updateEntitlementTier } from "../services/mobile-api";
+import { Platform } from "react-native";
+import Purchases, { LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
+
+import { fetchEntitlement } from "../services/mobile-api";
 import { useAuth } from "./auth-provider";
 
 export type SubscriptionTier = "free" | "basic" | "premium" | "lifetime";
@@ -25,11 +28,14 @@ interface SubscriptionContextValue {
   hasCustomThemes: boolean;
   maxSaves: number;
   maxCollections: number;
+  packages: PurchasesPackage[];
+  purchasePackage: (pkg: PurchasesPackage) => Promise<boolean>;
+  isPurchasing: boolean;
 }
 
 // Set EXPO_PUBLIC_MOCK_PREMIUM=true in .env to unlock premium features locally.
-const MOCK_PREMIUM = process.env.EXPO_PUBLIC_MOCK_PREMIUM === "true";
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_PREMIUM = __DEV__ && process.env.EXPO_PUBLIC_MOCK_PREMIUM === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
 
 const STORAGE_KEY = "curator.subscription-tier";
 
@@ -91,8 +97,37 @@ const TIER_FEATURES: Record<
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
 
 export function SubscriptionProvider({ children }: PropsWithChildren) {
-  const { status } = useAuth();
+  const { status, session } = useAuth();
   const [tier, setTierState] = useState<SubscriptionTier>(MOCK_PREMIUM ? "premium" : "free");
+  const [packages, setPackages] = useState<PurchasesPackage[]>([]);
+  const [isPurchasing, setIsPurchasing] = useState(false);
+
+  useEffect(() => {
+    // Configure RevenueCat
+    const apiKey = Platform.select({
+      ios: process.env.EXPO_PUBLIC_RC_IOS_KEY,
+      android: process.env.EXPO_PUBLIC_RC_ANDROID_KEY,
+    });
+
+    if (apiKey && !MOCK_BACKEND) {
+      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
+      Purchases.configure({ apiKey });
+      
+      Purchases.getOfferings().then((offerings) => {
+        if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
+          setPackages(offerings.current.availablePackages);
+        }
+      }).catch(console.error);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (session?.user?.id && !MOCK_BACKEND) {
+      void Purchases.logIn(session.user.id);
+    } else if (status === "signed-out") {
+      void Purchases.logOut();
+    }
+  }, [session?.user?.id, status]);
 
   useEffect(() => {
     if (!MOCK_BACKEND) {
@@ -132,26 +167,52 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
   const setTier = useCallback((newTier: SubscriptionTier) => {
     if (!MOCK_BACKEND) {
-      if (status !== "signed-in") {
-        setTierState(newTier);
-        return;
+      if (status === "signed-in") {
+        void fetchEntitlement()
+          .then((payload) => {
+            setTierState(payload.effectiveTier ?? payload.tier);
+          })
+          .catch(() => {
+            setTierState(MOCK_PREMIUM ? "premium" : "free");
+          });
+      } else {
+        setTierState(MOCK_PREMIUM ? "premium" : "free");
       }
 
-      const previous = tier;
-      setTierState(newTier);
-      void updateEntitlementTier(newTier)
-        .then((payload) => {
-          setTierState(payload.effectiveTier ?? payload.tier);
-        })
-        .catch(() => {
-          setTierState(previous);
-        });
       return;
     }
 
     setTierState(newTier);
-    void AsyncStorage.setItem(STORAGE_KEY, newTier);
-  }, [status, tier]);
+  }, [status]);
+
+  const purchasePackage = useCallback(async (pkg: PurchasesPackage) => {
+    if (MOCK_BACKEND) return false;
+    
+    setIsPurchasing(true);
+    try {
+      const { customerInfo } = await Purchases.purchasePackage(pkg);
+      
+      // Update local state based on active entitlements
+      if (typeof customerInfo.entitlements.active['Premium'] !== "undefined") {
+        setTierState("premium");
+        return true;
+      } else if (typeof customerInfo.entitlements.active['Basic'] !== "undefined") {
+        setTierState("basic");
+        return true;
+      } else if (typeof customerInfo.entitlements.active['Lifetime'] !== "undefined") {
+        setTierState("lifetime");
+        return true;
+      }
+      return false;
+    } catch (e: any) {
+      if (!e.userCancelled) {
+        console.error("Purchase error:", e);
+      }
+      return false;
+    } finally {
+      setIsPurchasing(false);
+    }
+  }, []);
 
   const features = TIER_FEATURES[tier];
 
@@ -167,8 +228,11 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       hasCustomThemes: features.customThemes,
       maxSaves: features.maxSaves,
       maxCollections: features.maxCollections,
+      packages,
+      purchasePackage,
+      isPurchasing,
     }),
-    [tier, setTier, features],
+    [tier, setTier, features, packages, purchasePackage, isPurchasing],
   );
 
   return (

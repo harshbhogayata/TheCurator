@@ -12,19 +12,34 @@ class SubscriptionTier(models.TextChoices):
     LIFETIME = "lifetime", "Lifetime"
 
 
-def _today():
-    return timezone.localdate()
+class Category(UUIDPrimaryKeyModel):
+    slug = models.CharField(max_length=32, unique=True)
+    name = models.CharField(max_length=64)
+    color = models.CharField(max_length=16, default="#64748b")
+    icon = models.CharField(max_length=64, default="layers")
+    rank = models.PositiveSmallIntegerField(default=0)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["rank", "name"]
+
+    def __str__(self):
+        return self.name
 
 
 class Article(UUIDPrimaryKeyModel):
+    slug = models.SlugField(max_length=280, unique=True, blank=True, null=True)
     title = models.CharField(max_length=240)
     excerpt = models.TextField()
     category = models.CharField(max_length=64)
     read_time_minutes = models.PositiveSmallIntegerField(default=5)
-    published_at = models.DateField(default=_today)
+    published_at = models.DateField(default=timezone.localdate)
     author = models.CharField(max_length=140)
     sources = models.JSONField(default=list, blank=True)
     image_query = models.CharField(max_length=255, blank=True)
+    image_url = models.URLField(blank=True)
+    image_source_url = models.URLField(blank=True)
+    image_attribution = models.CharField(max_length=255, blank=True)
     content = models.TextField(blank=True)
     audio_url = models.URLField(blank=True)
     audio_duration_sec = models.PositiveIntegerField(null=True, blank=True)
@@ -37,16 +52,32 @@ class Article(UUIDPrimaryKeyModel):
     def __str__(self):
         return self.title
 
+    def save(self, *args, **kwargs):
+        if not self.slug:
+            from django.utils.text import slugify
+
+            base_slug = slugify(self.title)[:260] or str(self.id)
+            slug = base_slug
+            suffix = 2
+            while Article.objects.exclude(pk=self.pk).filter(slug=slug).exists():
+                suffix_str = f"-{suffix}"
+                slug = f"{base_slug[: max(1, 280 - len(suffix_str))]}{suffix_str}"
+                suffix += 1
+            self.slug = slug
+        super().save(*args, **kwargs)
+
 
 class Brief(UUIDPrimaryKeyModel):
     title = models.CharField(max_length=240)
     summary = models.TextField()
     duration_minutes = models.PositiveSmallIntegerField(default=10)
-    published_at = models.DateField(default=_today)
+    published_at = models.DateField(default=timezone.localdate)
     category = models.CharField(max_length=64, default="Daily Brief")
     image_url = models.URLField(blank=True)
+    image_attribution = models.CharField(max_length=255, blank=True)
     audio_url = models.URLField(blank=True)
     insights = models.PositiveSmallIntegerField(default=0)
+    is_breaking = models.BooleanField(default=False)
     rank = models.PositiveIntegerField(default=0)
     is_active = models.BooleanField(default=True)
 
@@ -139,7 +170,7 @@ class UserReadingEvent(UUIDPrimaryKeyModel):
         related_name="reading_events",
     )
     read_time_ms = models.PositiveIntegerField(default=0)
-    event_date = models.DateField(default=_today)
+    event_date = models.DateField(default=timezone.localdate)
 
     class Meta:
         ordering = ["-created_at"]
@@ -166,6 +197,10 @@ class UserEntitlement(UUIDPrimaryKeyModel):
         blank=True,
         default="",
     )
+    product_id = models.CharField(max_length=128, blank=True)
+    revenuecat_customer_id = models.CharField(max_length=128, blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+    will_renew = models.BooleanField(default=False)
 
     class Meta:
         ordering = ["-updated_at"]
@@ -178,3 +213,131 @@ class UserEntitlement(UUIDPrimaryKeyModel):
 
     def __str__(self):
         return f"{self.user} · {self.effective_tier}"
+
+
+class DevicePlatform(models.TextChoices):
+    IOS = "ios", "iOS"
+    ANDROID = "android", "Android"
+    WEB = "web", "Web"
+
+
+class UserDevice(UUIDPrimaryKeyModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="mobile_devices",
+    )
+    expo_push_token = models.CharField(max_length=255)
+    platform = models.CharField(max_length=16, choices=DevicePlatform.choices)
+    app_version = models.CharField(max_length=32, blank=True)
+    last_seen = models.DateTimeField(default=timezone.now)
+    is_active = models.BooleanField(default=True)
+
+    class Meta:
+        ordering = ["-last_seen"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "expo_push_token"],
+                name="mobileapi_device_user_token_unique",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} · {self.platform}"
+
+
+class FeedbackCategory(models.TextChoices):
+    BUG = "bug", "Bug"
+    IDEA = "idea", "Idea"
+    OTHER = "other", "Other"
+
+
+class FeedbackReport(UUIDPrimaryKeyModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="feedback_reports",
+    )
+    category = models.CharField(max_length=16, choices=FeedbackCategory.choices)
+    message = models.TextField()
+    app_version = models.CharField(max_length=32, blank=True)
+    os_version = models.CharField(max_length=64, blank=True)
+    attach_diagnostics = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} · {self.category}"
+
+
+class ExportStatus(models.TextChoices):
+    PENDING = "pending", "Pending"
+    COMPLETED = "completed", "Completed"
+    FAILED = "failed", "Failed"
+
+
+class DataExportRequest(UUIDPrimaryKeyModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="data_export_requests",
+    )
+    status = models.CharField(max_length=16, choices=ExportStatus.choices, default=ExportStatus.PENDING)
+    download_url = models.URLField(blank=True)
+    expires_at = models.DateTimeField(null=True, blank=True)
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.user} · {self.status}"
+
+
+class RevenueCatWebhookEvent(UUIDPrimaryKeyModel):
+    event_id = models.CharField(max_length=128, unique=True)
+    event_type = models.CharField(max_length=64)
+    app_user_id = models.CharField(max_length=128, blank=True)
+    store = models.CharField(max_length=32, blank=True)
+    environment = models.CharField(max_length=32, blank=True)
+    payload = models.JSONField(default=dict, blank=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="revenuecat_webhook_events",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.event_type} · {self.event_id}"
+
+
+class IdempotencyKey(UUIDPrimaryKeyModel):
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        related_name="idempotency_keys",
+    )
+    key = models.CharField(max_length=128)
+    request_method = models.CharField(max_length=10)
+    request_path = models.CharField(max_length=255)
+    request_fingerprint = models.CharField(max_length=64)
+    response_status = models.PositiveSmallIntegerField()
+    response_body = models.JSONField(default=dict, blank=True)
+    expires_at = models.DateTimeField()
+
+    class Meta:
+        ordering = ["-created_at"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["user", "key"],
+                name="mobileapi_idempotency_user_key_unique",
+            )
+        ]
+
+    def __str__(self):
+        return f"{self.user} · {self.key}"

@@ -14,7 +14,7 @@ import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
-import { medium as hapticMedium, tap as hapticTap } from "../../../src/lib/haptics";
+import { medium as hapticMedium } from "../../../src/lib/haptics";
 import { type } from "../../../src/ui/tokens/typography";
 import {
   ArrowLeft,
@@ -56,7 +56,7 @@ export default function ArticleScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { palette } = useTheme();
-  const { isTablet, contentPadding, maxContentWidth } = useLayout();
+  const { maxContentWidth } = useLayout();
   const { session } = useAuth();
   const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
   const { fontSizeValue, lineHeightValue } = useReadingPreferences();

@@ -20,9 +20,10 @@ import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import { AdBanner } from "../../../src/ui/ad-banner";
 import { ArticleCardSkeleton } from "../../../src/ui/skeleton-loader";
-import { categories } from "../../../src/data/articles";
+import { categories as staticCategories } from "../../../src/data/articles";
 import type { Article } from "../../../src/data/articles";
 import { useArticles } from "../../../src/hooks/use-articles";
+import { useCategories } from "../../../src/hooks/use-categories";
 
 export default function ExploreScreen() {
   const { palette } = useTheme();
@@ -30,7 +31,14 @@ export default function ExploreScreen() {
 
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
-  const { data: articles = [] } = useArticles();
+  const { data: articles = [], refetch } = useArticles();
+  const { data: apiCategories } = useCategories();
+  const categoryNames = useMemo(() => {
+    if (apiCategories && apiCategories.length > 0) {
+      return ["All", ...apiCategories.map((c) => c.name)];
+    }
+    return staticCategories;
+  }, [apiCategories]);
   const [viewMode, setViewMode] = useState<"today" | "global">("today");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [refreshing, setRefreshing] = useState(false);
@@ -43,8 +51,8 @@ export default function ExploreScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    setTimeout(() => setRefreshing(false), 1000);
-  }, []);
+    void refetch().finally(() => setRefreshing(false));
+  }, [refetch]);
 
   const topNarratives =
     viewMode === "today" ? articles.slice(0, 2) : articles.slice(6, 8);
@@ -57,7 +65,7 @@ export default function ExploreScreen() {
       );
     }
     return list;
-  }, [selectedCategory]);
+  }, [articles, selectedCategory]);
 
   const listHeader = useMemo(() => {
     if (isLoading) {
@@ -155,7 +163,7 @@ export default function ExploreScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8 }}
           >
-            {categories.map((cat) => {
+            {categoryNames.map((cat) => {
               const isSelected = selectedCategory === cat;
               return (
                 <Pressable
@@ -194,7 +202,7 @@ export default function ExploreScreen() {
         </Text>
       </>
     );
-  }, [isLoading, hasAdFree, viewMode, selectedCategory, topNarratives, filteredExploreArticles.length, palette]);
+  }, [isLoading, hasAdFree, viewMode, selectedCategory, topNarratives, filteredExploreArticles.length, categoryNames, palette]);
 
   const renderItem = useCallback(({ item }: { item: Article }) => (
     <View style={{ marginBottom: 32 }}>

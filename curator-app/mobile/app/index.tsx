@@ -3,15 +3,17 @@ import { Text, View } from "react-native";
 
 import { useAuth } from "../src/providers/auth-provider";
 import { useTheme } from "../src/providers/theme-provider";
+import { useUIStore } from "../src/lib/store";
 import { LoadingScreen } from "../src/ui/loading-screen";
 import { PrimaryButton } from "../src/ui/primary-button";
 import { Screen } from "../src/ui/screen";
 
 // Set EXPO_PUBLIC_DEV_BYPASS_AUTH=true in .env to skip auth locally.
-const DEV_BYPASS_AUTH = process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH === "true";
+const DEV_BYPASS_AUTH = __DEV__ && process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH === "true";
 
 export default function IndexScreen() {
-  const { status, session, errorMessage, refreshSession, dismissSessionError } = useAuth();
+  const { status, session, refreshSession, dismissSessionError } = useAuth();
+  const { globalError: errorMessage } = useUIStore();
   const { palette } = useTheme();
 
   // Dev bypass — skip auth entirely

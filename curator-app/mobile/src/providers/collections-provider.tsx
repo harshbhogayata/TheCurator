@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   type PropsWithChildren,
@@ -34,7 +35,8 @@ interface CollectionsContextValue {
   getCollection: (id: string) => Collection | undefined;
 }
 
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const STORAGE_KEY = "curator.collections";
 
 function generateId(): string {
   return `temp-${Date.now().toString(36)}${Math.random().toString(36).slice(2)}`;
@@ -48,12 +50,29 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (MOCK_BACKEND) {
-      return;
+      let cancelled = false;
+      AsyncStorage.getItem(STORAGE_KEY).then((value) => {
+        if (!cancelled && value) {
+          try {
+            setCollections(JSON.parse(value));
+          } catch {
+            setCollections([]);
+          }
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (status !== "signed-in") {
       setCollections([]);
       return;
+    }
+
+    if (!MOCK_BACKEND) {
+      void AsyncStorage.removeItem(STORAGE_KEY);
     }
 
     let cancelled = false;
@@ -93,7 +112,11 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       };
 
       setCollections((prev) => {
-        return [newCollection, ...prev];
+        const next = [newCollection, ...prev];
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (!MOCK_BACKEND && status === "signed-in") {
@@ -120,9 +143,13 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const updateCollection = useCallback(
     (id: string, updates: Partial<Pick<Collection, "name" | "description" | "color" | "icon">>) => {
       setCollections((prev) => {
-        return prev.map((collection) =>
+        const next = prev.map((collection) =>
           collection.id === id ? { ...collection, ...updates } : collection,
         );
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (!MOCK_BACKEND && status === "signed-in" && !id.startsWith("temp-")) {
@@ -145,7 +172,11 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const deleteCollection = useCallback(
     (id: string) => {
       setCollections((prev) => {
-        return prev.filter((collection) => collection.id !== id);
+        const next = prev.filter((collection) => collection.id !== id);
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (!MOCK_BACKEND && status === "signed-in" && !id.startsWith("temp-")) {
@@ -160,13 +191,17 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const addArticleToCollection = useCallback(
     (collectionId: string, articleId: string) => {
       setCollections((prev) => {
-        return prev.map((collection) => {
+        const next = prev.map((collection) => {
           if (collection.id !== collectionId || collection.articleIds.includes(articleId)) {
             return collection;
           }
 
           return { ...collection, articleIds: [...collection.articleIds, articleId] };
         });
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (!MOCK_BACKEND && status === "signed-in" && !collectionId.startsWith("temp-")) {
@@ -200,7 +235,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const removeArticleFromCollection = useCallback(
     (collectionId: string, articleId: string) => {
       setCollections((prev) => {
-        return prev.map((collection) => {
+        const next = prev.map((collection) => {
           if (collection.id !== collectionId) {
             return collection;
           }
@@ -210,6 +245,10 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
             articleIds: collection.articleIds.filter((id) => id !== articleId),
           };
         });
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (!MOCK_BACKEND && status === "signed-in" && !collectionId.startsWith("temp-")) {

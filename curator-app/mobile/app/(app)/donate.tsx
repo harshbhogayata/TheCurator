@@ -14,10 +14,11 @@ import {
 } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
-import { useSubscription } from "../../src/providers/subscription-provider";
+import { useSubscription, type SubscriptionTier } from "../../src/providers/subscription-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import type { PurchasesPackage } from "react-native-purchases";
 
 interface Plan {
   id: "free" | "basic" | "premium" | "lifetime";
@@ -93,21 +94,46 @@ const planIcons = {
   lifetime: Star,
 };
 
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+
 export default function DonateScreen() {
   const { palette } = useTheme();
-  const { tier, setTier } = useSubscription();
+  const { tier, setTier, packages, purchasePackage, isPurchasing } = useSubscription();
   const { showToast } = useToast();
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
   const selectedPlanData = plans.find((plan) => plan.id === selectedPlan) ?? plans[2];
 
-  const handleSubscribe = () => {
-    setTier(selectedPlan);
-    const msg = selectedPlan === "free"
-      ? "Switched to Free plan."
-      : `You're now a ${selectedPlan} member! Thank you for your support.`;
-    showToast("success", msg);
-    router.back();
+  const handleSubscribe = async () => {
+    if (MOCK_BACKEND) {
+      setTier(selectedPlan);
+      const msg = selectedPlan === "free"
+        ? "Switched to Free plan."
+        : `You're now a ${selectedPlan} member! Thank you for your support.`;
+      showToast("success", msg);
+      router.back();
+      return;
+    }
+
+    if (selectedPlan === "free") {
+       showToast("info", "You are already on the free plan.");
+       return;
+    }
+
+    // Attempt to find matching RC package by identifier (usually matches tier string)
+    // Note: Enterprise setup would have explicit mapping.
+    const pkg = packages.find(p => p.identifier.toLowerCase() === selectedPlan);
+    
+    if (!pkg) {
+      showToast("error", "This package is not available for purchase right now.");
+      return;
+    }
+
+    const success = await purchasePackage(pkg);
+    if (success) {
+      showToast("success", `You're now a ${selectedPlan} member! Thank you for your support.`);
+      router.back();
+    }
   };
 
   return (
@@ -402,7 +428,7 @@ export default function DonateScreen() {
                   letterSpacing: 0.2,
                 }}
               >
-                Subscribe to {selectedPlanData.name}
+                {isPurchasing ? "Processing..." : `Subscribe to ${selectedPlanData.name}`}
               </Text>
               <Text
                 numberOfLines={1}

@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Hash, Link2, Mail, Save, User } from "lucide-react-native";
+import { Download, Hash, Link2, Mail, Save, User } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { useAuth } from "../../src/providers/auth-provider";
@@ -243,6 +243,38 @@ export default function AccountScreen() {
                 </Text>
                 <Text style={[styles.connectedDescription, { color: palette.onSurfaceVariant }]}>
                   Manage linked sign-in methods and recovery access.
+                </Text>
+              </View>
+            </View>
+          </Pressable>
+
+          <Pressable
+            onPress={() => router.push("/(app)/data-export" as any)}
+            style={({ pressed }) => [
+              styles.connectedRow,
+              {
+                backgroundColor: pressed ? palette.surfaceContainerLow : palette.surfaceContainerLowest,
+                borderColor: palette.outlineVariant + "26",
+                marginTop: 12,
+              },
+            ]}
+          >
+            <View style={styles.connectedContent}>
+              <View
+                style={[
+                  styles.connectedIcon,
+                  { backgroundColor: palette.surfaceContainer },
+                ]}
+              >
+                <Download size={20} color={palette.primary} strokeWidth={2.1} />
+              </View>
+
+              <View style={styles.connectedCopy}>
+                <Text style={[styles.connectedTitle, { color: palette.onSurface }]}>
+                  Data Export
+                </Text>
+                <Text style={[styles.connectedDescription, { color: palette.onSurfaceVariant }]}>
+                  Download a copy of your personal data and saved articles.
                 </Text>
               </View>
             </View>

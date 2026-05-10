@@ -5,7 +5,7 @@ import type { BriefItem } from "../data/briefs";
 import { queryKeys } from "../lib/query-keys";
 import { fetchBriefs } from "../services/mobile-api";
 
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
 
 async function fetchBriefsQuery(): Promise<BriefItem[]> {
   if (MOCK_BACKEND) {

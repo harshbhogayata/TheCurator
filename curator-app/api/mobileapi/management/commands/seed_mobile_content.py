@@ -3,7 +3,8 @@ from datetime import date
 from django.core.management.base import BaseCommand
 from django.db import transaction
 
-from mobileapi.models import Article, Brief
+from mobileapi.category_catalog import CONTENT_CATEGORY_CATALOG
+from mobileapi.models import Article, Brief, Category
 
 
 ARTICLES = [
@@ -154,6 +155,18 @@ class Command(BaseCommand):
 
     @transaction.atomic
     def handle(self, *args, **options):
+        for category in CONTENT_CATEGORY_CATALOG:
+            Category.objects.update_or_create(
+                slug=category["slug"],
+                defaults={
+                    "name": category["name"],
+                    "color": category["color"],
+                    "icon": category["icon"],
+                    "rank": category["rank"],
+                    "is_active": True,
+                },
+            )
+
         article_count = 0
         brief_count = 0
 

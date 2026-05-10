@@ -9,6 +9,8 @@ import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "../providers/theme-provider";
 import { useAudio } from "../providers/audio-provider";
+import { useBriefs } from "../hooks/use-briefs";
+import { useArticles } from "../hooks/use-articles";
 import { dailyBriefs } from "../data/briefs";
 import { articles } from "../data/articles";
 
@@ -32,6 +34,8 @@ function AudioMiniPlayerInner() {
     skipBackward,
     stopBrief,
   } = useAudio();
+  const { data: liveBriefs = dailyBriefs } = useBriefs();
+  const { data: liveArticles = articles } = useArticles();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
 
@@ -52,12 +56,12 @@ function AudioMiniPlayerInner() {
 
   const briefTitle = useMemo(() => {
     if (!currentBriefId) return "Daily Brief";
-    const brief = dailyBriefs.find((b) => b.id === currentBriefId);
+    const brief = liveBriefs.find((b) => b.id === currentBriefId);
     if (brief) return brief.title;
-    const article = articles.find((a) => a.id === currentBriefId);
+    const article = liveArticles.find((a) => a.id === currentBriefId);
     if (article) return article.title;
     return "Daily Brief";
-  }, [currentBriefId]);
+  }, [currentBriefId, liveBriefs, liveArticles]);
 
   if (state === "idle") {
     return null;

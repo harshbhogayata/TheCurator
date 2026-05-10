@@ -1,28 +1,56 @@
 from datetime import timedelta
+import hashlib
+import json
 
+from django.conf import settings
 from django.db.models import Count, Q, Sum
+from django.http import FileResponse
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
-from rest_framework import permissions, response, status, views
+from django.utils.text import slugify
+from rest_framework import exceptions, permissions, response, status, views
 
+from common.errors import EntitlementRequired
+from common.etag import etag_response
+from common.pagination import CursorPage
+from onboarding.models import UserPreference
+
+from mobileapi.category_catalog import CONTENT_CATEGORY_CATALOG, resolve_catalog_category_name
+from mobileapi.export_services import export_file_path, validate_download_token, generate_data_export
+from mobileapi.revenuecat import process_revenuecat_webhook
+from mobileapi.tasks import generate_data_export_task
 from mobileapi.models import (
     Article,
     Brief,
+    Category,
+    DataExportRequest,
+    FeedbackReport,
+    IdempotencyKey,
+    UserDevice,
     UserCollection,
     UserCollectionArticle,
     UserEntitlement,
     UserReadingEvent,
     UserSavedArticle,
+    SubscriptionTier,
 )
 from mobileapi.serializers import (
     ArticleSerializer,
+    ArticleListSerializer,
     BriefSerializer,
+    CategorySerializer,
     CollectionCreateSerializer,
     CollectionItemWriteSerializer,
     CollectionSerializer,
     CollectionUpdateSerializer,
+    DataExportSerializer,
+    DeviceSerializer,
+    DeviceWriteSerializer,
     EntitlementSerializer,
-    EntitlementUpdateSerializer,
+    EntitlementQAOverrideSerializer,
+    FeedbackCreateSerializer,
+    FeedbackSerializer,
+    PreferenceSerializer,
     ReadingEventWriteSerializer,
     SavedArticleWriteSerializer,
 )
@@ -36,9 +64,156 @@ def _parse_int(raw_value, fallback, min_value=0, max_value=100):
     return max(min_value, min(value, max_value))
 
 
+def _request_fingerprint(request):
+    if isinstance(request.data, (dict, list)):
+        body_raw = json.dumps(request.data, sort_keys=True, default=str, separators=(",", ":"))
+    elif request.data in (None, ""):
+        body_raw = ""
+    else:
+        body_raw = str(request.data)
+
+    payload = f"{request.method}:{request.path}:{body_raw}"
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def _idempotency_preflight(request, required=False):
+    key = request.headers.get("Idempotency-Key", "").strip()
+    if not key:
+        if required:
+            return None, response.Response(
+                {
+                    "detail": "Idempotency-Key header is required for this operation.",
+                    "code": "validation_error",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return None, None
+
+    fingerprint = _request_fingerprint(request)
+    now = timezone.now()
+    existing = IdempotencyKey.objects.filter(user=request.user, key=key).first()
+    if existing and existing.expires_at <= now:
+        existing.delete()
+        existing = None
+
+    if existing:
+        if existing.request_fingerprint != fingerprint:
+            return None, response.Response(
+                {
+                    "detail": "An idempotent request with this key and a different body already exists.",
+                    "code": "idempotency_conflict",
+                },
+                status=status.HTTP_409_CONFLICT,
+            )
+        return None, response.Response(existing.response_body, status=existing.response_status)
+
+    return {"key": key, "fingerprint": fingerprint}, None
+
+
+def _idempotency_store(request, token, payload, status_code=200):
+    if not token:
+        return
+
+    IdempotencyKey.objects.create(
+        user=request.user,
+        key=token["key"],
+        request_method=request.method,
+        request_path=request.path,
+        request_fingerprint=token["fingerprint"],
+        response_status=status_code,
+        response_body=payload if payload is not None else {},
+        expires_at=timezone.now() + timedelta(hours=24),
+    )
+
+
 def _get_or_create_entitlement(user):
     entitlement, _ = UserEntitlement.objects.get_or_create(user=user)
     return entitlement
+
+
+def _tier_limits_for(entitlement):
+    effective_tier = entitlement.effective_tier
+    limits = {
+        SubscriptionTier.FREE: {"max_saves": 25, "max_collections": 3},
+        SubscriptionTier.BASIC: {"max_saves": 100, "max_collections": 10},
+        SubscriptionTier.PREMIUM: {"max_saves": None, "max_collections": None},
+        SubscriptionTier.LIFETIME: {"max_saves": None, "max_collections": None},
+    }
+    return limits.get(effective_tier, limits[SubscriptionTier.FREE])
+
+
+def _required_upgrade_tier(current_tier):
+    if current_tier == SubscriptionTier.FREE:
+        return SubscriptionTier.BASIC
+    if current_tier == SubscriptionTier.BASIC:
+        return SubscriptionTier.PREMIUM
+    return SubscriptionTier.PREMIUM
+
+
+def _enforce_save_limit(user):
+    entitlement = _get_or_create_entitlement(user)
+    save_limit = _tier_limits_for(entitlement)["max_saves"]
+    if save_limit is None:
+        return
+
+    existing_count = UserSavedArticle.objects.filter(user=user).count()
+    if existing_count >= save_limit:
+        raise EntitlementRequired(_required_upgrade_tier(entitlement.effective_tier))
+
+
+def _enforce_collection_limit(user):
+    entitlement = _get_or_create_entitlement(user)
+    collection_limit = _tier_limits_for(entitlement)["max_collections"]
+    if collection_limit is None:
+        return
+
+    existing_count = UserCollection.objects.filter(user=user).count()
+    if existing_count >= collection_limit:
+        raise EntitlementRequired(_required_upgrade_tier(entitlement.effective_tier))
+
+
+def _resolve_article_category(raw_value: str) -> str:
+    if not raw_value:
+        return raw_value
+
+    category = Category.objects.filter(Q(slug__iexact=raw_value) | Q(name__iexact=raw_value)).first()
+    if category:
+        return category.name
+
+    resolved = resolve_catalog_category_name(raw_value)
+    if resolved != raw_value:
+        return resolved
+
+    normalized = slugify(raw_value)
+    for article_category in Article.objects.filter(is_active=True).values_list("category", flat=True).distinct():
+        if slugify(article_category) == normalized:
+            return article_category
+
+    return raw_value
+
+
+def _category_payload_from_articles():
+    article_category_names = {
+        name for name in Article.objects.filter(is_active=True).values_list("category", flat=True).distinct() if name
+    }
+
+    if article_category_names:
+        items = [item for item in CONTENT_CATEGORY_CATALOG if item["name"] in article_category_names]
+        if items:
+            return items
+
+        return [
+            {
+                "slug": slugify(name),
+                "name": name,
+                "color": "#64748b",
+                "icon": "layers",
+                "rank": index,
+            }
+            for index, name in enumerate(sorted(article_category_names))
+        ]
+
+    return CONTENT_CATEGORY_CATALOG
 
 
 def _build_reading_stats_payload(user):
@@ -46,8 +221,9 @@ def _build_reading_stats_payload(user):
         UserReadingEvent.objects.filter(user=user)
         .values("event_date")
         .annotate(articles_read=Count("id"), read_time_ms=Sum("read_time_ms"))
-        .order_by("event_date")
+        .order_by("-event_date")[:365]
     )
+    daily_rows.reverse()
 
     daily_history = [
         {
@@ -111,59 +287,167 @@ def _build_reading_stats_payload(user):
     }
 
 
-class ArticleListView(views.APIView):
+class ScopedThrottleMixin:
+    read_throttle_scope = "reads"
+    write_throttle_scope = "writes"
+    throttle_scope = "reads"
+
+    def get_throttles(self):
+        if self.request.method in permissions.SAFE_METHODS:
+            self.throttle_scope = self.read_throttle_scope
+        else:
+            self.throttle_scope = self.write_throttle_scope
+        return super().get_throttles()
+
+
+class ArticleListView(ScopedThrottleMixin, views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    read_throttle_scope = "reads"
+
+    def get_throttles(self):
+        if self.request.query_params.get("q", "").strip():
+            self.read_throttle_scope = "search"
+        else:
+            self.read_throttle_scope = "reads"
+        return super().get_throttles()
 
     def get(self, request):
         queryset = Article.objects.filter(is_active=True)
 
         query = request.query_params.get("q", "").strip()
         category = request.query_params.get("category", "").strip()
-        limit = _parse_int(request.query_params.get("limit"), fallback=100, min_value=1, max_value=200)
-        offset = _parse_int(request.query_params.get("offset"), fallback=0, min_value=0, max_value=5000)
+        cursor = request.query_params.get("cursor", "").strip()
+        saved_only = request.query_params.get("savedOnly", "").strip().lower() in {"1", "true", "yes"}
+        limit = _parse_int(request.query_params.get("limit"), fallback=20, min_value=1, max_value=50)
+
+        if query and len(query) < 2:
+            return response.Response(
+                {
+                    "detail": "Search queries must be at least 2 characters long.",
+                    "code": "validation_error",
+                    "fields": {"q": ["Ensure this field has at least 2 characters."]},
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
 
         if query:
             queryset = queryset.filter(Q(title__icontains=query) | Q(excerpt__icontains=query))
 
         if category:
-            queryset = queryset.filter(category__iexact=category)
+            queryset = queryset.filter(category__iexact=_resolve_article_category(category))
 
-        payload = ArticleSerializer(queryset[offset : offset + limit], many=True).data
-        return response.Response(payload)
+        if saved_only:
+            queryset = queryset.filter(saved_by__user=request.user).distinct()
+
+        page = CursorPage(queryset=queryset, limit=limit, cursor_str=cursor).apply()
+        if page.invalid:
+            return response.Response(
+                {
+                    "detail": "The cursor value is invalid or has expired.",
+                    "code": "invalid_cursor",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = page.serialize(ArticleListSerializer)
+        return etag_response(request, payload)
 
 
 class ArticleDetailView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
 
     def get(self, request, article_id):
         article = get_object_or_404(Article, id=article_id, is_active=True)
-        return response.Response(ArticleSerializer(article).data)
+        payload = ArticleSerializer(article).data
+        return etag_response(request, payload)
+
+
+class ArticleAudioView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
+
+    def get(self, request, article_id):
+        article = get_object_or_404(Article, id=article_id, is_active=True)
+        entitlement = _get_or_create_entitlement(request.user)
+        if entitlement.effective_tier not in {
+            SubscriptionTier.BASIC,
+            SubscriptionTier.PREMIUM,
+            SubscriptionTier.LIFETIME,
+        }:
+            raise EntitlementRequired(SubscriptionTier.BASIC)
+
+        if not article.audio_url:
+            raise exceptions.NotFound("Audio is not available for this article.")
+
+        return response.Response(
+            {
+                "audioUrl": article.audio_url,
+                "durationSec": article.audio_duration_sec,
+            }
+        )
 
 
 class BriefListView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
 
     def get(self, request):
         queryset = Brief.objects.filter(is_active=True)
-        return response.Response(BriefSerializer(queryset, many=True).data)
+        cursor = request.query_params.get("cursor", "").strip()
+        limit = _parse_int(request.query_params.get("limit"), fallback=20, min_value=1, max_value=50)
+
+        page = CursorPage(queryset=queryset, limit=limit, cursor_str=cursor).apply()
+        if page.invalid:
+            return response.Response(
+                {
+                    "detail": "The cursor value is invalid or has expired.",
+                    "code": "invalid_cursor",
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = page.serialize(BriefSerializer)
+        return etag_response(request, payload)
 
 
-class SavedArticleCollectionView(views.APIView):
+class SavedArticleCollectionView(ScopedThrottleMixin, views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_throttles(self):
+        if self.request.method == "DELETE":
+            self.write_throttle_scope = "sensitive"
+        else:
+            self.write_throttle_scope = "writes"
+        return super().get_throttles()
 
     def get(self, request):
         article_ids = UserSavedArticle.objects.filter(user=request.user).values_list("article_id", flat=True)
         return response.Response({"articleIds": [str(article_id) for article_id in article_ids]})
 
     def post(self, request):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
         serializer = SavedArticleWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         article = get_object_or_404(Article, id=serializer.validated_data["articleId"], is_active=True)
-        UserSavedArticle.objects.get_or_create(user=request.user, article=article)
+        existing_save = UserSavedArticle.objects.filter(user=request.user, article=article).exists()
+        if existing_save:
+            article_ids = UserSavedArticle.objects.filter(user=request.user).values_list("article_id", flat=True)
+            payload = {"articleIds": [str(article_id) for article_id in article_ids]}
+            _idempotency_store(request, idempotency_token, payload)
+            return response.Response(payload)
+
+        _enforce_save_limit(request.user)
+        UserSavedArticle.objects.create(user=request.user, article=article)
 
         article_ids = UserSavedArticle.objects.filter(user=request.user).values_list("article_id", flat=True)
-        return response.Response({"articleIds": [str(article_id) for article_id in article_ids]})
+        payload = {"articleIds": [str(article_id) for article_id in article_ids]}
+        _idempotency_store(request, idempotency_token, payload)
+        return response.Response(payload)
 
     def delete(self, request):
         UserSavedArticle.objects.filter(user=request.user).delete()
@@ -172,6 +456,7 @@ class SavedArticleCollectionView(views.APIView):
 
 class SavedArticleDetailView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
 
     def delete(self, request, article_id):
         UserSavedArticle.objects.filter(user=request.user, article_id=article_id).delete()
@@ -179,16 +464,22 @@ class SavedArticleDetailView(views.APIView):
         return response.Response({"articleIds": [str(current_id) for current_id in article_ids]})
 
 
-class CollectionListView(views.APIView):
+class CollectionListView(ScopedThrottleMixin, views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request):
         queryset = UserCollection.objects.filter(user=request.user)
-        return response.Response({"collections": CollectionSerializer(queryset, many=True).data})
+        serialized = CollectionSerializer(queryset, many=True).data
+        return response.Response({"collections": serialized, "items": serialized})
 
     def post(self, request):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
         serializer = CollectionCreateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
+        _enforce_collection_limit(request.user)
 
         collection = UserCollection.objects.create(
             user=request.user,
@@ -197,10 +488,12 @@ class CollectionListView(views.APIView):
             color=serializer.validated_data.get("color", "#6366f1"),
             icon=serializer.validated_data.get("icon", "folder"),
         )
-        return response.Response(CollectionSerializer(collection).data, status=status.HTTP_201_CREATED)
+        payload = CollectionSerializer(collection).data
+        _idempotency_store(request, idempotency_token, payload, status_code=status.HTTP_201_CREATED)
+        return response.Response(payload, status=status.HTTP_201_CREATED)
 
 
-class CollectionDetailView(views.APIView):
+class CollectionDetailView(ScopedThrottleMixin, views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def patch(self, request, collection_id):
@@ -222,10 +515,14 @@ class CollectionDetailView(views.APIView):
         return response.Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class CollectionArticleView(views.APIView):
+class CollectionArticleView(ScopedThrottleMixin, views.APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request, collection_id):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
         collection = get_object_or_404(UserCollection, user=request.user, id=collection_id)
 
         serializer = CollectionItemWriteSerializer(data=request.data)
@@ -233,16 +530,21 @@ class CollectionArticleView(views.APIView):
 
         article = get_object_or_404(Article, id=serializer.validated_data["articleId"], is_active=True)
         UserCollectionArticle.objects.get_or_create(collection=collection, article=article)
-        return response.Response(CollectionSerializer(collection).data)
+        collection.refresh_from_db()
+        payload = CollectionSerializer(collection).data
+        _idempotency_store(request, idempotency_token, payload)
+        return response.Response(payload)
 
     def delete(self, request, collection_id, article_id):
         collection = get_object_or_404(UserCollection, user=request.user, id=collection_id)
         UserCollectionArticle.objects.filter(collection=collection, article_id=article_id).delete()
+        collection.refresh_from_db()
         return response.Response(CollectionSerializer(collection).data)
 
 
 class ReadingStatsView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
 
     def get(self, request):
         return response.Response(_build_reading_stats_payload(request.user))
@@ -250,8 +552,13 @@ class ReadingStatsView(views.APIView):
 
 class ReadingEventView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reading_events"
 
     def post(self, request):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
         serializer = ReadingEventWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
@@ -260,29 +567,279 @@ class ReadingEventView(views.APIView):
         if article_id:
             article = get_object_or_404(Article, id=article_id, is_active=True)
 
-        UserReadingEvent.objects.create(
-            user=request.user,
-            article=article,
-            read_time_ms=serializer.validated_data["readTimeMs"],
-            event_date=timezone.localdate(),
+        read_time_ms = serializer.validated_data["readTimeMs"]
+        if read_time_ms != request.data.get("readTimeMs"):
+            import logging
+
+            logging.getLogger(__name__).warning(
+                "Clamped readTimeMs for user %s from %s to %s",
+                request.user.id,
+                request.data.get("readTimeMs"),
+                read_time_ms,
+            )
+        current_hour = timezone.now().replace(minute=0, second=0, microsecond=0)
+        existing_event = (
+            UserReadingEvent.objects.filter(
+                user=request.user,
+                article=article,
+                created_at__gte=current_hour,
+                created_at__lt=current_hour + timedelta(hours=1),
+            )
+            .order_by("-created_at")
+            .first()
         )
 
-        return response.Response(_build_reading_stats_payload(request.user))
+        if existing_event is None:
+            UserReadingEvent.objects.create(
+                user=request.user,
+                article=article,
+                read_time_ms=read_time_ms,
+                event_date=timezone.localdate(),
+            )
+        else:
+            existing_event.read_time_ms = min(existing_event.read_time_ms + read_time_ms, 7_200_000)
+            existing_event.event_date = timezone.localdate()
+            existing_event.save(update_fields=["read_time_ms", "event_date", "updated_at"])
+
+        payload = _build_reading_stats_payload(request.user)
+        _idempotency_store(request, idempotency_token, payload)
+        return response.Response(payload)
+
+
+class CategoryListView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
+
+    def get(self, request):
+        queryset = Category.objects.filter(is_active=True)
+        if queryset.exists():
+            items = CategorySerializer(queryset, many=True).data
+        else:
+            items = _category_payload_from_articles()
+
+        payload = {
+            "items": items,
+        }
+        return etag_response(
+            request,
+            payload,
+            cache_control="public, max-age=3600, stale-while-revalidate=86400",
+        )
+
+
+class PreferenceView(ScopedThrottleMixin, views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        preferences, _ = UserPreference.objects.get_or_create(user=request.user)
+        payload = PreferenceSerializer(preferences).data
+        return response.Response(payload)
+
+    def patch(self, request):
+        preferences, _ = UserPreference.objects.get_or_create(user=request.user)
+        serializer = PreferenceSerializer(preferences, data=request.data, partial=True)
+        serializer.is_valid(raise_exception=True)
+        serializer.save()
+        return response.Response(serializer.data)
+
+
+class DeviceCollectionView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
+
+    def post(self, request):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
+        serializer = DeviceWriteSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        device_id = serializer.validated_data.get("deviceId")
+        token = serializer.validated_data["expoPushToken"]
+        if device_id:
+            existing = UserDevice.objects.filter(id=device_id).first()
+            if existing and existing.user_id != request.user.id:
+                device_id = None
+
+        if device_id:
+            UserDevice.objects.filter(user=request.user, expo_push_token=token).exclude(id=device_id).delete()
+
+        UserDevice.objects.filter(expo_push_token=token).exclude(user=request.user).update(
+            is_active=False,
+        )
+
+        defaults = {
+            "expo_push_token": token,
+            "platform": serializer.validated_data["platform"],
+            "app_version": serializer.validated_data.get("appVersion", ""),
+            "last_seen": timezone.now(),
+            "is_active": True,
+        }
+
+        if device_id:
+            device, _ = UserDevice.objects.update_or_create(
+                id=device_id,
+                user=request.user,
+                defaults=defaults,
+            )
+        else:
+            device, _ = UserDevice.objects.update_or_create(
+                user=request.user,
+                expo_push_token=token,
+                defaults=defaults,
+            )
+
+        payload = DeviceSerializer(device).data
+        _idempotency_store(request, idempotency_token, payload)
+        return response.Response(payload)
+
+
+class DeviceDetailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
+
+    def delete(self, request, device_id):
+        UserDevice.objects.filter(user=request.user, id=device_id).update(
+            is_active=False,
+            last_seen=timezone.now(),
+        )
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class FeedbackCreateView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "feedback"
+
+    def post(self, request):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
+        serializer = FeedbackCreateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        report = FeedbackReport.objects.create(
+            user=request.user,
+            category=serializer.validated_data["category"],
+            message=serializer.validated_data["message"],
+            app_version=serializer.validated_data.get("appVersion", ""),
+            os_version=serializer.validated_data.get("osVersion", ""),
+            attach_diagnostics=serializer.validated_data.get("attachDiagnostics", False),
+        )
+
+        payload = FeedbackSerializer(report).data
+        _idempotency_store(request, idempotency_token, payload, status_code=status.HTTP_201_CREATED)
+        return response.Response(payload, status=status.HTTP_201_CREATED)
+
+
+class PrivacyExportRequestView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "sensitive"
+
+    def post(self, request):
+        idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
+        if idempotent_response is not None:
+            return idempotent_response
+
+        within_day = timezone.now() - timedelta(hours=24)
+        export_request = (
+            DataExportRequest.objects.filter(user=request.user, created_at__gte=within_day)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if export_request is None:
+            export_request = DataExportRequest.objects.create(user=request.user)
+            if getattr(settings, "DATA_EXPORT_ASYNC", False):
+                generate_data_export_task.delay(export_request.id)
+            else:
+                generate_data_export(export_request.id)
+
+        payload = DataExportSerializer(export_request).data
+        _idempotency_store(request, idempotency_token, payload, status_code=status.HTTP_202_ACCEPTED)
+        return response.Response(payload, status=status.HTTP_202_ACCEPTED)
+
+
+class PrivacyExportListView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
+
+    def get(self, request):
+        queryset = DataExportRequest.objects.filter(user=request.user)
+        return response.Response({"items": DataExportSerializer(queryset, many=True).data})
 
 
 class EntitlementView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
 
     def get(self, request):
         entitlement = _get_or_create_entitlement(request.user)
         return response.Response(EntitlementSerializer(entitlement).data)
 
+
+class EntitlementQAOverrideView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "sensitive"
+
     def patch(self, request):
-        serializer = EntitlementUpdateSerializer(data=request.data)
+        if not request.user.is_staff:
+            raise exceptions.PermissionDenied("Staff access required.")
+
+        serializer = EntitlementQAOverrideSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
         entitlement = _get_or_create_entitlement(request.user)
-        entitlement.tier = serializer.validated_data["tier"]
-        entitlement.save(update_fields=["tier", "updated_at"])
+        entitlement.qa_override_enabled = serializer.validated_data["enabled"]
+        entitlement.qa_override_tier = serializer.validated_data.get("tier", "")
+        entitlement.save(update_fields=["qa_override_enabled", "qa_override_tier", "updated_at"])
 
         return response.Response(EntitlementSerializer(entitlement).data)
+
+class PrivacyExportDownloadView(views.APIView):
+    permission_classes = []
+    authentication_classes = []
+    throttle_scope = "reads"
+
+    def get(self, request, export_id):
+        token = request.query_params.get("token")
+        if not token:
+            raise exceptions.PermissionDenied("Download token required.")
+
+        export_request = get_object_or_404(DataExportRequest, id=export_id)
+        if not validate_download_token(export_request, token):
+            raise exceptions.PermissionDenied("Invalid or expired download token.")
+
+        if export_request.status != "completed":
+            return response.Response({"detail": "Export is not ready."}, status=status.HTTP_400_BAD_REQUEST)
+
+        path = export_file_path(export_request)
+        if not path.exists():
+            raise exceptions.NotFound("Export file not found.")
+
+        return FileResponse(
+            open(path, "rb"),
+            as_attachment=True,
+            filename=f"curator_export_{export_request.id}.json",
+            content_type="application/json",
+        )
+
+
+class RevenueCatWebhookView(views.APIView):
+    authentication_classes = []
+    permission_classes = []
+
+    def post(self, request):
+        auth_header = request.headers.get("Authorization", "")
+        expected_token = f"Bearer {settings.REVENUECAT_WEBHOOK_SECRET}"
+
+        if not settings.REVENUECAT_WEBHOOK_SECRET or auth_header != expected_token:
+            raise exceptions.PermissionDenied("Invalid webhook signature.")
+
+        try:
+            process_revenuecat_webhook(request.data)
+        except ValueError as exc:
+            return response.Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return response.Response(status=status.HTTP_200_OK)

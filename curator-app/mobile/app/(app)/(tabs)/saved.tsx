@@ -49,7 +49,7 @@ export default function SavedScreen() {
   // Get saved articles from data
   const savedArticles = useMemo(() => {
     return articles.filter((article) => isArticleSaved(article.id));
-  }, [savedArticleIds, isArticleSaved]);
+  }, [articles, savedArticleIds, isArticleSaved]);
 
   const categoryChips = useMemo(() => {
     const cats = [...new Set(savedArticles.map((a) => a.category))];

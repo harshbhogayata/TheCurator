@@ -1,7 +1,8 @@
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client";
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
-import { type PropsWithChildren, useState } from "react";
+import { type PropsWithChildren } from "react";
 
+import { asyncStoragePersister, queryClient } from "../lib/query-client";
 import { AudioProvider } from "./audio-provider";
 import { AuthProvider } from "./auth-provider";
 import { CollectionsProvider } from "./collections-provider";
@@ -13,20 +14,11 @@ import { ThemeProvider } from "./theme-provider";
 import { ToastProvider } from "./toast-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
-  const [queryClient] = useState(
-    () =>
-      new QueryClient({
-        defaultOptions: {
-          queries: {
-            retry: 1,
-            refetchOnWindowFocus: false,
-          },
-        },
-      }),
-  );
-
   return (
-    <QueryClientProvider client={queryClient}>
+    <PersistQueryClientProvider
+      client={queryClient}
+      persistOptions={{ persister: asyncStoragePersister }}
+    >
       <ThemeProvider>
         <AuthProvider>
           <BottomSheetModalProvider>
@@ -46,6 +38,7 @@ export function AppProviders({ children }: PropsWithChildren) {
           </BottomSheetModalProvider>
         </AuthProvider>
       </ThemeProvider>
-    </QueryClientProvider>
+    </PersistQueryClientProvider>
   );
 }
+

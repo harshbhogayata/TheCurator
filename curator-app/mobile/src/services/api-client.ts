@@ -1,4 +1,9 @@
+import axios, { type AxiosError, type AxiosRequestConfig, type AxiosResponse, type RawAxiosRequestHeaders } from "axios";
 import Constants from "expo-constants";
+import * as crypto from "expo-crypto";
+import axiosRetry from "axios-retry";
+
+import { getFirebaseAuth } from "./firebase";
 
 const apiBaseUrl =
   Constants.expoConfig?.extra?.apiUrl ??
@@ -17,41 +22,103 @@ export class ApiError extends Error {
   }
 }
 
-interface ApiRequestOptions extends Omit<RequestInit, "body"> {
+export const apiClient = axios.create({
+  baseURL: apiBaseUrl,
+  headers: {
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  },
+  timeout: 10000,
+});
+
+axiosRetry(apiClient, {
+  retries: 3,
+  retryDelay: axiosRetry.exponentialDelay,
+  retryCondition: (error: AxiosError) => {
+    // Retry on network errors or 429/5xx status codes
+    return (
+      axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+      error.response?.status === 429 ||
+      (error.response?.status !== undefined && error.response.status >= 500)
+    );
+  },
+});
+
+apiClient.interceptors.request.use(
+  async (config) => {
+    const auth = getFirebaseAuth();
+    const user = auth.currentUser;
+
+    if (user) {
+      // Force refresh if close to expiry
+      const token = await user.getIdToken();
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error),
+);
+
+apiClient.interceptors.response.use(
+  (response) => response,
+  async (error: AxiosError) => {
+    const originalRequest = error.config as AxiosRequestConfig & { _retry?: boolean };
+
+    // Handle 401 Unauthorized by forcing a token refresh
+    if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
+      originalRequest._retry = true;
+      try {
+        const auth = getFirebaseAuth();
+        const user = auth.currentUser;
+        if (user) {
+          const newToken = await user.getIdToken(true); // force refresh
+          if (originalRequest.headers) {
+            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+          }
+          return apiClient(originalRequest);
+        }
+      } catch (refreshError) {
+        // Log to Sentry here eventually
+        return Promise.reject(refreshError);
+      }
+    }
+
+    const payload = error.response?.data as any;
+    const message =
+      typeof payload === "object" && payload !== null && typeof payload.detail === "string"
+        ? payload.detail
+        : error.message || "Something went wrong while talking to Curator.";
+
+    const status = error.response?.status ?? 0;
+    return Promise.reject(new ApiError(message, status, payload));
+  },
+);
+
+export interface ApiRequestOptions extends Omit<AxiosRequestConfig, "url" | "method" | "data" | "headers"> {
   body?: unknown;
-  token?: string;
+  method?: AxiosRequestConfig["method"];
+  headers?: RawAxiosRequestHeaders;
+  token?: string; // Kept for backwards compatibility but largely unused now
 }
 
 export async function apiRequest<T>(
   path: string,
-  { body, headers, token, ...init }: ApiRequestOptions = {},
+  { body, method = "GET", headers, token: _token, ...init }: ApiRequestOptions = {},
 ): Promise<T> {
-  const response = await fetch(`${apiBaseUrl}${path}`, {
-    ...init,
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-      ...(headers ?? {}),
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
-
-  const contentType = response.headers.get("content-type") ?? "";
-  const payload = contentType.includes("application/json")
-    ? await response.json()
-    : await response.text();
-
-  if (!response.ok) {
-    const message =
-      typeof payload === "object" &&
-      payload !== null &&
-      "detail" in payload &&
-      typeof payload.detail === "string"
-        ? payload.detail
-        : "Something went wrong while talking to Curator.";
-    throw new ApiError(message, response.status, payload);
+  try {
+    const response = await apiClient.request<T, AxiosResponse<T>>({
+      url: path,
+      method,
+      data: body,
+      headers,
+      ...init,
+    });
+    return response.data;
+  } catch (error) {
+    if (error instanceof ApiError) {
+      throw error;
+    }
+    throw new ApiError("An unexpected error occurred", 0, error);
   }
-
-  return payload as T;
 }

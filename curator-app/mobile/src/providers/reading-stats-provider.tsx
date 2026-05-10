@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   type PropsWithChildren,
@@ -36,7 +37,8 @@ interface ReadingStatsContextValue {
   recentArticleIds: string[];
 }
 
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const STORAGE_KEY = "curator.reading-stats";
 
 const DEFAULT_STATS: ReadingStats = {
   totalArticlesRead: 0,
@@ -136,12 +138,36 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (MOCK_BACKEND) {
-      return;
+      let cancelled = false;
+      AsyncStorage.getItem(STORAGE_KEY).then((value) => {
+        if (!cancelled && value) {
+          try {
+            const loaded: ReadingStats = {
+              ...DEFAULT_STATS,
+              ...JSON.parse(value),
+            };
+            const { currentStreak, longestStreak } = calculateStreak(loaded.dailyHistory);
+            loaded.currentStreak = currentStreak;
+            loaded.longestStreak = longestStreak;
+            setStats(loaded);
+          } catch {
+            setStats(DEFAULT_STATS);
+          }
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (status !== "signed-in") {
       setStats(DEFAULT_STATS);
       return;
+    }
+
+    if (!MOCK_BACKEND) {
+      void AsyncStorage.removeItem(STORAGE_KEY);
     }
 
     let cancelled = false;
@@ -234,6 +260,9 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
           dailyHistory,
           recentArticleIds,
         };
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
         return next;
       });
     },
@@ -250,6 +279,9 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
         ...prev,
         totalSaved: prev.totalSaved + 1,
       };
+      if (MOCK_BACKEND) {
+        void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+      }
       return next;
     });
   }, [status]);

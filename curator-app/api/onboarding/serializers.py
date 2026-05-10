@@ -34,6 +34,7 @@ class OnboardingPreferenceSerializer(serializers.Serializer):
     autoSaveEnabled = serializers.BooleanField()
     textSize = serializers.ChoiceField(choices=TextSize.values)
     reduceMotionEnabled = serializers.BooleanField()
+    skipNotifications = serializers.BooleanField(required=False, default=False)
 
     def update_preferences(self, instance: UserPreference):
         data = self.validated_data

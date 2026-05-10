@@ -13,6 +13,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Sparkles, Play, Pause, Lock, Quote } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 import { useTheme } from "../../../src/providers/theme-provider";
 import { useSubscription } from "../../../src/providers/subscription-provider";
@@ -28,10 +29,14 @@ import { dailyBriefs } from "../../../src/data/briefs";
 
 export default function BriefsScreen() {
   const { palette } = useTheme();
+  const router = useRouter();
   const { hasAdFree, hasAudioAccess } = useSubscription();
   const { playBrief, state, currentBriefId, pause, resume } = useAudio();
-  const { data: briefs = dailyBriefs, isFetching, refetch } = useBriefs();
+  const { data: briefs = [], isFetching, refetch } = useBriefs();
   const headerOffset = useHeaderOffset();
+
+  // Use API data when available; fall back to static mock data only when API returns empty
+  const displayBriefs = briefs.length > 0 ? briefs : dailyBriefs;
 
   const [refreshing, setRefreshing] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
@@ -47,8 +52,8 @@ export default function BriefsScreen() {
     void refetch().finally(() => setRefreshing(false));
   }, [refetch]);
 
-  const featuredBrief = briefs[0] ?? dailyBriefs[0];
-  const moreBriefs = briefs.length > 1 ? briefs.slice(1) : dailyBriefs.slice(1);
+  const featuredBrief = displayBriefs[0];
+  const moreBriefs = displayBriefs.slice(1);
 
   const handlePlayBrief = useCallback(
     (id: string, audioUrl: string) => {
@@ -405,6 +410,10 @@ export default function BriefsScreen() {
         onClose={() => setPaywallVisible(false)}
         featureName="Audio Briefs"
         requiredTier="basic"
+        onUpgrade={() => {
+          setPaywallVisible(false);
+          router.push("/(app)/donate");
+        }}
       />
     </SafeAreaView>
   );

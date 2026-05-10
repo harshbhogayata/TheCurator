@@ -10,4 +10,9 @@ export const queryKeys = {
     list: () => ["briefs", "list"] as const,
     detail: (id: string) => ["briefs", id] as const,
   },
+  categories: {
+    all: ["categories"] as const,
+    list: () => ["categories", "list"] as const,
+  },
 } as const;
+

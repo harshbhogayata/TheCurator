@@ -672,11 +672,9 @@ export default function OnboardingScreen() {
   const savePreferences = async () => {
     clearError();
     try {
-      await updateOnboardingPreferences(preferences);
-      // appearance and notifications are merged into one visual step; advance past both in one press
-      if (localStep === "appearance") {
-        await updateOnboardingPreferences(preferences);
-      }
+      await updateOnboardingPreferences(preferences, {
+        skipNotifications: localStep === "appearance",
+      });
     } catch { /* errorMessage surfaced by AuthProvider */ }
   };
 

@@ -12,8 +12,8 @@
     "backend:migrate": "npm --prefix backend run db:migrate:dev",
     "backend:migrate:deploy": "npm --prefix backend run db:migrate:deploy",
     "db:down": "docker compose down",
-    "db:logs": "docker compose logs -f postgres",
-    "db:up": "docker compose up -d postgres",
+    "db:logs": "docker compose logs -f postgres redis",
+    "db:up": "docker compose up -d postgres redis",
     "mobile:start": "npm --prefix mobile start",
     "mobile:typecheck": "npm --prefix mobile run typecheck"
   }

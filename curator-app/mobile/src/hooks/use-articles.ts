@@ -5,7 +5,7 @@ import type { Article } from "../data/articles";
 import { queryKeys } from "../lib/query-keys";
 import { fetchArticle, fetchArticles } from "../services/mobile-api";
 
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
 
 async function fetchArticlesQuery(filters?: Record<string, unknown>): Promise<Article[]> {
   if (MOCK_BACKEND) {

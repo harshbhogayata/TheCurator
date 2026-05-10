@@ -1,6 +1,7 @@
 from pathlib import Path
 
 import environ
+from django.core.exceptions import ImproperlyConfigured
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
@@ -9,11 +10,21 @@ env = environ.Env(
 )
 environ.Env.read_env(BASE_DIR / ".env")
 
-SECRET_KEY = env(
-    "DJANGO_SECRET_KEY",
-    default="django-insecure-curator-mobile-rewrite-dev-only",
-)
 DEBUG = env("DJANGO_DEBUG")
+
+def _get_secret_key():
+    secret_key = env("DJANGO_SECRET_KEY", default="")
+
+    if secret_key:
+        return secret_key
+
+    if DEBUG:
+        return "django-insecure-curator-mobile-rewrite-dev-only"
+
+    raise ImproperlyConfigured("DJANGO_SECRET_KEY is required when DJANGO_DEBUG is false.")
+
+
+SECRET_KEY = _get_secret_key()
 ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
 
 CSRF_TRUSTED_ORIGINS = env.list(
@@ -52,11 +63,13 @@ INSTALLED_APPS = [
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "common.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
     "django.middleware.common.CommonMiddleware",
     "django.middleware.csrf.CsrfViewMiddleware",
     "django.contrib.auth.middleware.AuthenticationMiddleware",
+    "common.middleware.RequestLoggingMiddleware",
     "django.contrib.messages.middleware.MessageMiddleware",
     "django.middleware.clickjacking.XFrameOptionsMiddleware",
 ]
@@ -125,10 +138,26 @@ REST_FRAMEWORK = {
     "DEFAULT_PERMISSION_CLASSES": [
         "rest_framework.permissions.IsAuthenticated",
     ],
+    "EXCEPTION_HANDLER": "common.errors.custom_exception_handler",
+    "DEFAULT_THROTTLE_CLASSES": [
+        "users.throttling.ScopedUserThrottle",
+    ],
+    "DEFAULT_THROTTLE_RATES": {
+        "reads": "300/minute",
+        "writes": "60/minute",
+        "reading_events": "600/hour",
+        "auth_session": "20/minute",
+        "sensitive": "5/minute",
+        "search": "30/minute",
+        "feedback": "5/hour",
+    },
 }
 
-SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-USE_X_FORWARDED_HOST = True
+DATA_UPLOAD_MAX_MEMORY_SIZE = 128 * 1024
+
+TRUST_PROXY = env.bool("TRUST_PROXY", default=False)
+SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY else None
+USE_X_FORWARDED_HOST = TRUST_PROXY
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
@@ -145,16 +174,61 @@ SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=not DEBUG)
 FIREBASE_PROJECT_ID = env("FIREBASE_PROJECT_ID", default="")
 FIREBASE_CREDENTIALS_PATH = env("FIREBASE_CREDENTIALS_PATH", default="")
 FIREBASE_CREDENTIALS_JSON = env("FIREBASE_CREDENTIALS_JSON", default="")
+APP_VERSION = env("APP_VERSION", default="dev")
+API_PUBLIC_BASE_URL = env("API_PUBLIC_BASE_URL", default="http://127.0.0.1:8000")
+DATA_EXPORT_STORAGE_DIR = env("DATA_EXPORT_STORAGE_DIR", default=str(BASE_DIR / "generated_exports"))
+DATA_EXPORT_ASYNC = env.bool("DATA_EXPORT_ASYNC", default=False)
+DATA_EXPORT_EXPIRY_HOURS = env.int("DATA_EXPORT_EXPIRY_HOURS", default=24)
+REVENUECAT_WEBHOOK_SECRET = env("REVENUECAT_WEBHOOK_SECRET", default="")
+REVENUECAT_PRODUCT_TIER_MAP = env.json("REVENUECAT_PRODUCT_TIER_MAP", default={})
+
+SENTRY_DSN = env("SENTRY_DSN", default="")
+if SENTRY_DSN:
+    import sentry_sdk
+    from sentry_sdk.integrations.django import DjangoIntegration
+
+    sentry_sdk.init(
+        dsn=SENTRY_DSN,
+        integrations=[DjangoIntegration()],
+        send_default_pii=False,
+        traces_sample_rate=env.float("SENTRY_TRACES_SAMPLE_RATE", default=0.0),
+    )
 
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="redis://127.0.0.1:6379/0")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default="redis://127.0.0.1:6379/1")
 
+EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
+EMAIL_HOST = env("EMAIL_HOST", default="")
+EMAIL_PORT = env.int("EMAIL_PORT", default=587)
+EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
+EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
+EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+
 LOGGING = {
     "version": 1,
     "disable_existing_loggers": False,
+    "filters": {
+        "sensitive": {
+            "()": "common.middleware.SensitiveLogFilter",
+        }
+    },
+    "formatters": {
+        "standard": {
+            "format": "%(asctime)s %(levelname)s %(name)s %(message)s",
+        }
+    },
     "handlers": {
         "console": {
             "class": "logging.StreamHandler",
+            "filters": ["sensitive"],
+            "formatter": "standard",
+        }
+    },
+    "loggers": {
+        "curator.requests": {
+            "handlers": ["console"],
+            "level": "INFO",
+            "propagate": False,
         }
     },
     "root": {

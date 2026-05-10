@@ -98,8 +98,14 @@ class SessionSerializer(serializers.Serializer):
 
 
 class AccountUpdateSerializer(serializers.ModelSerializer):
-    displayName = serializers.CharField(source="display_name", max_length=120, required=False)
+    displayName = serializers.CharField(source="display_name", max_length=80, required=False)
 
     class Meta:
         model = User
         fields = ("displayName",)
+
+    def validate_displayName(self, value):
+        trimmed = value.strip()
+        if not trimmed:
+            raise serializers.ValidationError("This field may not be blank.")
+        return trimmed

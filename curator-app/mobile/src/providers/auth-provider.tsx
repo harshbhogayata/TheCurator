@@ -19,14 +19,16 @@ import {
 
 import { defaultPreferences } from "../lib/types";
 import type { AuthStatus, SessionPayload, UserPreferences } from "../lib/types";
+import { useUIStore } from "../lib/store";
 import { apiRequest } from "../services/api-client";
 import { deleteAccountRemote } from "../services/mobile-api";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
+import { resetQueryCache } from "../lib/query-client";
 import { useTheme } from "./theme-provider";
 
 // Set EXPO_PUBLIC_MOCK_BACKEND=true in .env to short-circuit auth locally.
 // Defaults to false so production builds are safe without explicit opt-in.
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
 
 function buildMockSession(overrides?: Partial<SessionPayload>): SessionPayload {
   const now = new Date().toISOString();
@@ -61,11 +63,12 @@ interface CategoryStepPayload {
 interface AuthContextValue {
   status: AuthStatus;
   session: SessionPayload | null;
-  errorMessage: string | null;
   isBusy: boolean;
+  errorMessage: string | null;
   refreshSession: () => Promise<void>;
-  clearError: () => void;
   dismissSessionError: () => void;
+  clearError: () => void;
+  updateSessionPreferences: (preferences: UserPreferences) => void;
   signInWithEmail: (email: string, password: string) => Promise<void>;
   signUpWithEmail: (input: {
     email: string;
@@ -76,7 +79,10 @@ interface AuthContextValue {
   updateProfileDetails: (payload: ProfileStepPayload) => Promise<void>;
   updateOnboardingProfile: (payload: ProfileStepPayload) => Promise<void>;
   updateOnboardingCategories: (payload: CategoryStepPayload) => Promise<void>;
-  updateOnboardingPreferences: (payload: UserPreferences) => Promise<void>;
+  updateOnboardingPreferences: (
+    payload: UserPreferences,
+    options?: { skipNotifications?: boolean },
+  ) => Promise<void>;
   completeOnboarding: () => Promise<void>;
   deleteAccount: () => Promise<void>;
   signOut: () => Promise<void>;
@@ -90,24 +96,30 @@ export function AuthProvider({ children }: PropsWithChildren) {
     MOCK_BACKEND ? "signed-out" : firebaseConfigured ? "loading" : "signed-out",
   );
   const [session, setSession] = useState<SessionPayload | null>(null);
-  const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [isBusy, setIsBusy] = useState(false);
 
-  const clearError = useCallback(() => {
-    setErrorMessage(null);
-  }, []);
+  const { runBusy, setError, clearError, isBusy, globalError } = useUIStore();
 
   const dismissSessionError = useCallback(() => {
-    setErrorMessage(null);
+    clearError();
     setStatus("signed-out");
     setSession(null);
-  }, []);
+  }, [clearError]);
 
   const applySession = useCallback(
     (payload: SessionPayload) => {
       setSession(payload);
       setStatus("signed-in");
       hydratePreference(payload.preferences.themePreference);
+    },
+    [hydratePreference],
+  );
+
+  const updateSessionPreferences = useCallback(
+    (preferences: UserPreferences) => {
+      setSession((current) =>
+        current ? { ...current, preferences } : current,
+      );
+      hydratePreference(preferences.themePreference);
     },
     [hydratePreference],
   );
@@ -140,23 +152,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [applySession],
   );
 
-  const runBusy = useCallback(async (fn: () => Promise<void>) => {
-    setIsBusy(true);
-    setErrorMessage(null);
-
-    try {
-      await fn();
-    } catch (error) {
-      const message =
-        error instanceof Error ? error.message : "Something went wrong. Please try again.";
-      setErrorMessage(message);
-      setStatus((current) => (current === "loading" ? "error" : current));
-      throw error;
-    } finally {
-      setIsBusy(false);
-    }
-  }, []);
-
   const refreshSession = useCallback(async () => {
     setStatus("loading");
     await exchangeSession();
@@ -164,7 +159,6 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (MOCK_BACKEND) {
-      // No Firebase listener in mock mode — sign-in/out are driven manually.
       return;
     }
 
@@ -187,7 +181,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         await exchangeSession(firebaseUser);
       } catch (error) {
         setStatus("error");
-        setErrorMessage(
+        setError(
           error instanceof Error
             ? error.message
             : "We couldn't restore your session.",
@@ -196,7 +190,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
     });
 
     return unsubscribe;
-  }, [exchangeSession]);
+  }, [exchangeSession, setError]);
 
   const withToken = useCallback(
     async (path: string, method: "PATCH" | "POST", body?: unknown) => {
@@ -369,7 +363,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   );
 
   const updateOnboardingPreferences = useCallback(
-    async (payload: UserPreferences) =>
+    async (payload: UserPreferences, options?: { skipNotifications?: boolean }) =>
       runBusy(async () => {
         if (MOCK_BACKEND) {
           setSession((current) => {
@@ -388,7 +382,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/onboarding/preferences", "PATCH", payload);
+        const body = options?.skipNotifications
+          ? { ...payload, skipNotifications: true }
+          : payload;
+        await withToken("/api/mobile/onboarding/preferences", "PATCH", body);
       }),
     [runBusy, withToken],
   );
@@ -419,6 +416,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const signOut = useCallback(
     async () =>
       runBusy(async () => {
+        await resetQueryCache();
         if (MOCK_BACKEND) {
           setSession(null);
           setStatus("signed-out");
@@ -435,6 +433,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const deleteAccount = useCallback(
     async () =>
       runBusy(async () => {
+        await resetQueryCache();
         if (MOCK_BACKEND) {
           setSession(null);
           setStatus("signed-out");
@@ -455,11 +454,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
     () => ({
       status,
       session,
-      errorMessage,
       isBusy,
+      errorMessage: globalError,
       refreshSession,
-      clearError,
       dismissSessionError,
+      clearError,
+      updateSessionPreferences,
       signInWithEmail,
       signUpWithEmail,
       requestPasswordReset,
@@ -475,7 +475,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       clearError,
       completeOnboarding,
       dismissSessionError,
-      errorMessage,
+      globalError,
       isBusy,
       refreshSession,
       requestPasswordReset,
@@ -488,6 +488,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       updateOnboardingPreferences,
       updateProfileDetails,
       updateOnboardingProfile,
+      updateSessionPreferences,
       deleteAccount,
     ],
   );

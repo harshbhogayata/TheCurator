@@ -21,9 +21,11 @@ def _state_for(user):
     return onboarding_state, preferences
 
 
-def _advance_preferences_step(onboarding_state: UserOnboarding):
+def _advance_preferences_step(onboarding_state: UserOnboarding, skip_notifications: bool = False):
     if onboarding_state.current_step == OnboardingStep.APPEARANCE:
-        onboarding_state.current_step = OnboardingStep.NOTIFICATIONS
+        onboarding_state.current_step = (
+            OnboardingStep.READING if skip_notifications else OnboardingStep.NOTIFICATIONS
+        )
     elif onboarding_state.current_step == OnboardingStep.NOTIFICATIONS:
         onboarding_state.current_step = OnboardingStep.READING
     else:
@@ -35,6 +37,7 @@ def _advance_preferences_step(onboarding_state: UserOnboarding):
 
 class OnboardingStateView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
 
     def get(self, request):
         return response.Response(SessionSerializer(request.user).data)
@@ -42,6 +45,7 @@ class OnboardingStateView(views.APIView):
 
 class OnboardingProfileView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
 
     def patch(self, request):
         serializer = OnboardingProfileSerializer(data=request.data)
@@ -60,6 +64,7 @@ class OnboardingProfileView(views.APIView):
 
 class OnboardingCategoriesView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
 
     @transaction.atomic
     def patch(self, request):
@@ -84,6 +89,7 @@ class OnboardingCategoriesView(views.APIView):
 
 class OnboardingPreferencesView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
 
     def patch(self, request):
         serializer = OnboardingPreferenceSerializer(data=request.data)
@@ -91,9 +97,10 @@ class OnboardingPreferencesView(views.APIView):
 
         onboarding_state, preferences = _state_for(request.user)
         serializer.update_preferences(preferences)
+        skip_notifications = serializer.validated_data.get("skipNotifications", False)
 
         if not onboarding_state.is_completed:
-            _advance_preferences_step(onboarding_state)
+            _advance_preferences_step(onboarding_state, skip_notifications=skip_notifications)
             onboarding_state.save(update_fields=["current_step", "updated_at"])
 
         return response.Response(SessionSerializer(request.user).data)
@@ -101,6 +108,7 @@ class OnboardingPreferencesView(views.APIView):
 
 class OnboardingCompleteView(views.APIView):
     permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "writes"
 
     def post(self, request):
         onboarding_state, _ = _state_for(request.user)

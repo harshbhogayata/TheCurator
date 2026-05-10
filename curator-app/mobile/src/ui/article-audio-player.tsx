@@ -3,6 +3,7 @@ import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Headphones, Lock, Pause, Play, SkipBack, SkipForward } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 import { useTheme } from "../providers/theme-provider";
 import { useAudio } from "../providers/audio-provider";
@@ -30,6 +31,7 @@ function ArticleAudioPlayerInner({
   title,
 }: ArticleAudioPlayerProps) {
   const { palette } = useTheme();
+  const router = useRouter();
   const { hasAudioAccess } = useSubscription();
   const {
     state,
@@ -229,6 +231,10 @@ function ArticleAudioPlayerInner({
         onClose={() => setPaywallVisible(false)}
         featureName="Narrated Stories"
         requiredTier="basic"
+        onUpgrade={() => {
+          setPaywallVisible(false);
+          router.push("/(app)/donate");
+        }}
       />
     </>
   );

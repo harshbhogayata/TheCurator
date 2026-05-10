@@ -18,6 +18,43 @@ def _provider_from_claims(claims):
     return PROVIDER_MAP.get(sign_in_provider)
 
 
+def _provider_from_provider_id(provider_id):
+    return PROVIDER_MAP.get(provider_id)
+
+
+def sync_user_identities_from_firebase_user(user: User, firebase_user):
+    provider_defaults = []
+
+    for provider_data in getattr(firebase_user, "provider_data", []) or []:
+        provider = _provider_from_provider_id(getattr(provider_data, "provider_id", ""))
+        if not provider:
+            continue
+
+        provider_defaults.append(
+            (
+                provider,
+                {
+                    "provider_uid": getattr(provider_data, "uid", "") or getattr(firebase_user, "uid", ""),
+                    "provider_email": getattr(provider_data, "email", "") or getattr(firebase_user, "email", "") or "",
+                },
+            )
+        )
+
+    if not provider_defaults:
+        return
+
+    provider_names = []
+    for provider, defaults in provider_defaults:
+        provider_names.append(provider)
+        UserIdentity.objects.update_or_create(
+            user=user,
+            provider=provider,
+            defaults=defaults,
+        )
+
+    UserIdentity.objects.filter(user=user).exclude(provider__in=provider_names).delete()
+
+
 @transaction.atomic
 def provision_user_from_claims(claims):
     firebase_uid = claims["uid"]

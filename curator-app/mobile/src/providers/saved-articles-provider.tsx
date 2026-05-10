@@ -1,3 +1,4 @@
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import {
   createContext,
   type PropsWithChildren,
@@ -25,7 +26,8 @@ interface SavedArticlesContextValue {
   clearAllSaved: () => void;
 }
 
-const MOCK_BACKEND = process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const STORAGE_KEY = "curator.saved-articles";
 
 const SavedArticlesContext = createContext<SavedArticlesContextValue | null>(null);
 
@@ -35,12 +37,29 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (MOCK_BACKEND) {
-      return;
+      let cancelled = false;
+      AsyncStorage.getItem(STORAGE_KEY).then((value) => {
+        if (!cancelled && value) {
+          try {
+            setSavedArticleIds(JSON.parse(value));
+          } catch {
+            setSavedArticleIds([]);
+          }
+        }
+      });
+
+      return () => {
+        cancelled = true;
+      };
     }
 
     if (status !== "signed-in") {
       setSavedArticleIds([]);
       return;
+    }
+
+    if (!MOCK_BACKEND) {
+      void AsyncStorage.removeItem(STORAGE_KEY);
     }
 
     let cancelled = false;
@@ -69,7 +88,11 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
           return prev;
         }
 
-        return [...prev, id];
+        const next = [...prev, id];
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
       });
 
       if (MOCK_BACKEND || status !== "signed-in") {
@@ -89,7 +112,13 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
 
   const unsaveArticle = useCallback(
     (id: string) => {
-      setSavedArticleIds((prev) => prev.filter((articleId) => articleId !== id));
+      setSavedArticleIds((prev) => {
+        const next = prev.filter((articleId) => articleId !== id);
+        if (MOCK_BACKEND) {
+          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+        }
+        return next;
+      });
 
       if (MOCK_BACKEND || status !== "signed-in") {
         return;
@@ -114,7 +143,12 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
   const clearAllSaved = useCallback(() => {
     setSavedArticleIds([]);
 
-    if (MOCK_BACKEND || status !== "signed-in") {
+    if (MOCK_BACKEND) {
+      void AsyncStorage.removeItem(STORAGE_KEY);
+      return;
+    }
+
+    if (status !== "signed-in") {
       return;
     }
 

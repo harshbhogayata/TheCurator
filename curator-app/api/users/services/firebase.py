@@ -37,3 +37,11 @@ def get_firebase_app():
 
 def verify_firebase_token(id_token: str):
     return firebase_auth.verify_id_token(id_token, app=get_firebase_app())
+
+
+def get_firebase_user(firebase_uid: str):
+    return firebase_auth.get_user(firebase_uid, app=get_firebase_app())
+
+
+def delete_firebase_user(firebase_uid: str):
+    return firebase_auth.delete_user(firebase_uid, app=get_firebase_app())

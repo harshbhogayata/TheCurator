@@ -70,7 +70,7 @@ export default function SearchScreen() {
       }
       return true;
     });
-  }, [searchQuery, selectedCategories, readingStatus, isArticleSaved]);
+  }, [articles, searchQuery, selectedCategories, readingStatus, isArticleSaved]);
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.background }}>

@@ -1,11 +1,13 @@
 import { Redirect, Stack } from "expo-router";
 
+import { usePushNotifications } from "../../src/hooks/use-push-notifications";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useTheme } from "../../src/providers/theme-provider";
 import { AudioMiniPlayer } from "../../src/ui/audio-mini-player";
 import { LoadingScreen } from "../../src/ui/loading-screen";
 
 export default function AppLayout() {
+  usePushNotifications();
   const { palette } = useTheme();
   const { session, status } = useAuth();
 
@@ -56,6 +58,7 @@ export default function AppLayout() {
         <Stack.Screen name="reading-stats" options={modalOptions} />
         <Stack.Screen name="language-region" options={modalOptions} />
         <Stack.Screen name="collections" options={modalOptions} />
+        <Stack.Screen name="data-export" options={modalOptions} />
       </Stack>
       <AudioMiniPlayer />
     </>

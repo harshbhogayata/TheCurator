@@ -6,3 +6,5 @@ djangorestframework
 firebase-admin
 psycopg[binary]
 redis
+requests
+sentry-sdk[django]
