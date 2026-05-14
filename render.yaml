@@ -1,0 +1,36 @@
+services:
+  - type: web
+    name: thecurator-api
+    runtime: python
+    rootDir: curator-app/api
+    plan: free
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt && python manage.py collectstatic --noinput
+    startCommand: python manage.py migrate && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT
+    healthCheckPath: /health/
+    envVars:
+      - key: DJANGO_DEBUG
+        value: false
+      - key: DJANGO_SECRET_KEY
+        generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thecurator-postgres
+          property: connectionString
+      - key: TRUST_PROXY
+        value: true
+      - key: DATA_EXPORT_ASYNC
+        value: false
+      - key: FIREBASE_PROJECT_ID
+        sync: false
+      - key: FIREBASE_CREDENTIALS_JSON
+        sync: false
+      - key: REVENUECAT_WEBHOOK_SECRET
+        sync: false
+      - key: REVENUECAT_PRODUCT_TIER_MAP
+        value: '{}'
+
+databases:
+  - name: thecurator-postgres
+    databaseName: curator
+    user: curator

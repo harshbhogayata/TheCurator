@@ -20,12 +20,15 @@ class HealthView(views.APIView):
         except DatabaseError:
             database_status = "error"
 
-        try:
-            redis.Redis.from_url(settings.CELERY_BROKER_URL).ping()
-        except redis.RedisError:
-            redis_status = "error"
+        if settings.CELERY_BROKER_URL:
+            try:
+                redis.Redis.from_url(settings.CELERY_BROKER_URL).ping()
+            except redis.RedisError:
+                redis_status = "error"
+        else:
+            redis_status = "not_configured"
 
-        status_code = 200 if database_status == "ok" and redis_status == "ok" else 503
+        status_code = 200 if database_status == "ok" and redis_status != "error" else 503
         payload = {
             "status": "ok" if status_code == 200 else "degraded",
             "version": settings.APP_VERSION,
