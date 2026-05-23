@@ -109,6 +109,12 @@ if DEBUG:
         )
     }
 else:
+    database_url = env("DATABASE_URL", default="")
+    if not database_url:
+        raise ImproperlyConfigured(
+            "DATABASE_URL is not set or is empty in the environment. "
+            "Please configure the DATABASE_URL environment variable in your production host (e.g. referencing ${{Postgres.DATABASE_URL}} in Railway)."
+        )
     DATABASES = {
         "default": env.db("DATABASE_URL"),
     }
