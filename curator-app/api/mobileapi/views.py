@@ -1,6 +1,7 @@
 from datetime import timedelta
 import hashlib
 import json
+from uuid import UUID
 
 from django.conf import settings
 from django.db.models import Count, Q, Sum
@@ -16,11 +17,13 @@ from common.pagination import CursorPage
 from onboarding.models import UserPreference
 
 from mobileapi.category_catalog import CONTENT_CATEGORY_CATALOG, resolve_catalog_category_name
+from mobileapi.personalization import annotate_search, build_search_filter, personalized_category_slugs
 from mobileapi.export_services import export_file_path, validate_download_token, generate_data_export
 from mobileapi.revenuecat import process_revenuecat_webhook
 from mobileapi.tasks import generate_data_export_task
 from mobileapi.models import (
     Article,
+    ArticleStatus,
     Brief,
     Category,
     DataExportRequest,
@@ -172,46 +175,10 @@ def _enforce_collection_limit(user):
         raise EntitlementRequired(_required_upgrade_tier(entitlement.effective_tier))
 
 
-def _resolve_article_category(raw_value: str) -> str:
-    if not raw_value:
-        return raw_value
-
-    category = Category.objects.filter(Q(slug__iexact=raw_value) | Q(name__iexact=raw_value)).first()
-    if category:
-        return category.name
-
-    resolved = resolve_catalog_category_name(raw_value)
-    if resolved != raw_value:
-        return resolved
-
-    normalized = slugify(raw_value)
-    for article_category in Article.objects.filter(is_active=True).values_list("category", flat=True).distinct():
-        if slugify(article_category) == normalized:
-            return article_category
-
-    return raw_value
-
-
 def _category_payload_from_articles():
-    article_category_names = {
-        name for name in Article.objects.filter(is_active=True).values_list("category", flat=True).distinct() if name
-    }
-
-    if article_category_names:
-        items = [item for item in CONTENT_CATEGORY_CATALOG if item["name"] in article_category_names]
-        if items:
-            return items
-
-        return [
-            {
-                "slug": slugify(name),
-                "name": name,
-                "color": "#64748b",
-                "icon": "layers",
-                "rank": index,
-            }
-            for index, name in enumerate(sorted(article_category_names))
-        ]
+    active_categories = Category.objects.filter(articles__is_active=True).distinct().order_by("rank", "name")
+    if active_categories.exists():
+        return CategorySerializer(active_categories, many=True).data
 
     return CONTENT_CATEGORY_CATALOG
 
@@ -312,11 +279,12 @@ class ArticleListView(ScopedThrottleMixin, views.APIView):
         return super().get_throttles()
 
     def get(self, request):
-        queryset = Article.objects.filter(is_active=True)
+        queryset = Article.objects.filter(is_active=True, status=ArticleStatus.PUBLISHED)
 
         query = request.query_params.get("q", "").strip()
         category = request.query_params.get("category", "").strip()
         cursor = request.query_params.get("cursor", "").strip()
+        ids = request.query_params.get("ids", "").strip()
         saved_only = request.query_params.get("savedOnly", "").strip().lower() in {"1", "true", "yes"}
         limit = _parse_int(request.query_params.get("limit"), fallback=20, min_value=1, max_value=50)
 
@@ -331,10 +299,42 @@ class ArticleListView(ScopedThrottleMixin, views.APIView):
             )
 
         if query:
-            queryset = queryset.filter(Q(title__icontains=query) | Q(excerpt__icontains=query))
+            queryset = annotate_search(queryset).filter(build_search_filter(query))
 
         if category:
-            queryset = queryset.filter(category__iexact=_resolve_article_category(category))
+            queryset = queryset.filter(Q(category__slug__iexact=category) | Q(category__name__iexact=category))
+
+        feed = request.query_params.get("feed", "").strip().lower().replace("-", "_")
+        if feed == "for_you":
+            preferred = personalized_category_slugs(request.user)
+            if preferred:
+                queryset = queryset.filter(category__slug__in=preferred)
+
+        if ids:
+            raw_ids = [value.strip() for value in ids.split(",") if value.strip()]
+            if len(raw_ids) > 50:
+                return response.Response(
+                    {
+                        "detail": "You can request at most 50 article ids at once.",
+                        "code": "validation_error",
+                        "fields": {"ids": ["Ensure this list has no more than 50 items."]},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            try:
+                article_ids = [UUID(value) for value in raw_ids]
+            except ValueError:
+                return response.Response(
+                    {
+                        "detail": "One or more article ids are invalid.",
+                        "code": "validation_error",
+                        "fields": {"ids": ["Expected comma-separated UUID values."]},
+                    },
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            queryset = queryset.filter(id__in=article_ids)
 
         if saved_only:
             queryset = queryset.filter(saved_by__user=request.user).distinct()
@@ -358,7 +358,7 @@ class ArticleDetailView(views.APIView):
     throttle_scope = "reads"
 
     def get(self, request, article_id):
-        article = get_object_or_404(Article, id=article_id, is_active=True)
+        article = get_object_or_404(Article, id=article_id, is_active=True, status=ArticleStatus.PUBLISHED)
         payload = ArticleSerializer(article).data
         return etag_response(request, payload)
 
@@ -368,7 +368,7 @@ class ArticleAudioView(views.APIView):
     throttle_scope = "reads"
 
     def get(self, request, article_id):
-        article = get_object_or_404(Article, id=article_id, is_active=True)
+        article = get_object_or_404(Article, id=article_id, is_active=True, status=ArticleStatus.PUBLISHED)
         entitlement = _get_or_create_entitlement(request.user)
         if entitlement.effective_tier not in {
             SubscriptionTier.BASIC,
@@ -433,7 +433,7 @@ class SavedArticleCollectionView(ScopedThrottleMixin, views.APIView):
         serializer = SavedArticleWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        article = get_object_or_404(Article, id=serializer.validated_data["articleId"], is_active=True)
+        article = get_object_or_404(Article, id=serializer.validated_data["articleId"], is_active=True, status=ArticleStatus.PUBLISHED)
         existing_save = UserSavedArticle.objects.filter(user=request.user, article=article).exists()
         if existing_save:
             article_ids = UserSavedArticle.objects.filter(user=request.user).values_list("article_id", flat=True)
@@ -450,8 +450,13 @@ class SavedArticleCollectionView(ScopedThrottleMixin, views.APIView):
         return response.Response(payload)
 
     def delete(self, request):
-        UserSavedArticle.objects.filter(user=request.user).delete()
-        return response.Response({"articleIds": []})
+        if request.query_params.get("clearAll") == "true":
+            UserSavedArticle.objects.filter(user=request.user).delete()
+            return response.Response({"articleIds": []})
+        return response.Response(
+            {"detail": "To clear all saved articles, you must pass clearAll=true as a query parameter."},
+            status=status.HTTP_400_BAD_REQUEST
+        )
 
 
 class SavedArticleDetailView(views.APIView):
@@ -528,7 +533,7 @@ class CollectionArticleView(ScopedThrottleMixin, views.APIView):
         serializer = CollectionItemWriteSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
 
-        article = get_object_or_404(Article, id=serializer.validated_data["articleId"], is_active=True)
+        article = get_object_or_404(Article, id=serializer.validated_data["articleId"], is_active=True, status=ArticleStatus.PUBLISHED)
         UserCollectionArticle.objects.get_or_create(collection=collection, article=article)
         collection.refresh_from_db()
         payload = CollectionSerializer(collection).data
@@ -565,16 +570,22 @@ class ReadingEventView(views.APIView):
         article = None
         article_id = serializer.validated_data.get("articleId")
         if article_id:
-            article = get_object_or_404(Article, id=article_id, is_active=True)
+            article = get_object_or_404(Article, id=article_id, is_active=True, status=ArticleStatus.PUBLISHED)
 
         read_time_ms = serializer.validated_data["readTimeMs"]
-        if read_time_ms != request.data.get("readTimeMs"):
+        raw_read_time = request.data.get("readTimeMs")
+        try:
+            raw_read_time_int = int(raw_read_time) if raw_read_time is not None else None
+        except (TypeError, ValueError):
+            raw_read_time_int = None
+
+        if raw_read_time_int is not None and read_time_ms != raw_read_time_int:
             import logging
 
             logging.getLogger(__name__).warning(
                 "Clamped readTimeMs for user %s from %s to %s",
                 request.user.id,
-                request.data.get("readTimeMs"),
+                raw_read_time,
                 read_time_ms,
             )
         current_hour = timezone.now().replace(minute=0, second=0, microsecond=0)
@@ -672,6 +683,7 @@ class DeviceCollectionView(views.APIView):
         defaults = {
             "expo_push_token": token,
             "platform": serializer.validated_data["platform"],
+            "web_push_subscription": serializer.validated_data.get("webPushSubscription") or {},
             "app_version": serializer.validated_data.get("appVersion", ""),
             "last_seen": timezone.now(),
             "is_active": True,
@@ -754,7 +766,11 @@ class PrivacyExportRequestView(views.APIView):
             if getattr(settings, "DATA_EXPORT_ASYNC", False):
                 generate_data_export_task.delay(export_request.id)
             else:
-                generate_data_export(export_request.id)
+                try:
+                    generate_data_export(export_request.id)
+                except Exception as e:
+                    import logging
+                    logging.getLogger(__name__).exception("Synchronous data export failed: %s", e)
 
         payload = DataExportSerializer(export_request).data
         _idempotency_store(request, idempotency_token, payload, status_code=status.HTTP_202_ACCEPTED)
@@ -811,6 +827,9 @@ class PrivacyExportDownloadView(views.APIView):
         if not validate_download_token(export_request, token):
             raise exceptions.PermissionDenied("Invalid or expired download token.")
 
+        if export_request.expires_at and export_request.expires_at < timezone.now():
+            raise exceptions.PermissionDenied("This download link has expired.")
+
         if export_request.status != "completed":
             return response.Response({"detail": "Export is not ready."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -831,10 +850,11 @@ class RevenueCatWebhookView(views.APIView):
     permission_classes = []
 
     def post(self, request):
+        import hmac
         auth_header = request.headers.get("Authorization", "")
         expected_token = f"Bearer {settings.REVENUECAT_WEBHOOK_SECRET}"
 
-        if not settings.REVENUECAT_WEBHOOK_SECRET or auth_header != expected_token:
+        if not settings.REVENUECAT_WEBHOOK_SECRET or not hmac.compare_digest(auth_header, expected_token):
             raise exceptions.PermissionDenied("Invalid webhook signature.")
 
         try:

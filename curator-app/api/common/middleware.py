@@ -56,6 +56,7 @@ class SensitiveLogFilter(logging.Filter):
                 for field in _SCRUB_FIELDS:
                     if field in msg.lower():
                         setattr(record, attr, _SCRUBBED)
+                        record.args = ()
                         break
         return True
 

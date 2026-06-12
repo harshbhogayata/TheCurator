@@ -1,14 +1,27 @@
 import axios, { type AxiosError, type AxiosRequestConfig, type AxiosResponse, type RawAxiosRequestHeaders } from "axios";
 import Constants from "expo-constants";
-import * as crypto from "expo-crypto";
 import axiosRetry from "axios-retry";
 
-import { getFirebaseAuth } from "./firebase";
+import { firebaseConfigured, getFirebaseAuth } from "./firebase";
+import { resolveApiBaseUrl } from "../lib/resolve-api-base-url";
 
-const apiBaseUrl =
-  Constants.expoConfig?.extra?.apiUrl ??
-  process.env.EXPO_PUBLIC_API_URL ??
-  "http://127.0.0.1:8000";
+const configuredApiBaseUrl = resolveApiBaseUrl(
+  String(Constants.expoConfig?.extra?.apiUrl ?? process.env.EXPO_PUBLIC_API_URL ?? ""),
+);
+if (!configuredApiBaseUrl && !__DEV__) {
+  throw new Error("Production API URL is not configured.");
+}
+
+const apiBaseUrl = configuredApiBaseUrl;
+if (__DEV__) {
+  console.log("[Curator] API base URL:", apiBaseUrl);
+  if (process.env.EXPO_PUBLIC_MOCK_BACKEND === "true") {
+    console.log("[Curator] Mock backend enabled — using bundled demo content for briefs/articles.");
+  }
+}
+if (!__DEV__ && !apiBaseUrl.startsWith("https://")) {
+  throw new Error("Production API URL must use HTTPS.");
+}
 
 export class ApiError extends Error {
   status: number;
@@ -35,24 +48,34 @@ axiosRetry(apiClient, {
   retries: 3,
   retryDelay: axiosRetry.exponentialDelay,
   retryCondition: (error: AxiosError) => {
-    // Retry on network errors or 429/5xx status codes
-    return (
-      axiosRetry.isNetworkOrIdempotentRequestError(error) ||
+    const method = error.config?.method?.toUpperCase() ?? "GET";
+    const isSafeMethod = ["GET", "HEAD", "OPTIONS"].includes(method);
+    const hasIdempotencyKey = Boolean((error.config?.headers as RawAxiosRequestHeaders | undefined)?.["Idempotency-Key"]);
+    const isRetryableStatus =
       error.response?.status === 429 ||
-      (error.response?.status !== undefined && error.response.status >= 500)
-    );
+      (error.response?.status !== undefined && error.response.status >= 500);
+
+    return axiosRetry.isNetworkOrIdempotentRequestError(error) || (isRetryableStatus && (isSafeMethod || hasIdempotencyKey));
   },
 });
 
 apiClient.interceptors.request.use(
   async (config) => {
-    const auth = getFirebaseAuth();
-    const user = auth.currentUser;
+    if (firebaseConfigured) {
+      try {
+        const auth = getFirebaseAuth();
+        const user = auth.currentUser;
 
-    if (user) {
-      // Force refresh if close to expiry
-      const token = await user.getIdToken();
-      config.headers.Authorization = `Bearer ${token}`;
+        if (user && !config.headers.Authorization) {
+          // Force refresh if close to expiry
+          const token = await user.getIdToken();
+          config.headers.Authorization = `Bearer ${token}`;
+        }
+      } catch (error) {
+        if (__DEV__) {
+          console.warn("Firebase Auth is not fully configured or ready:", error);
+        }
+      }
     }
 
     return config;
@@ -68,19 +91,21 @@ apiClient.interceptors.response.use(
     // Handle 401 Unauthorized by forcing a token refresh
     if (error.response?.status === 401 && originalRequest && !originalRequest._retry) {
       originalRequest._retry = true;
-      try {
-        const auth = getFirebaseAuth();
-        const user = auth.currentUser;
-        if (user) {
-          const newToken = await user.getIdToken(true); // force refresh
-          if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${newToken}`;
+      if (firebaseConfigured) {
+        try {
+          const auth = getFirebaseAuth();
+          const user = auth.currentUser;
+          if (user) {
+            const newToken = await user.getIdToken(true); // force refresh
+            if (originalRequest.headers) {
+              originalRequest.headers.Authorization = `Bearer ${newToken}`;
+            }
+            return apiClient(originalRequest);
           }
-          return apiClient(originalRequest);
+        } catch (refreshError) {
+          // Log to Sentry here eventually
+          return Promise.reject(refreshError);
         }
-      } catch (refreshError) {
-        // Log to Sentry here eventually
-        return Promise.reject(refreshError);
       }
     }
 
@@ -104,14 +129,19 @@ export interface ApiRequestOptions extends Omit<AxiosRequestConfig, "url" | "met
 
 export async function apiRequest<T>(
   path: string,
-  { body, method = "GET", headers, token: _token, ...init }: ApiRequestOptions = {},
+  { body, method = "GET", headers, token, ...init }: ApiRequestOptions = {},
 ): Promise<T> {
   try {
+    const requestHeaders = { ...headers };
+    if (token) {
+      requestHeaders.Authorization = `Bearer ${token}`;
+    }
+
     const response = await apiClient.request<T, AxiosResponse<T>>({
       url: path,
       method,
       data: body,
-      headers,
+      headers: requestHeaders,
       ...init,
     });
     return response.data;

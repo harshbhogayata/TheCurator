@@ -11,6 +11,8 @@ import { StatusBanner } from "../../src/ui/status-banner";
 import { IMAGES } from "../../src/data/images";
 import { type } from "../../src/ui/tokens/typography";
 
+const TRUST_BADGE_TEXT = "12k+ Readers";
+
 export default function WelcomeScreen() {
   const router = useRouter();
   const { errorMessage } = useAuth();
@@ -105,7 +107,7 @@ export default function WelcomeScreen() {
             ))}
           </View>
           <Text style={[styles.trustText, { color: palette.outline }]}>
-            12k+ Readers
+            {TRUST_BADGE_TEXT}
           </Text>
         </View>
       </View>

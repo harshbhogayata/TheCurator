@@ -1,8 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ArrowLeft, Heart, Check, CreditCard, Crown, Sparkles, Star } from 'lucide-react';
-import { useNavigate } from 'react-router';
-import { BottomNav } from '../components/BottomNav';
+import { useNavigate, useSearchParams } from 'react-router';
+import { useQueryClient } from '@tanstack/react-query';
+import { AppShell } from '../components/AppShell';
 import { useSubscription } from '../context/SubscriptionContext';
+import { queryKeys } from '../../lib/query-keys';
+import { isMockBackend, isMockPremium } from '../../lib/dev-mode';
 
 interface SubscriptionPlan {
   id: 'basic' | 'premium' | 'lifetime';
@@ -17,9 +20,29 @@ interface SubscriptionPlan {
 
 export function Donate() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const queryClient = useQueryClient();
   const { tier: currentTier, upgradeTier } = useSubscription();
   const [selectedPlan, setSelectedPlan] = useState<string>('premium');
   const [showThankYou, setShowThankYou] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [checkoutError, setCheckoutError] = useState<string | null>(null);
+
+  // Returning from Stripe checkout (?status=success).
+  useEffect(() => {
+    const status = searchParams.get('status');
+    if (!status) return;
+    setSearchParams({}, { replace: true });
+    if (status === 'success') {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.entitlements.all });
+      setShowThankYou(true);
+      const timer = setTimeout(() => {
+        setShowThankYou(false);
+        navigate('/brief');
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [searchParams, setSearchParams, queryClient, navigate]);
   
   const plans: SubscriptionPlan[] = [
     {
@@ -71,16 +94,26 @@ export function Donate() {
   
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
   
-  const handleSubscribe = () => {
-    if (selectedPlan) {
-      upgradeTier(selectedPlan as 'basic' | 'premium' | 'lifetime');
+  const handleSubscribe = async () => {
+    if (!selectedPlan || isRedirecting) return;
+    setCheckoutError(null);
+    setIsRedirecting(true);
+    try {
+      // Redirects to Stripe checkout in production; resolves locally in dev
+      // mock mode (thank-you screen shows after the ?status=success redirect
+      // in production, or immediately in mock mode).
+      await upgradeTier(selectedPlan as 'basic' | 'premium' | 'lifetime');
+      if (isMockBackend || isMockPremium) {
+        setShowThankYou(true);
+        setTimeout(() => {
+          setShowThankYou(false);
+          navigate('/brief');
+        }, 3000);
+      }
+    } catch {
+      setCheckoutError('Unable to start checkout right now. Please try again.');
+      setIsRedirecting(false);
     }
-    
-    setShowThankYou(true);
-    setTimeout(() => {
-      setShowThankYou(false);
-      navigate('/home');
-    }, 3000);
   };
   
   // Check if user already has this tier or better
@@ -93,96 +126,46 @@ export function Donate() {
   
   if (showThankYou) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low flex items-center justify-center p-6">
-        <div className="text-center max-w-md">
-          <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-primary flex items-center justify-center">
-            <Heart className="w-12 h-12 text-primary-foreground" fill="currentColor" />
+      <AppShell title="Subscription">
+        <div className="mx-auto flex max-w-md flex-col items-center py-16 text-center">
+          <div className="mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-primary">
+            <Heart className="h-12 w-12 text-primary-foreground" fill="currentColor" />
           </div>
-          <h1 className="font-[family-name:var(--font-headline)] text-4xl text-on-surface mb-4">
-            Thank You!
-          </h1>
-          <p className="text-on-surface-variant text-lg leading-relaxed mb-4">
-            Your subscription to {selectedPlanData?.name} is now active! Enjoy all the premium features.
+          <h1 className="font-[family-name:var(--font-headline)] text-4xl text-on-surface">Thank you!</h1>
+          <p className="mt-4 text-lg leading-relaxed text-on-surface-variant">
+            Your subscription to {selectedPlanData?.name} is now active.
           </p>
         </div>
-      </div>
+      </AppShell>
     );
   }
   
-  // If user has lifetime or premium, show a special message
   if (currentTier === 'lifetime' || currentTier === 'premium') {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-        {/* Header */}
-        <header className="fixed top-0 w-full z-50 pt-6 px-6">
-          <div className="flex items-center gap-3">
-            <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-              <button 
-                onClick={() => navigate(-1)}
-                className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5 text-on-surface" />
-              </button>
-            </div>
-            
-            <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5">
-              <h1 className="text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center">
-                Subscription
-              </h1>
-            </div>
+      <AppShell title="Subscription">
+        <div className="mx-auto max-w-2xl py-12 text-center">
+          <div className="mx-auto mb-6 flex h-24 w-24 items-center justify-center rounded-full bg-primary-container">
+            <Crown className="h-12 w-12 text-on-primary-container" />
           </div>
-        </header>
-        
-        <main className="pt-32 px-6 max-w-2xl mx-auto flex items-center justify-center min-h-[calc(100vh-12rem)]">
-          <div className="text-center">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-primary-container flex items-center justify-center">
-              <Crown className="w-12 h-12 text-on-primary-container" />
-            </div>
-            <h2 className="font-[family-name:var(--font-headline)] text-4xl text-on-surface mb-4 italic">
-              You're All Set!
-            </h2>
-            <p className="text-on-surface-variant text-lg leading-relaxed mb-6">
-              You're currently a <strong className="capitalize">{currentTier}</strong> member. You have access to all our premium features.
-            </p>
-            <button 
-              onClick={() => navigate('/home')}
-              className="bg-inverse-surface text-white px-8 py-3 rounded-full hover:bg-primary transition-all"
-            >
-              Back to Home
-            </button>
-          </div>
-        </main>
-        
-        <BottomNav />
-      </div>
+          <h2 className="font-[family-name:var(--font-headline)] text-4xl italic text-on-surface">You&apos;re all set!</h2>
+          <p className="mt-4 text-lg text-on-surface-variant">
+            You&apos;re currently a <strong className="capitalize">{currentTier}</strong> member with full premium access.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate('/brief')}
+            className="mt-6 rounded-full bg-inverse-surface px-8 py-3 text-white hover:bg-primary"
+          >
+            Back to Briefs
+          </button>
+        </div>
+      </AppShell>
     );
   }
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header with Separate Pill Containers */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex items-center gap-3">
-          {/* Left: Back Button (Circle Pill) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Center: Title (Long Pill) */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5">
-            <h1 className="text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center">
-              Choose Your Plan
-            </h1>
-          </div>
-        </div>
-      </header>
-      
-      <main className="pt-32 px-6 max-w-5xl mx-auto">
+    <AppShell title="Support Us">
+      <div className="space-y-8">
         {/* Current Subscription Badge */}
         {currentTier === 'basic' && (
           <div className="mb-8 bg-primary-container/50 border border-outline-variant/15 rounded-[30px] p-4 text-center">
@@ -277,16 +260,24 @@ export function Donate() {
         </div>
         
         {/* Subscribe Button */}
-        <div className="flex justify-center">
+        <div className="flex flex-col items-center gap-3">
           <button 
             onClick={handleSubscribe}
-            disabled={!selectedPlan || isCurrentOrLower(selectedPlan)}
+            disabled={!selectedPlan || isCurrentOrLower(selectedPlan) || isRedirecting}
             className="bg-inverse-surface text-white px-12 py-5 rounded-full uppercase tracking-widest transition-all shadow-xl hover:bg-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 text-lg"
           >
             <CreditCard className="w-6 h-6" />
-            Subscribe to {selectedPlanData?.name} - ${selectedPlanData?.price}
-            {selectedPlanData?.period === 'monthly' && '/mo'}
+            {isRedirecting
+              ? 'Opening secure checkout…'
+              : `Subscribe to ${selectedPlanData?.name} - $${selectedPlanData?.price}${
+                  selectedPlanData?.period === 'monthly' ? '/mo' : ''
+                }`}
           </button>
+          {checkoutError && (
+            <p className="text-sm text-error" role="alert">
+              {checkoutError}
+            </p>
+          )}
         </div>
         
         {/* Impact Message */}
@@ -295,9 +286,7 @@ export function Donate() {
             🌟 <strong>Your subscription matters.</strong> 100% of proceeds go directly to supporting our editorial team, expanding our source network, and keeping The Curator free from commercial influence.
           </p>
         </div>
-      </main>
-      
-      <BottomNav />
-    </div>
+      </div>
+    </AppShell>
   );
 }

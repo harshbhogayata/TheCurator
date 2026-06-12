@@ -4,12 +4,29 @@ const appName = "Curator";
 const appSlug = "curator-mobile";
 const bundleId = process.env.EXPO_PUBLIC_APP_BUNDLE_ID ?? "com.curator.mobile";
 const packageName = process.env.EXPO_PUBLIC_ANDROID_PACKAGE ?? "com.curator.mobile";
+const firebaseAndroidPackage = process.env.EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE ?? packageName;
+const firebaseIosBundleId = process.env.EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID ?? bundleId;
 const appEnv = process.env.APP_ENV ?? process.env.EXPO_PUBLIC_APP_ENV ?? "development";
 const isProductionBuild = appEnv === "production" || process.env.EAS_BUILD_PROFILE === "production";
-const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? (isProductionBuild ? undefined : "http://127.0.0.1:8000");
-const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID;
+const buildPlatform = process.env.EAS_BUILD_PLATFORM;
+const apiUrl = process.env.EXPO_PUBLIC_API_URL ?? "https://thecurator-production-1b47.up.railway.app";
+const easProjectId = process.env.EXPO_PUBLIC_EAS_PROJECT_ID ?? "584dd577-0bcb-4201-bb11-6f81bc75cc00";
+
+if (firebaseAndroidPackage !== packageName) {
+  throw new Error(
+    "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE must match EXPO_PUBLIC_ANDROID_PACKAGE.",
+  );
+}
+
+if (firebaseIosBundleId !== bundleId) {
+  throw new Error(
+    "EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID must match EXPO_PUBLIC_APP_BUNDLE_ID.",
+  );
+}
 
 if (isProductionBuild) {
+  const isAndroidBuild = !buildPlatform || buildPlatform === "android";
+  const isIosBuild = !buildPlatform || buildPlatform === "ios";
   const requiredEnv = [
     "EXPO_PUBLIC_API_URL",
     "EXPO_PUBLIC_EAS_PROJECT_ID",
@@ -19,9 +36,22 @@ if (isProductionBuild) {
     "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET",
     "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID",
     "EXPO_PUBLIC_FIREBASE_APP_ID",
-    "EXPO_PUBLIC_RC_IOS_KEY",
-    "EXPO_PUBLIC_RC_ANDROID_KEY",
+    "EXPO_PUBLIC_SENTRY_DSN",
+    "SENTRY_ORG",
+    "SENTRY_PROJECT",
+    "SENTRY_AUTH_TOKEN",
+    "EXPO_PUBLIC_RC_BASIC_PRODUCT_ID",
+    "EXPO_PUBLIC_RC_PREMIUM_PRODUCT_ID",
+    "EXPO_PUBLIC_RC_LIFETIME_PRODUCT_ID",
   ].filter((key) => !process.env[key]);
+
+  if (isAndroidBuild && !process.env.EXPO_PUBLIC_RC_ANDROID_KEY) {
+    requiredEnv.push("EXPO_PUBLIC_RC_ANDROID_KEY");
+  }
+
+  if (isIosBuild && !process.env.EXPO_PUBLIC_RC_IOS_KEY) {
+    requiredEnv.push("EXPO_PUBLIC_RC_IOS_KEY");
+  }
 
   if (requiredEnv.length > 0) {
     throw new Error(`Production mobile build is missing required env: ${requiredEnv.join(", ")}`);
@@ -31,8 +61,12 @@ if (isProductionBuild) {
     throw new Error("Production mobile build requires EXPO_PUBLIC_API_URL to use HTTPS.");
   }
 
-  if (process.env.EXPO_PUBLIC_MOCK_BACKEND === "true" || process.env.EXPO_PUBLIC_MOCK_PREMIUM === "true") {
-    throw new Error("Production mobile build cannot enable mock backend or mock premium flags.");
+  if (
+    process.env.EXPO_PUBLIC_MOCK_BACKEND === "true" ||
+    process.env.EXPO_PUBLIC_MOCK_PREMIUM === "true" ||
+    process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH === "true"
+  ) {
+    throw new Error("Production mobile build cannot enable mock backend, mock premium, or auth bypass flags.");
   }
 }
 
@@ -69,6 +103,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     },
     edgeToEdgeEnabled: true,
     predictiveBackGestureEnabled: true,
+    permissions: [],
+    blockedPermissions: ["android.permission.RECORD_AUDIO"],
   },
   web: {
     favicon: "./assets/favicon.png",
@@ -84,6 +120,16 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         microphonePermission: false,
       },
     ],
+    "expo-notifications",
+    [
+      "@sentry/react-native/expo",
+      {
+        autoUploadSourceMaps: isProductionBuild,
+        organization: process.env.SENTRY_ORG,
+        project: process.env.SENTRY_PROJECT,
+      },
+    ],
+    "expo-web-browser",
   ],
   experiments: {
     typedRoutes: true,

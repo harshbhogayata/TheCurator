@@ -1,11 +1,12 @@
 import { useEffect } from 'react';
-import { Menu, CreditCard, ShieldCheck, Link2, ChevronRight, Award } from 'lucide-react';
+import { CreditCard, ShieldCheck, Link2, ChevronRight, Award } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { BottomNav } from '../components/BottomNav';
+import { AppShell } from '../components/AppShell';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useAuth } from '../context/AuthContext';
 import { useSavedArticles } from '../context/SavedArticlesContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useReadingStats } from '../context/ReadingStatsContext';
 import { IMAGES } from '../constants/images';
 
 export function Profile() {
@@ -13,10 +14,11 @@ export function Profile() {
   const { isAuthenticated, user, signOut } = useAuth();
   const { savedCount } = useSavedArticles();
   const { isSubscribed } = useSubscription();
+  const { stats } = useReadingStats();
 
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -24,40 +26,13 @@ export function Profile() {
     return null;
   }
 
-  const readCount = 142;
+  const readCount = stats.totalArticlesRead;
   const memberLabel = isSubscribed ? 'Premium Member' : 'Free Member';
   const profileImage = user?.profileImage || IMAGES.editorial.profile;
 
   return (
-    <div className="mesh-gradient min-h-screen bg-background pb-36">
-      <header className="fixed top-0 z-50 w-full bg-white/70 shadow-[0_4px_12px_rgba(0,0,0,0.04)] backdrop-blur-2xl dark:bg-stone-900/70">
-        <div className="flex items-center justify-between px-6 py-4">
-          <div className="flex items-center gap-4">
-            <button
-              onClick={() => navigate('/menu')}
-              className="rounded-full p-2 transition-all duration-300 hover:bg-stone-200/50 dark:hover:bg-stone-800/50"
-            >
-              <Menu className="h-5 w-5 text-stone-800 dark:text-stone-100" />
-            </button>
-            <h1 className="text-2xl italic tracking-tight text-stone-900 dark:text-stone-50">
-              The Curator
-            </h1>
-          </div>
-
-          <button
-            onClick={() => navigate('/account')}
-            className="h-10 w-10 overflow-hidden rounded-full silk-border"
-          >
-            <ImageWithFallback
-              src={user?.profileImage || IMAGES.editorial.avatar}
-              className="h-full w-full object-cover"
-              alt="User avatar"
-            />
-          </button>
-        </div>
-      </header>
-
-      <main className="mx-auto max-w-2xl space-y-10 px-6 pt-28">
+    <AppShell title="Profile">
+      <div className="mx-auto max-w-2xl space-y-10">
         <section className="flex flex-col items-center space-y-6 text-center">
           <div className="relative">
             <div className="absolute inset-0 rounded-full bg-white/40 blur-2xl" />
@@ -102,9 +77,10 @@ export function Profile() {
         </section>
 
         <section className="space-y-6">
-          <h3 className="px-6 text-2xl italic text-on-surface">Preferences &amp; Security</h3>
+          <h3 className="px-2 text-2xl italic text-on-surface">Preferences &amp; Security</h3>
           <div className="space-y-4">
             <button
+              type="button"
               onClick={() => navigate('/donate')}
               className="glass-pill group flex w-full items-center justify-between p-4 transition-all duration-500 hover:bg-white/60"
             >
@@ -118,6 +94,7 @@ export function Profile() {
             </button>
 
             <button
+              type="button"
               onClick={() => navigate('/connected-accounts')}
               className="glass-pill group flex w-full items-center justify-between p-4 transition-all duration-500 hover:bg-white/60"
             >
@@ -131,6 +108,7 @@ export function Profile() {
             </button>
 
             <button
+              type="button"
               onClick={() => navigate('/privacy')}
               className="glass-pill group flex w-full items-center justify-between p-4 transition-all duration-500 hover:bg-white/60"
             >
@@ -145,8 +123,9 @@ export function Profile() {
           </div>
         </section>
 
-        <footer className="flex justify-center pb-8 pt-8">
+        <footer className="flex justify-center pb-8 pt-4">
           <button
+            type="button"
             onClick={() => {
               signOut();
               navigate('/', { replace: true });
@@ -156,9 +135,7 @@ export function Profile() {
             Sign Out of Account
           </button>
         </footer>
-      </main>
-
-      <BottomNav />
-    </div>
+      </div>
+    </AppShell>
   );
 }

@@ -1,38 +1,62 @@
-import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Bookmark, Share2, CheckCircle2, Type } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
+import { useState, useEffect, useMemo } from 'react';
+import { ArrowLeft, Bookmark, Share2, Type } from 'lucide-react';
+import { AppShell } from '../components/AppShell';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { ReadingProgressBar } from '../components/ReadingProgressBar';
 import { TypographySettings } from '../components/TypographySettings';
 import { ArticleReactions } from '../components/ArticleReactions';
-import { articles } from '../data/articles';
+import { ArticleAudioPlayer } from '../components/ArticleAudioPlayer';
+import { ArticleCardSkeleton } from '../components/SkeletonLoaders';
 import { useNavigate, useParams } from 'react-router';
 import { useSavedArticles } from '../context/SavedArticlesContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { useReadingPreferences } from '../context/ReadingPreferencesContext';
 import { useReadingStats } from '../context/ReadingStatsContext';
+import { useArticle, useArticles } from '../../hooks/use-articles';
+import { useLayout } from '../../providers/layout-provider';
+import { DEV_BANNER_HEIGHT } from '../../lib/layout';
 
-export function Article() {
-  const { id } = useParams();
+export function Article({ articleId }: { articleId?: string } = {}) {
+  const params = useParams();
+  const id = articleId ?? params.id ?? params.slugOrId;
   const navigate = useNavigate();
   const { isAuthenticated } = useAuth();
   const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
   const { success } = useToast();
-  const { preferences, saveProgress, getProgress } = useReadingPreferences();
+  const { preferences, saveProgress } = useReadingPreferences();
   const { startSession, endSession } = useReadingStats();
+  const { isWebDesktop, devBannerActive, mastheadHeight, readMeasure } = useLayout();
   const [showShareMenu, setShowShareMenu] = useState(false);
   const [showTypographySettings, setShowTypographySettings] = useState(false);
-  const contentRef = useRef<HTMLDivElement>(null);
   
   // Auth guard
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
   
-  const article = articles.find(a => a.id === id);
+  const { data: article, isLoading } = useArticle(id ?? '');
+  const { data: allArticles = [] } = useArticles();
+
+  const relatedArticles = useMemo(() => {
+    if (!article) return [];
+    const sameCategory = allArticles.filter(
+      (candidate) => candidate.id !== article.id && candidate.category === article.category,
+    );
+    if (sameCategory.length >= 3) return sameCategory.slice(0, 3);
+    const others = allArticles.filter(
+      (candidate) => candidate.id !== article.id && candidate.category !== article.category,
+    );
+    return [...sameCategory, ...others].slice(0, 3);
+  }, [article, allArticles]);
+
+  const heroImageProps = article?.imageUrl
+    ? { src: article.imageUrl, alt: article.title }
+    : article
+      ? { alt: article.title, query: article.imageQuery }
+      : { alt: 'Article', query: '' };
   
   // Start reading session when article loads
   useEffect(() => {
@@ -106,21 +130,32 @@ export function Article() {
     setShowShareMenu(false);
   };
   
+  if (isLoading) {
+    return (
+      <AppShell title="Article" archetype="read" showHeader={false}>
+        <div className="py-12">
+          <ArticleCardSkeleton />
+        </div>
+      </AppShell>
+    );
+  }
+
   if (!article) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low flex items-center justify-center">
-        <div className="text-center">
+      <AppShell title="Article" archetype="read" showHeader={false}>
+        <div className="py-24 text-center">
           <h1 className="font-[family-name:var(--font-headline)] text-3xl text-on-surface mb-4">
             Article not found
           </h1>
-          <button 
+          <button
+            type="button"
             onClick={() => navigate('/explore')}
-            className="bg-inverse-surface text-white px-8 py-3 rounded-full hover:bg-primary transition-all"
+            className="rounded-full bg-inverse-surface px-8 py-3 text-white hover:bg-primary"
           >
             Back to Explore
           </button>
         </div>
-      </div>
+      </AppShell>
     );
   }
   
@@ -135,12 +170,27 @@ This approach to journalism—aggregating and synthesizing multiple authoritativ
 The implications of these developments extend across multiple sectors and geographies. Understanding these connections is essential for making informed decisions in an increasingly interconnected world.
 
 As this story continues to develop, we'll update this narrative with new insights from our network of sources, ensuring you have access to the most current and comprehensive understanding available.`;
+
+  const toolbarTop = isWebDesktop
+    ? mastheadHeight + (devBannerActive ? DEV_BANNER_HEIGHT : 0) + 12
+    : devBannerActive
+      ? DEV_BANNER_HEIGHT + 16
+      : 16;
+  const articleMeasure =
+    preferences.readingWidth === 'narrow'
+      ? 650
+      : preferences.readingWidth === 'wide'
+        ? 900
+        : readMeasure;
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header with Separate Pill Containers */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex items-center justify-between gap-3">
+    <AppShell title={article.title} archetype="read" showHeader={false}>
+      <div className="relative pb-12">
+      {/* Article toolbar */}
+      <div
+        className="sticky z-40 -mx-4 mb-8 flex items-center justify-between gap-3 bg-background/90 px-4 py-3 backdrop-blur-xl lg:mx-0 lg:rounded-full lg:border lg:border-outline-variant/15 lg:bg-surface-container-lowest/80 lg:px-3"
+        style={{ top: toolbarTop }}
+      >
           {/* Left: Back Button (Circle Pill) */}
           <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
             <button 
@@ -185,12 +235,11 @@ As this story continues to develop, we'll update this narrative with new insight
             </div>
           </div>
         </div>
-      </header>
       
       {/* Reading Progress Bar */}
       <ReadingProgressBar />
       
-      <main className="pt-24 px-6 max-w-4xl mx-auto">
+      <div className="px-0">
         {/* Category Badge - Floating */}
         <div className="mb-6">
           <span 
@@ -202,7 +251,7 @@ As this story continues to develop, we'll update this narrative with new insight
         </div>
         
         {/* Title - Large and Editorial */}
-        <h1 className="font-[family-name:var(--font-headline)] text-5xl md:text-7xl lg:text-8xl text-on-surface leading-[1.05] mb-8 tracking-tight">
+        <h1 className="mb-8 max-w-[920px] font-[family-name:var(--font-headline)] text-5xl leading-[1.05] tracking-tight text-on-surface md:text-7xl">
           {article.title}
         </h1>
         
@@ -214,22 +263,31 @@ As this story continues to develop, we'll update this narrative with new insight
           <span className="text-sm">•</span>
           <span className="text-sm">{article.readTime}</span>
         </div>
+
+        <ArticleAudioPlayer
+          articleId={article.id}
+          audioUrl={article.audioUrl}
+          durationSec={article.audioDurationSec}
+          title={article.title}
+        />
         
         {/* Hero Image - Full Width Organic Shape */}
-        <div 
-          className="relative overflow-hidden border border-outline-variant/15 shadow-2xl mb-12 -mx-6 md:mx-0"
-          style={{ borderRadius: '0px', height: '60vh' }}
+        <div
+          className="relative mb-12 overflow-hidden border border-outline-variant/15 shadow-2xl"
+          style={{
+            borderRadius: isWebDesktop ? '48px' : '0px',
+            height: isWebDesktop ? 'clamp(320px, 45vw, 560px)' : '60vh',
+          }}
         >
           <ImageWithFallback 
             className="w-full h-full object-cover" 
-            alt={article.title} 
-            query={article.imageQuery}
+            {...heroImageProps}
           />
           <div className="absolute inset-0 bg-gradient-to-t from-inverse-surface/40 via-transparent to-transparent" />
         </div>
         
         {/* Sources - Inline Editorial Style */}
-        <div className="mb-12">
+        <div className="mx-auto mb-12" style={{ maxWidth: articleMeasure }}>
           <p className="text-outline italic mb-4">
             This narrative synthesizes reporting from <span className="text-on-surface font-medium">{article.sources.length} trusted sources</span>, including:
           </p>
@@ -249,8 +307,7 @@ As this story continues to develop, we'll update this narrative with new insight
         <article 
           className="mb-16"
           style={{
-            maxWidth: preferences.readingWidth === 'narrow' ? '650px' : 
-                     preferences.readingWidth === 'wide' ? '100%' : '800px',
+            maxWidth: articleMeasure,
             margin: '0 auto'
           }}
         >
@@ -297,10 +354,7 @@ As this story continues to develop, we'll update this narrative with new insight
           </p>
           
           <div className="space-y-8">
-            {articles
-              .filter(a => a.id !== id && a.category === article.category)
-              .slice(0, 3)
-              .map((relatedArticle, index) => (
+            {relatedArticles.map((relatedArticle, index) => (
                 <div 
                   key={relatedArticle.id}
                   onClick={() => {
@@ -322,8 +376,9 @@ As this story continues to develop, we'll update this narrative with new insight
                       >
                         <ImageWithFallback 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                          alt={relatedArticle.title} 
-                          query={relatedArticle.imageQuery}
+                          {...(relatedArticle.imageUrl
+                            ? { src: relatedArticle.imageUrl, alt: relatedArticle.title }
+                            : { alt: relatedArticle.title, query: relatedArticle.imageQuery })}
                         />
                         <div className="absolute inset-0 bg-gradient-to-br from-inverse-surface/60 via-transparent to-transparent" />
                         
@@ -362,8 +417,9 @@ As this story continues to develop, we'll update this narrative with new insight
                       >
                         <ImageWithFallback 
                           className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                          alt={relatedArticle.title} 
-                          query={relatedArticle.imageQuery}
+                          {...(relatedArticle.imageUrl
+                            ? { src: relatedArticle.imageUrl, alt: relatedArticle.title }
+                            : { alt: relatedArticle.title, query: relatedArticle.imageQuery })}
                         />
                         <div className="absolute inset-0 bg-gradient-to-bl from-inverse-surface/60 via-transparent to-transparent" />
                         
@@ -395,7 +451,7 @@ As this story continues to develop, we'll update this narrative with new insight
               ))}
           </div>
         </section>
-      </main>
+      </div>
       
       {/* Share Menu Modal */}
       {showShareMenu && (
@@ -443,8 +499,7 @@ As this story continues to develop, we'll update this narrative with new insight
         isOpen={showTypographySettings}
         onClose={() => setShowTypographySettings(false)}
       />
-      
-      <BottomNav />
-    </div>
+      </div>
+    </AppShell>
   );
 }

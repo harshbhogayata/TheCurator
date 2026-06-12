@@ -11,8 +11,6 @@ import { useTheme } from "../providers/theme-provider";
 import { useAudio } from "../providers/audio-provider";
 import { useBriefs } from "../hooks/use-briefs";
 import { useArticles } from "../hooks/use-articles";
-import { dailyBriefs } from "../data/briefs";
-import { articles } from "../data/articles";
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -34,8 +32,8 @@ function AudioMiniPlayerInner() {
     skipBackward,
     stopBrief,
   } = useAudio();
-  const { data: liveBriefs = dailyBriefs } = useBriefs();
-  const { data: liveArticles = articles } = useArticles();
+  const { data: liveBriefs = [] } = useBriefs();
+  const { data: liveArticles = [] } = useArticles();
   const segments = useSegments();
   const insets = useSafeAreaInsets();
 
@@ -89,10 +87,7 @@ function AudioMiniPlayerInner() {
           style={[
             StyleSheet.absoluteFill,
             {
-              borderTopLeftRadius: 40,
-              borderTopRightRadius: 30,
-              borderBottomRightRadius: 50,
-              borderBottomLeftRadius: 35,
+              borderRadius: 999,
               backgroundColor: palette.surfaceContainerLowest + "E6",
             },
           ]}
@@ -191,10 +186,7 @@ const styles = StyleSheet.create({
   innerContainer: {
     overflow: "hidden",
     borderWidth: 1,
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 30,
-    borderBottomRightRadius: 50,
-    borderBottomLeftRadius: 35,
+    borderRadius: 999,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.12,

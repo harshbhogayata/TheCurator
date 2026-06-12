@@ -1,17 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 
-import { articles } from "../data/articles";
 import type { Article } from "../data/articles";
 import { queryKeys } from "../lib/query-keys";
-import { fetchArticle, fetchArticles } from "../services/mobile-api";
-
-const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+import { fetchAllArticles, fetchArticle, fetchArticles, fetchArticlesByIds } from "../services/mobile-api";
 
 async function fetchArticlesQuery(filters?: Record<string, unknown>): Promise<Article[]> {
-  if (MOCK_BACKEND) {
-    return articles;
-  }
-
   return fetchArticles(filters);
 }
 
@@ -20,22 +13,14 @@ async function fetchArticleQuery(id: string): Promise<Article | null> {
     return null;
   }
 
-  if (MOCK_BACKEND) {
-    return articles.find((a) => a.id === id) ?? null;
-  }
-
-  try {
-    return await fetchArticle(id);
-  } catch {
-    return null;
-  }
+  return fetchArticle(id);
 }
 
 export function useArticles(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: queryKeys.articles.list(filters),
     queryFn: () => fetchArticlesQuery(filters),
-    staleTime: 5 * 60 * 1000,
+    staleTime: 30 * 60 * 1000,
   });
 }
 
@@ -44,6 +29,24 @@ export function useArticle(id: string) {
     queryKey: queryKeys.articles.detail(id),
     queryFn: () => fetchArticleQuery(id),
     enabled: Boolean(id),
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useArticlesByIds(ids: string[]) {
+  const stableIds = [...ids].sort();
+  return useQuery({
+    queryKey: ["articles", "byIds", stableIds],
+    queryFn: () => fetchArticlesByIds(ids),
+    enabled: ids.length > 0,
+    staleTime: 5 * 60 * 1000,
+  });
+}
+
+export function useSavedArticlesList() {
+  return useQuery({
+    queryKey: ["articles", "saved"],
+    queryFn: () => fetchAllArticles({ savedOnly: true }),
     staleTime: 5 * 60 * 1000,
   });
 }

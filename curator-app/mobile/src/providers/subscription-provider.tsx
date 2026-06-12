@@ -10,9 +10,20 @@ import {
 } from "react";
 
 import { Platform } from "react-native";
-import Purchases, { LOG_LEVEL, type PurchasesPackage } from "react-native-purchases";
+import Constants from "expo-constants";
+import type { PurchasesPackage } from "react-native-purchases";
+
+// Dynamic import to prevent crashes on Web/Expo Go
+const Purchases = Platform.OS !== "web" && Constants.appOwnership !== "expo"
+  ? require("react-native-purchases").default || require("react-native-purchases")
+  : null;
+
+const LOG_LEVEL = Platform.OS !== "web" && Constants.appOwnership !== "expo"
+  ? require("react-native-purchases").LOG_LEVEL
+  : { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 import { fetchEntitlement } from "../services/mobile-api";
+import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
 import { useAuth } from "./auth-provider";
 
 export type SubscriptionTier = "free" | "basic" | "premium" | "lifetime";
@@ -22,6 +33,7 @@ interface SubscriptionContextValue {
   setTier: (tier: SubscriptionTier) => void;
   hasAdFree: boolean;
   hasAudioAccess: boolean;
+  hasBriefAudioAccess: boolean;
   hasUnlimitedSaves: boolean;
   hasCollections: boolean;
   hasOfflineAccess: boolean;
@@ -38,12 +50,24 @@ const MOCK_PREMIUM = __DEV__ && process.env.EXPO_PUBLIC_MOCK_PREMIUM === "true";
 const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
 
 const STORAGE_KEY = "curator.subscription-tier";
+const RC_ENTITLEMENT_IDS: Record<Exclude<SubscriptionTier, "free">, string[]> = {
+  basic: [process.env.EXPO_PUBLIC_RC_BASIC_ENTITLEMENT_ID ?? "Basic", "basic"],
+  premium: [process.env.EXPO_PUBLIC_RC_PREMIUM_ENTITLEMENT_ID ?? "Premium", "premium"],
+  lifetime: [process.env.EXPO_PUBLIC_RC_LIFETIME_ENTITLEMENT_ID ?? "Lifetime", "lifetime"],
+};
+
+const RC_PRODUCT_IDS: Record<Exclude<SubscriptionTier, "free">, string | undefined> = {
+  basic: process.env.EXPO_PUBLIC_RC_BASIC_PRODUCT_ID,
+  premium: process.env.EXPO_PUBLIC_RC_PREMIUM_PRODUCT_ID,
+  lifetime: process.env.EXPO_PUBLIC_RC_LIFETIME_PRODUCT_ID,
+};
 
 const TIER_FEATURES: Record<
   SubscriptionTier,
   {
     adFree: boolean;
     audio: boolean;
+    briefAudio: boolean;
     unlimitedSaves: boolean;
     collections: boolean;
     offline: boolean;
@@ -55,6 +79,7 @@ const TIER_FEATURES: Record<
   free: {
     adFree: false,
     audio: false,
+    briefAudio: false,
     unlimitedSaves: false,
     collections: false,
     offline: false,
@@ -64,7 +89,8 @@ const TIER_FEATURES: Record<
   },
   basic: {
     adFree: true,
-    audio: true,
+    audio: false,
+    briefAudio: true,
     unlimitedSaves: false,
     collections: true,
     offline: false,
@@ -75,6 +101,7 @@ const TIER_FEATURES: Record<
   premium: {
     adFree: true,
     audio: true,
+    briefAudio: true,
     unlimitedSaves: true,
     collections: true,
     offline: true,
@@ -85,6 +112,7 @@ const TIER_FEATURES: Record<
   lifetime: {
     adFree: true,
     audio: true,
+    briefAudio: true,
     unlimitedSaves: true,
     collections: true,
     offline: true,
@@ -96,38 +124,104 @@ const TIER_FEATURES: Record<
 
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
 
+function hasRevenueCatEntitlement(customerInfo: any, tier: Exclude<SubscriptionTier, "free">): boolean {
+  const active = customerInfo?.entitlements?.active ?? {};
+  return RC_ENTITLEMENT_IDS[tier].some((id) => Boolean(active[id]));
+}
+
+function tierFromCustomerInfo(customerInfo: any): SubscriptionTier {
+  if (hasRevenueCatEntitlement(customerInfo, "lifetime")) return "lifetime";
+  if (hasRevenueCatEntitlement(customerInfo, "premium")) return "premium";
+  if (hasRevenueCatEntitlement(customerInfo, "basic")) return "basic";
+  return "free";
+}
+
+function normalizeIdentifier(value?: string | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function packageMatchesTier(pkg: PurchasesPackage, tier: Exclude<SubscriptionTier, "free">): boolean {
+  const configuredProductId = normalizeIdentifier(RC_PRODUCT_IDS[tier]);
+  const identifiers = [
+    normalizeIdentifier(pkg.identifier),
+    normalizeIdentifier(pkg.product?.identifier),
+  ].filter(Boolean);
+
+  if (configuredProductId) {
+    return identifiers.includes(configuredProductId);
+  }
+
+  return identifiers.some((id) => {
+    const tokens = id.replace(/[$.-]/g, "_").split("_").filter(Boolean);
+    return tokens.includes(tier);
+  });
+}
+
+function findPackageForTier(packages: PurchasesPackage[], tier: SubscriptionTier) {
+  if (tier === "free") return undefined;
+  return packages.find((pkg) => packageMatchesTier(pkg, tier));
+}
+
 export function SubscriptionProvider({ children }: PropsWithChildren) {
   const { status, session } = useAuth();
   const [tier, setTierState] = useState<SubscriptionTier>(MOCK_PREMIUM ? "premium" : "free");
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
 
+  const isExpoGo = Constants.appOwnership === "expo";
+
   useEffect(() => {
+    if (isExpoGo || Platform.OS === "web" || !Purchases) {
+      if (__DEV__) {
+        console.log("Expo Go, web, or missing Purchases native module. Bypassing native RevenueCat configuration.");
+      }
+      return;
+    }
+
     // Configure RevenueCat
     const apiKey = Platform.select({
       ios: process.env.EXPO_PUBLIC_RC_IOS_KEY,
       android: process.env.EXPO_PUBLIC_RC_ANDROID_KEY,
     });
 
+    let listenerRemove: (() => void) | null = null;
+
     if (apiKey && !MOCK_BACKEND) {
-      Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
-      Purchases.configure({ apiKey });
-      
-      Purchases.getOfferings().then((offerings) => {
-        if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
-          setPackages(offerings.current.availablePackages);
-        }
-      }).catch(console.error);
+      try {
+        Purchases.setLogLevel(__DEV__ ? LOG_LEVEL.DEBUG : LOG_LEVEL.WARN);
+        Purchases.configure({ apiKey });
+        
+        Purchases.getOfferings().then((offerings: any) => {
+          if (offerings.current !== null && offerings.current.availablePackages.length !== 0) {
+            setPackages(offerings.current.availablePackages);
+          }
+        }).catch(console.error);
+
+        // Listen for external customer updates (App Store restorations, renewals, etc.)
+        const removeListener = Purchases.addCustomerInfoUpdateListener((customerInfo: any) => {
+          setTierState(tierFromCustomerInfo(customerInfo));
+        });
+        listenerRemove = typeof removeListener === "function" ? removeListener : (removeListener as any)?.remove?.bind(removeListener) ?? null;
+      } catch (e) {
+        console.warn("Failed to initialize RevenueCat Purchases:", e);
+      }
     }
-  }, []);
+
+    return () => {
+      listenerRemove?.();
+    };
+  }, [isExpoGo]);
 
   useEffect(() => {
-    if (session?.user?.id && !MOCK_BACKEND) {
-      void Purchases.logIn(session.user.id);
-    } else if (status === "signed-out") {
-      void Purchases.logOut();
+    if (!MOCK_BACKEND && Platform.OS !== "web" && !isExpoGo && Purchases) {
+      if (session?.user?.id) {
+        const appUserId = session.user.firebaseUid ?? (firebaseConfigured ? getFirebaseAuth().currentUser?.uid : null) ?? session.user.id;
+        void Purchases.logIn(appUserId).catch(console.error);
+      } else if (status === "signed-out") {
+        void Purchases.logOut().catch(console.error);
+      }
     }
-  }, [session?.user?.id, status]);
+  }, [session?.user?.firebaseUid, session?.user?.id, status, isExpoGo]);
 
   useEffect(() => {
     if (!MOCK_BACKEND) {
@@ -166,44 +260,20 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   }, [status]);
 
   const setTier = useCallback((newTier: SubscriptionTier) => {
-    if (!MOCK_BACKEND) {
-      if (status === "signed-in") {
-        void fetchEntitlement()
-          .then((payload) => {
-            setTierState(payload.effectiveTier ?? payload.tier);
-          })
-          .catch(() => {
-            setTierState(MOCK_PREMIUM ? "premium" : "free");
-          });
-      } else {
-        setTierState(MOCK_PREMIUM ? "premium" : "free");
-      }
-
-      return;
-    }
-
     setTierState(newTier);
-  }, [status]);
+    void AsyncStorage.setItem(STORAGE_KEY, newTier).catch(console.error);
+  }, []);
 
   const purchasePackage = useCallback(async (pkg: PurchasesPackage) => {
-    if (MOCK_BACKEND) return false;
+    if (MOCK_BACKEND || Platform.OS === "web" || !Purchases) return false;
     
     setIsPurchasing(true);
     try {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       
-      // Update local state based on active entitlements
-      if (typeof customerInfo.entitlements.active['Premium'] !== "undefined") {
-        setTierState("premium");
-        return true;
-      } else if (typeof customerInfo.entitlements.active['Basic'] !== "undefined") {
-        setTierState("basic");
-        return true;
-      } else if (typeof customerInfo.entitlements.active['Lifetime'] !== "undefined") {
-        setTierState("lifetime");
-        return true;
-      }
-      return false;
+      const purchasedTier = tierFromCustomerInfo(customerInfo);
+      setTierState(purchasedTier);
+      return purchasedTier !== "free";
     } catch (e: any) {
       if (!e.userCancelled) {
         console.error("Purchase error:", e);
@@ -222,6 +292,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       setTier,
       hasAdFree: features.adFree,
       hasAudioAccess: features.audio,
+      hasBriefAudioAccess: features.briefAudio,
       hasUnlimitedSaves: features.unlimitedSaves,
       hasCollections: features.collections,
       hasOfflineAccess: features.offline,

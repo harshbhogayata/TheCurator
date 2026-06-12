@@ -21,10 +21,9 @@ export function AudioMiniPlayer() {
   const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
   
   return (
-    <div className="fixed bottom-24 left-0 right-0 z-40 px-4 animate-slide-up">
+    <div className="fixed bottom-24 left-0 right-0 z-40 px-4 animate-slide-up lg:bottom-6 lg:left-[220px]">
       <div 
-        className="bg-surface-container-lowest/95 backdrop-blur-2xl border-2 border-outline-variant/30 shadow-2xl mx-auto max-w-2xl"
-        style={{ borderRadius: '40px 30px 50px 35px' }}
+        className="mx-auto max-w-2xl overflow-hidden rounded-full border border-outline-variant/25 bg-surface-container-lowest/95 shadow-2xl backdrop-blur-2xl"
       >
         {/* Progress Bar */}
         <div className="relative h-1 bg-surface-container-high">
@@ -34,9 +33,9 @@ export function AudioMiniPlayer() {
           />
         </div>
         
-        <div className="p-4 flex items-center gap-4">
+        <div className="flex items-center gap-3 px-4 py-3 sm:gap-4">
           {/* Waveform Icon Placeholder */}
-          <div className="w-10 h-10 rounded-full bg-gradient-to-br from-primary to-secondary flex items-center justify-center shrink-0">
+          <div className="hidden h-10 w-10 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-primary to-secondary sm:flex">
             <div className="flex gap-0.5">
               <div className="w-0.5 h-3 bg-white rounded-full animate-pulse" style={{ animationDelay: '0ms' }} />
               <div className="w-0.5 h-5 bg-white rounded-full animate-pulse" style={{ animationDelay: '150ms' }} />
@@ -56,7 +55,7 @@ export function AudioMiniPlayer() {
           </div>
           
           {/* Controls */}
-          <div className="flex items-center gap-1">
+          <div className="flex items-center gap-0.5 sm:gap-1">
             {/* Skip Back */}
             <button
               onClick={skipBackward}
@@ -104,7 +103,7 @@ export function AudioMiniPlayer() {
               {/* Speed Menu */}
               {showSpeedMenu && (
                 <div 
-                  className="absolute bottom-full right-0 mb-2 bg-surface-container-lowest border-2 border-outline-variant/30 shadow-xl p-2 rounded-2xl animate-scale-in"
+                  className="absolute bottom-full right-0 mb-2 rounded-2xl border border-outline-variant/30 bg-surface-container-lowest p-2 shadow-xl animate-scale-in"
                   style={{ minWidth: '80px' }}
                 >
                   {speeds.map(speed => (

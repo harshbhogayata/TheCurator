@@ -1,248 +1,157 @@
-import { useState, useMemo } from 'react';
-import { Search, Filter, X, Calendar, Tag as TagIcon } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
+import { useEffect, useMemo, useState } from 'react';
+import { Search, X, SlidersHorizontal, ChevronDown, ChevronUp } from 'lucide-react';
+import { useNavigate, useSearchParams } from 'react-router';
+
+import { AppShell } from '../components/AppShell';
 import { ArticleCard } from '../components/ArticleCard';
-import { articles } from '../data/articles';
-import { useNavigate } from 'react-router';
 import { useSavedArticles } from '../context/SavedArticlesContext';
-import { useReadingPreferences } from '../context/ReadingPreferencesContext';
+import { useAuth } from '../context/AuthContext';
+import { useArticles } from '../../hooks/use-articles';
+import { useCategories } from '../../hooks/use-categories';
+import { FeedStack } from '../../ui/feed-stack';
+
+function normalizeCategory(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_]+/g, '-');
+}
+
+function formatCategoryLabel(value: string): string {
+  return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export function SearchPage() {
   const navigate = useNavigate();
-  const { savedArticles } = useSavedArticles();
-  const { getArticleTags, getAllTags } = useReadingPreferences();
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  const [showFilters, setShowFilters] = useState(false);
-  
-  // Filters
+  const [searchParams] = useSearchParams();
+  const { isAuthenticated } = useAuth();
+  const { isArticleSaved } = useSavedArticles();
+  const { data: articles = [] } = useArticles();
+  const { data: apiCategories = [] } = useCategories();
+
+  const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '');
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
-  const [selectedSources, setSelectedSources] = useState<string[]>([]);
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [readingStatus, setReadingStatus] = useState<'all' | 'saved' | 'unsaved'>('all');
-  const [dateRange, setDateRange] = useState<'all' | 'today' | 'week' | 'month'>('all');
-  
-  // Get all unique categories and sources
-  const allCategories = Array.from(new Set(articles.map(a => a.category)));
-  const allSources = Array.from(new Set(articles.flatMap(a => a.sources)));
-  const allTags = getAllTags();
-  
-  // Filtered articles
+  const [filtersExpanded, setFiltersExpanded] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) {
+      navigate('/welcome', { replace: true });
+    }
+  }, [isAuthenticated, navigate]);
+
+  useEffect(() => {
+    setSearchQuery(searchParams.get('q') ?? '');
+  }, [searchParams]);
+
+  const categoryOptions = useMemo(() => {
+    if (apiCategories.length > 0) {
+      return apiCategories.map((category) => ({
+        key: normalizeCategory(category.slug),
+        label: category.name,
+      }));
+    }
+    return Array.from(new Set(articles.map((a) => normalizeCategory(a.category)).filter(Boolean))).map(
+      (category) => ({ key: category, label: formatCategoryLabel(category) }),
+    );
+  }, [apiCategories, articles]);
+
   const filteredArticles = useMemo(() => {
-    return articles.filter(article => {
-      // Search query
+    return articles.filter((article) => {
       if (searchQuery) {
         const query = searchQuery.toLowerCase();
-        const matchesTitle = article.title.toLowerCase().includes(query);
-        const matchesExcerpt = article.excerpt.toLowerCase().includes(query);
-        const matchesCategory = article.category.toLowerCase().includes(query);
-        if (!matchesTitle && !matchesExcerpt && !matchesCategory) return false;
+        const matches =
+          article.title.toLowerCase().includes(query) ||
+          article.excerpt.toLowerCase().includes(query) ||
+          article.category.toLowerCase().includes(query);
+        if (!matches) return false;
       }
-      
-      // Category filter
-      if (selectedCategories.length > 0 && !selectedCategories.includes(article.category)) {
+
+      if (selectedCategories.length > 0 && !selectedCategories.includes(normalizeCategory(article.category))) {
         return false;
       }
-      
-      // Source filter
-      if (selectedSources.length > 0) {
-        const hasSource = article.sources.some(s => selectedSources.includes(s));
-        if (!hasSource) return false;
-      }
-      
-      // Tags filter
-      if (selectedTags.length > 0) {
-        const articleTags = getArticleTags(article.id);
-        const hasTag = selectedTags.some(t => articleTags.includes(t));
-        if (!hasTag) return false;
-      }
-      
-      // Reading status filter
-      if (readingStatus === 'saved') {
-        if (!savedArticles.some(s => s.id === article.id)) return false;
-      } else if (readingStatus === 'unsaved') {
-        if (savedArticles.some(s => s.id === article.id)) return false;
-      }
-      
+
+      const saved = isArticleSaved(article.id);
+      if (readingStatus === 'saved' && !saved) return false;
+      if (readingStatus === 'unsaved' && saved) return false;
+
       return true;
     });
-  }, [searchQuery, selectedCategories, selectedSources, selectedTags, readingStatus, articles, savedArticles, getArticleTags]);
-  
-  const toggleCategory = (category: string) => {
-    setSelectedCategories(prev => 
-      prev.includes(category) 
-        ? prev.filter(c => c !== category)
-        : [...prev, category]
+  }, [articles, searchQuery, selectedCategories, readingStatus, isArticleSaved]);
+
+  const toggleCategory = (cat: string) => {
+    setSelectedCategories((prev) =>
+      prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
     );
   };
-  
-  const toggleSource = (source: string) => {
-    setSelectedSources(prev => 
-      prev.includes(source) 
-        ? prev.filter(s => s !== source)
-        : [...prev, source]
-    );
-  };
-  
-  const toggleTag = (tag: string) => {
-    setSelectedTags(prev => 
-      prev.includes(tag) 
-        ? prev.filter(t => t !== tag)
-        : [...prev, tag]
-    );
-  };
-  
-  const clearAllFilters = () => {
-    setSearchQuery('');
-    setSelectedCategories([]);
-    setSelectedSources([]);
-    setSelectedTags([]);
-    setReadingStatus('all');
-    setDateRange('all');
-  };
-  
-  const activeFiltersCount = 
-    selectedCategories.length + 
-    selectedSources.length + 
-    selectedTags.length + 
-    (readingStatus !== 'all' ? 1 : 0) +
-    (dateRange !== 'all' ? 1 : 0);
-  
+
+  if (!isAuthenticated) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header */}
-      <header className="pt-8 px-6 mb-6">
-        <h1 className="font-[family-name:var(--font-headline)] text-5xl text-on-surface mb-6">
-          Search
-        </h1>
-        
-        {/* Search Bar */}
-        <div className="relative mb-4">
-          <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-5 h-5 text-outline pointer-events-none" />
+    <AppShell title="Search" archetype="feed">
+      <div className="space-y-6">
+        <div className="relative">
+          <Search className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-outline" />
           <input
-            type="text"
+            type="search"
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search articles, categories, topics..."
-            className="w-full pl-12 pr-12 py-4 bg-surface-container-lowest border border-outline-variant/20 rounded-3xl text-on-surface placeholder:text-outline focus:outline-none focus:border-primary transition-colors"
+            placeholder="Search narratives, topics, categories…"
+            className="w-full rounded-full border border-outline-variant/20 bg-surface-container-lowest/80 py-4 pl-12 pr-12 text-on-surface shadow-sm backdrop-blur-xl focus:border-primary focus:outline-none"
           />
           {searchQuery && (
             <button
+              type="button"
               onClick={() => setSearchQuery('')}
-              className="absolute right-4 top-1/2 -translate-y-1/2 w-6 h-6 rounded-full hover:bg-surface-container flex items-center justify-center transition-colors"
+              className="absolute right-4 top-1/2 -translate-y-1/2 rounded-full p-1 hover:bg-surface-container"
             >
-              <X className="w-4 h-4 text-outline" />
+              <X className="h-4 w-4 text-outline" />
             </button>
           )}
         </div>
-        
-        {/* Filter Toggle */}
-        <div className="flex items-center justify-between">
-          <button
-            onClick={() => setShowFilters(!showFilters)}
-            className="flex items-center gap-2 px-4 py-2 bg-surface-container-lowest border border-outline-variant/20 rounded-full hover:bg-surface-container transition-colors"
-          >
-            <Filter className="w-4 h-4 text-on-surface" />
-            <span className="text-on-surface text-sm">
-              Filters {activeFiltersCount > 0 && `(${activeFiltersCount})`}
-            </span>
-          </button>
-          
-          {activeFiltersCount > 0 && (
-            <button
-              onClick={clearAllFilters}
-              className="text-primary text-sm hover:underline"
-            >
-              Clear all
-            </button>
-          )}
-        </div>
-      </header>
-      
-      {/* Filters Panel */}
-      {showFilters && (
-        <div className="px-6 mb-6 animate-slide-up">
-          <div 
-            className="bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 p-6 space-y-6"
-            style={{ borderRadius: '40px 30px 50px 35px' }}
-          >
-            {/* Categories */}
+
+        <button
+          type="button"
+          onClick={() => setFiltersExpanded(!filtersExpanded)}
+          className="flex items-center gap-2 text-sm text-on-surface-variant hover:text-on-surface"
+        >
+          <SlidersHorizontal className="h-4 w-4" />
+          Filters
+          {filtersExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </button>
+
+        {filtersExpanded && (
+          <div className="space-y-4 rounded-[30px] border border-outline-variant/15 bg-surface-container-lowest/70 p-5">
             <div>
-              <h3 className="text-on-surface font-medium mb-3 flex items-center gap-2">
-                <TagIcon className="w-4 h-4" />
-                Categories
-              </h3>
+              <p className="mb-2 text-xs uppercase tracking-widest text-outline">Categories</p>
               <div className="flex flex-wrap gap-2">
-                {allCategories.map(category => (
+                {categoryOptions.map((cat) => (
                   <button
-                    key={category}
-                    onClick={() => toggleCategory(category)}
-                    className={`px-4 py-2 rounded-full text-sm transition-all ${
-                      selectedCategories.includes(category)
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                    key={cat.key}
+                    type="button"
+                    onClick={() => toggleCategory(cat.key)}
+                    className={`rounded-full border px-3 py-1.5 text-xs uppercase tracking-wider ${
+                      selectedCategories.includes(cat.key)
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-outline-variant/20 text-outline'
                     }`}
                   >
-                    {category}
+                    {cat.label}
                   </button>
                 ))}
               </div>
             </div>
-            
-            {/* Sources */}
             <div>
-              <h3 className="text-on-surface font-medium mb-3">Sources</h3>
-              <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
-                {allSources.slice(0, 15).map(source => (
-                  <button
-                    key={source}
-                    onClick={() => toggleSource(source)}
-                    className={`px-3 py-1.5 rounded-full text-xs transition-all ${
-                      selectedSources.includes(source)
-                        ? 'bg-secondary text-secondary-foreground'
-                        : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-                    }`}
-                  >
-                    {source}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {/* Tags */}
-            {allTags.length > 0 && (
-              <div>
-                <h3 className="text-on-surface font-medium mb-3">Custom Tags</h3>
-                <div className="flex flex-wrap gap-2">
-                  {allTags.map(tag => (
-                    <button
-                      key={tag}
-                      onClick={() => toggleTag(tag)}
-                      className={`px-3 py-1.5 rounded-full text-xs transition-all ${
-                        selectedTags.includes(tag)
-                          ? 'bg-tertiary text-tertiary-foreground'
-                          : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
-                      }`}
-                    >
-                      #{tag}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-            
-            {/* Reading Status */}
-            <div>
-              <h3 className="text-on-surface font-medium mb-3">Reading Status</h3>
+              <p className="mb-2 text-xs uppercase tracking-widest text-outline">Reading status</p>
               <div className="flex gap-2">
-                {(['all', 'saved', 'unsaved'] as const).map(status => (
+                {(['all', 'saved', 'unsaved'] as const).map((status) => (
                   <button
                     key={status}
+                    type="button"
                     onClick={() => setReadingStatus(status)}
-                    className={`flex-1 px-4 py-2 rounded-xl text-sm capitalize transition-all ${
+                    className={`rounded-full border px-3 py-1.5 text-xs capitalize ${
                       readingStatus === status
-                        ? 'bg-primary text-primary-foreground'
-                        : 'bg-surface-container text-on-surface hover:bg-surface-container-high'
+                        ? 'border-primary bg-primary text-primary-foreground'
+                        : 'border-outline-variant/20 text-outline'
                     }`}
                   >
                     {status}
@@ -251,47 +160,22 @@ export function SearchPage() {
               </div>
             </div>
           </div>
-        </div>
-      )}
-      
-      {/* Results */}
-      <div className="px-6">
-        <p className="text-outline text-sm mb-6">
-          {filteredArticles.length} {filteredArticles.length === 1 ? 'article' : 'articles'} found
+        )}
+
+        <p className="text-sm text-on-surface-variant">
+          {filteredArticles.length} {filteredArticles.length === 1 ? 'result' : 'results'}
         </p>
-        
-        {filteredArticles.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            {filteredArticles.map(article => (
-              <ArticleCard
-                key={article.id}
-                article={article}
-                onClick={() => navigate(`/article/${article.id}`)}
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 rounded-full bg-surface-container mx-auto mb-4 flex items-center justify-center">
-              <Search className="w-8 h-8 text-outline" />
-            </div>
-            <h3 className="font-[family-name:var(--font-headline)] text-2xl text-on-surface mb-2">
-              No articles found
-            </h3>
-            <p className="text-outline mb-6">
-              Try adjusting your search or filters
-            </p>
-            <button
-              onClick={clearAllFilters}
-              className="bg-primary text-primary-foreground px-6 py-3 rounded-full hover:bg-primary/90 transition-all"
-            >
-              Clear filters
-            </button>
-          </div>
+
+        <FeedStack variant="compact">
+          {filteredArticles.map((article) => (
+            <ArticleCard key={article.id} article={article} variant="compact" />
+          ))}
+        </FeedStack>
+
+        {filteredArticles.length === 0 && (
+          <div className="py-16 text-center text-on-surface-variant">No articles match your search.</div>
         )}
       </div>
-      
-      <BottomNav />
-    </div>
+    </AppShell>
   );
 }

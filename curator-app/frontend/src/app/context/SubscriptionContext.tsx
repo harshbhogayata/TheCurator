@@ -1,6 +1,11 @@
-import { createContext, useContext, useState, ReactNode, useEffect } from 'react';
+import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
+import { useQuery } from "@tanstack/react-query";
 
-export type SubscriptionTier = 'free' | 'basic' | 'premium' | 'lifetime';
+import { queryKeys } from "../../lib/query-keys";
+import { createStripeCheckout, createStripePortal, fetchEntitlement } from "../../services/mobile-api";
+import type { SubscriptionTier } from "../../lib/types";
+import { useAuth } from "./AuthContext";
+import { isMockBackend, isMockPremium } from "../../lib/dev-mode";
 
 interface SubscriptionContextType {
   tier: SubscriptionTier;
@@ -11,11 +16,13 @@ interface SubscriptionContextType {
   hasCommunityAccess: boolean;
   hasExclusiveContent: boolean;
   maxSaves: number;
-  upgradeTier: (newTier: SubscriptionTier) => void;
-  cancelSubscription: () => void;
+  /** Starts Stripe checkout (redirects). In mock/dev mode, upgrades locally. */
+  upgradeTier: (newTier: Exclude<SubscriptionTier, "free">) => Promise<void>;
+  /** Opens the Stripe customer portal (redirects). In mock/dev mode, downgrades locally. */
+  cancelSubscription: () => Promise<void>;
 }
 
-const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
+const MOCK_PREMIUM = isMockPremium;
 
 const TIER_FEATURES = {
   free: {
@@ -54,46 +61,65 @@ const TIER_FEATURES = {
     hasExclusiveContent: true,
     maxSaves: Infinity,
   },
-};
+} as const;
+
+const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const [tier, setTier] = useState<SubscriptionTier>(() => {
-    const saved = localStorage.getItem('curator_subscription');
-    return saved ? (JSON.parse(saved) as SubscriptionTier) : 'free';
+  const { isAuthenticated } = useAuth();
+  const [localTier, setLocalTier] = useState<SubscriptionTier>("free");
+
+  const { data: entitlement } = useQuery({
+    queryKey: queryKeys.entitlements.all,
+    queryFn: fetchEntitlement,
+    enabled: isAuthenticated && !MOCK_PREMIUM,
+    staleTime: 10 * 60 * 1000,
   });
-  
+
   useEffect(() => {
-    localStorage.setItem('curator_subscription', JSON.stringify(tier));
-  }, [tier]);
-  
+    if (MOCK_PREMIUM) {
+      setLocalTier("premium");
+    } else if (entitlement) {
+      setLocalTier(entitlement.effectiveTier);
+    } else if (!isAuthenticated) {
+      setLocalTier("free");
+    }
+  }, [entitlement, isAuthenticated]);
+
+  const tier = MOCK_PREMIUM ? "premium" : localTier;
   const features = TIER_FEATURES[tier];
-  
-  const upgradeTier = (newTier: SubscriptionTier) => {
-    setTier(newTier);
-  };
-  
-  const cancelSubscription = () => {
-    setTier('free');
-  };
-  
-  return (
-    <SubscriptionContext.Provider
-      value={{
-        tier,
-        ...features,
-        upgradeTier,
-        cancelSubscription,
-      }}
-    >
-      {children}
-    </SubscriptionContext.Provider>
+
+  const value = useMemo(
+    () => ({
+      tier,
+      ...features,
+      upgradeTier: async (newTier: Exclude<SubscriptionTier, "free">) => {
+        if (MOCK_PREMIUM || isMockBackend) {
+          setLocalTier(newTier);
+          return;
+        }
+        const { url } = await createStripeCheckout(newTier);
+        window.location.assign(url);
+      },
+      cancelSubscription: async () => {
+        if (MOCK_PREMIUM || isMockBackend) {
+          setLocalTier("free");
+          return;
+        }
+        const { url } = await createStripePortal();
+        window.location.assign(url);
+      },
+    }),
+    [tier, features],
   );
+
+  return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;
 }
 
 export function useSubscription() {
   const context = useContext(SubscriptionContext);
   if (context === undefined) {
-    throw new Error('useSubscription must be used within a SubscriptionProvider');
+    throw new Error("useSubscription must be used within a SubscriptionProvider");
   }
   return context;
 }

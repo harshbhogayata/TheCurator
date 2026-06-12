@@ -3,14 +3,15 @@ import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-nati
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { Image } from "expo-image";
 import { useRouter } from "expo-router";
+import * as ImagePicker from "expo-image-picker";
 import {
   ChevronRight,
   CreditCard,
   Shield,
   Trash2,
   Link2,
+  Camera,
 } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
@@ -19,9 +20,12 @@ import { useSubscription } from "../../src/providers/subscription-provider";
 import { useSavedArticles } from "../../src/providers/saved-articles-provider";
 import { useReadingStats } from "../../src/providers/reading-stats-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
-import { IMAGES } from "../../src/data/images";
+import { ProfileAvatar } from "../../src/ui/profile-avatar";
 import { Header } from "../../src/ui/header";
+import { userDisplayName } from "../../src/lib/user-display-name";
 import { type } from "../../src/ui/tokens/typography";
+import { ApiError } from "../../src/services/api-client";
+import { useToast } from "../../src/providers/toast-provider";
 
 const profileActions = [
   { icon: CreditCard, label: "Manage Subscription", path: "/(app)/donate" as const },
@@ -31,24 +35,77 @@ const profileActions = [
 
 export default function ProfileScreen() {
   const { palette, resolvedTheme } = useTheme();
-  const { session, deleteAccount } = useAuth();
+  const { session, deleteAccount, signOut, updateProfileAvatar } = useAuth();
   const { tier } = useSubscription();
   const { savedCount } = useSavedArticles();
   const { stats } = useReadingStats();
   const router = useRouter();
+  const { showToast } = useToast();
+  
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await updateProfileAvatar(result.assets[0].uri);
+        showToast("success", "Profile picture updated");
+      }
+    } catch (error) {
+      console.error("Image pick error", error);
+      showToast("error", "Failed to update profile picture");
+    }
+  };
+
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account?",
       "This will permanently delete your account, saved articles, and preferences. This cannot be undone.",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Delete", style: "destructive", onPress: () => void deleteAccount() },
+        {
+          text: "Delete",
+          style: "destructive",
+          onPress: () =>
+            void deleteAccount().catch((error) => {
+              const code =
+                error instanceof ApiError &&
+                typeof error.details === "object" &&
+                error.details !== null &&
+                "code" in error.details
+                  ? error.details.code
+                  : null;
+
+              if (code === "reauth_required") {
+                Alert.alert(
+                  "Sign In Again",
+                  "For security, sign out and sign back in before deleting your account.",
+                  [
+                    { text: "Not Now", style: "cancel" },
+                    {
+                      text: "Sign Out",
+                      style: "destructive",
+                      onPress: () => {
+                        void signOut().finally(() => router.replace("/(auth)/welcome"));
+                      },
+                    },
+                  ],
+                );
+                return;
+              }
+
+              showToast("error", "Couldn't delete your account right now. Please try again.");
+            }),
+        },
       ]
     );
   };
 
-  const displayName = session?.user?.displayName || "Guest User";
-  const avatarUri = session?.user?.avatarUrl || IMAGES.profile.main;
+  const displayName = userDisplayName(session?.user);
   const tint = resolvedTheme === "dark" ? "dark" : "light";
   const memberLabel =
     tier === "lifetime"
@@ -102,21 +159,42 @@ export default function ProfileScreen() {
         >
           <View style={styles.heroSection}>
             <View style={[styles.avatarGlow, { backgroundColor: palette.surfaceContainerLowest + "B3" }]} />
-            <View
-              style={[
-                styles.heroAvatarRing,
-                {
-                  borderColor: palette.outlineVariant + "40",
-                  shadowColor: "#000",
-                },
-              ]}
-            >
-              <Image
-                source={{ uri: avatarUri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
-              />
-            </View>
+            <Pressable onPress={handlePickImage} style={{ marginBottom: 20 }}>
+              <View
+                style={[
+                  styles.heroAvatarRing,
+                  {
+                    borderColor: palette.outlineVariant + "40",
+                    shadowColor: "#000",
+                    marginBottom: 0,
+                  },
+                ]}
+              >
+                <ProfileAvatar
+                  avatarUrl={session?.user?.avatarUrl}
+                  displayName={session?.user?.displayName}
+                  email={session?.user?.email}
+                  size={108}
+                />
+              </View>
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  backgroundColor: palette.primary,
+                  width: 34,
+                  height: 34,
+                  borderRadius: 17,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 3,
+                  borderColor: palette.background,
+                }}
+              >
+                <Camera size={16} color={palette.primaryForeground} />
+              </View>
+            </Pressable>
 
             <Text style={[styles.name, { color: palette.onSurface }]}>
               {displayName}

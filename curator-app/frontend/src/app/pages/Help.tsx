@@ -1,7 +1,7 @@
 import { useState } from 'react';
-import { ArrowLeft, Search, ChevronDown, ChevronUp, Mail, MessageCircle } from 'lucide-react';
+import { Search, ChevronDown, ChevronUp, Mail, MessageCircle } from 'lucide-react';
 import { useNavigate } from 'react-router';
-import { BottomNav } from '../components/BottomNav';
+import { AppShell } from '../components/AppShell';
 import { useAuth } from '../context/AuthContext';
 
 interface FAQItem {
@@ -89,30 +89,8 @@ export function Help() {
   });
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header with Separate Pill Containers */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex items-center gap-3">
-          {/* Left: Back Button (Circle Pill) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Center: Title (Long Pill) */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5">
-            <h1 className="text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center">
-              Help & Support
-            </h1>
-          </div>
-        </div>
-      </header>
-      
-      <main className="pt-32 px-6 max-w-4xl mx-auto">
+    <AppShell title="Help & Support">
+      <div className="mx-auto max-w-4xl space-y-6">
         {/* Search */}
         <div className="mb-8">
           <div className="bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 rounded-full p-4 flex items-center gap-3">
@@ -232,9 +210,7 @@ export function Help() {
             </div>
           </div>
         </section>
-      </main>
-
-      {isAuthenticated && <BottomNav />}
-    </div>
+      </div>
+    </AppShell>
   );
 }

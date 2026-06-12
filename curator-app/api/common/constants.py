@@ -1,13 +1,11 @@
 CATEGORY_OPTIONS = (
-    ("world", "World"),
-    ("business", "Business"),
+    ("economy", "Economy"),
     ("technology", "Technology"),
     ("science", "Science"),
     ("culture", "Culture"),
-    ("design", "Design"),
+    ("health", "Health"),
+    ("politics", "Politics"),
     ("climate", "Climate"),
-    ("policy", "Policy"),
-    ("sport", "Sport"),
 )
 
 CATEGORY_KEYS = {key for key, _ in CATEGORY_OPTIONS}

@@ -5,9 +5,9 @@ export const IMAGES = {
       'https://lh3.googleusercontent.com/aida-public/AB6AXuDXcrgXWHIgy7IkLafYe0idK605VxwBYIiwYJhUQf6Qs_99bQPpUQFHiVDXnvJbL7v8K4tIotB_ERk4T8SOEKrxeMEtaIuZpTlJ4XXMZHY4BomyRpY_d4WSMOU_xJsR3hTCqqQJA14mBIhSvm_sFzugpS-mbvJYZYW9rWYfW6bo6wXLFxabbDzX1faq9fg9wFZaw04oA59q4loV0OHBYQO6HQ6mQvpTKjCt2qvSBw8WTu4aQScT-rAyCZFrh1Flplzpuwp_ryfb9J-h',
   },
   profile: {
-    main: 'https://images.unsplash.com/photo-1723537742563-15c3d351dbf2?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBtYW4lMjBwb3J0cmFpdCUyMGJ1c2luZXNzJTIwaGVhZHNob3R8ZW58MXx8fHwxNzc0MjcyODU0fDA&ixlib=rb-4.1.0&q=80&w=1080',
-    woman: 'https://images.unsplash.com/photo-1762522921456-cdfe882d36c3?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxidXNpbmVzcyUyMHdvbWFuJTIwcHJvZmVzc2lvbmFsJTIwaGVhZHNob3QlMjBzbWlsaW5nfGVufDF8fHx8MTc3NDE2NzU2Mnww&ixlib=rb-4.1.0&q=80&w=1080',
-    casual: 'https://images.unsplash.com/photo-1769071167455-e5779ecc81a4?crop=entropy&cs=tinysrgb&fit=max&fm=jpg&ixid=M3w3Nzg4Nzd8MHwxfHNlYXJjaHwxfHxwcm9mZXNzaW9uYWwlMjBjYXN1YWwlMjBwb3J0cmFpdCUyMHlvdW5nfGVufDF8fHx8MTc3NDI3Mjg1N3ww&ixlib=rb-4.1.0&q=80&w=1080',
+    main: 'https://api.dicebear.com/9.x/pixel-art/png?seed=Curator&size=256',
+    woman: 'https://api.dicebear.com/9.x/pixel-art/png?seed=CuratorAlt1&size=256',
+    casual: 'https://api.dicebear.com/9.x/pixel-art/png?seed=CuratorAlt2&size=256',
   },
   editorial: {
     avatar:

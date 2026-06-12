@@ -1,73 +1,49 @@
-import { Link, useLocation } from 'react-router';
-import { Sparkles, Compass, Bookmark, Settings } from 'lucide-react';
+import { Link, useLocation } from "react-router";
+import { Sparkles, Compass, Bookmark, Search } from "lucide-react";
+
+import { TAB_BAR_MAX_WIDTH } from "../../lib/layout";
 
 export function BottomNav() {
   const location = useLocation();
 
-  const isBriefActive = location.pathname === '/brief';
-  const isExploreActive =
-    location.pathname === '/home' ||
-    location.pathname === '/explore' ||
-    location.pathname === '/search';
-  const isSavedActive = location.pathname === '/saved';
-  const isSettingsActive =
-    location.pathname === '/settings' ||
-    location.pathname === '/profile' ||
-    location.pathname === '/account' ||
-    location.pathname === '/connected-accounts' ||
-    location.pathname === '/language-region';
+  const tabs = [
+    { path: "/brief", label: "Brief", Icon: Sparkles, fillable: true },
+    { path: "/explore", label: "Explore", Icon: Compass, fillable: false },
+    { path: "/search", label: "Search", Icon: Search, fillable: false },
+    { path: "/saved", label: "Saved", Icon: Bookmark, fillable: true },
+  ] as const;
 
   return (
-    <nav className="fixed bottom-6 left-0 right-0 z-50 flex justify-center px-4">
-      <div className="w-[90%] max-w-md rounded-[40px] border border-white/20 bg-white/60 px-4 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-2xl dark:border-zinc-700/30 dark:bg-zinc-900/60">
-        <div className="flex h-20 items-center justify-between">
-          <Link
-            to="/brief"
-            className={`flex flex-col items-center justify-center rounded-full px-5 py-2 transition-all ${
-              isBriefActive
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'text-zinc-500 hover:bg-zinc-100/50 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Sparkles className="mb-1 h-5 w-5" fill={isBriefActive ? 'currentColor' : 'none'} />
-            <span className="text-[10px] uppercase tracking-widest">Brief</span>
-          </Link>
+    <nav className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4">
+      <div
+        className="w-full rounded-[40px] border-2 border-outline-variant/20 bg-surface-container-lowest/80 px-3 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
+        style={{ maxWidth: TAB_BAR_MAX_WIDTH }}
+      >
+        <div className="flex h-16 items-center justify-between">
+          {tabs.map(({ path, label, Icon, fillable }) => {
+            const isActive =
+              location.pathname === path ||
+              (path === "/explore" && location.pathname === "/home");
 
-          <Link
-            to="/explore"
-            className={`flex flex-col items-center justify-center rounded-full px-5 py-2 transition-all ${
-              isExploreActive
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'text-zinc-500 hover:bg-zinc-100/50 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Compass className="mb-1 h-5 w-5" fill={isExploreActive ? 'currentColor' : 'none'} />
-            <span className="text-[10px] uppercase tracking-widest">Explore</span>
-          </Link>
-
-          <Link
-            to="/saved"
-            className={`flex flex-col items-center justify-center rounded-full px-5 py-2 transition-all ${
-              isSavedActive
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'text-zinc-500 hover:bg-zinc-100/50 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Bookmark className="mb-1 h-5 w-5" fill={isSavedActive ? 'currentColor' : 'none'} />
-            <span className="text-[10px] uppercase tracking-widest">Saved</span>
-          </Link>
-
-          <Link
-            to="/settings"
-            className={`flex flex-col items-center justify-center rounded-full px-5 py-2 transition-all ${
-              isSettingsActive
-                ? 'bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900'
-                : 'text-zinc-500 hover:bg-zinc-100/50 hover:text-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800/50 dark:hover:text-zinc-200'
-            }`}
-          >
-            <Settings className="mb-1 h-5 w-5" />
-            <span className="text-[10px] uppercase tracking-widest">Settings</span>
-          </Link>
+            return (
+              <Link
+                key={path}
+                to={path}
+                className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-2 transition-all ${
+                  isActive
+                    ? "bg-primary text-primary-foreground"
+                    : "text-on-surface-variant hover:text-on-surface"
+                }`}
+              >
+                <Icon
+                  className="h-5 w-5"
+                  strokeWidth={isActive ? 2 : 1.5}
+                  fill={isActive && fillable ? "currentColor" : "none"}
+                />
+                <span className="text-[11px] font-medium tracking-wide">{label}</span>
+              </Link>
+            );
+          })}
         </div>
       </div>
     </nav>

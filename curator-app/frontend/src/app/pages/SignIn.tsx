@@ -17,7 +17,7 @@ export function SignIn() {
 
   useEffect(() => {
     if (authStatus === "authenticated" && onboarding) {
-      navigate(onboarding.completed ? "/home" : "/onboarding", { replace: true });
+      navigate(onboarding.completed ? "/brief" : "/onboarding", { replace: true });
     }
   }, [authStatus, navigate, onboarding]);
 
@@ -28,7 +28,7 @@ export function SignIn() {
 
     try {
       const session = await signIn(email, password);
-      navigate(session.onboarding.completed ? "/home" : "/onboarding", { replace: true });
+      navigate(session.onboarding.completed ? "/brief" : "/onboarding", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Invalid email or password. Please try again.");
     } finally {
@@ -37,28 +37,31 @@ export function SignIn() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low flex items-center justify-center p-6">
-      <div className="w-full max-w-md">
+    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-6 py-8">
+      <div className="w-full max-w-lg">
         <button
           onClick={() => navigate("/")}
-          className="mb-8 flex items-center gap-2 text-on-surface-variant hover:text-on-surface transition-colors"
+          className="mb-5 flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-2 text-sm text-on-surface-variant shadow-sm transition-colors hover:bg-surface-container hover:text-on-surface"
         >
           <ArrowLeft className="w-5 h-5" />
-          <span>Back to Home</span>
+          <span>Back</span>
         </button>
 
-        <div className="bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 rounded-[40px] md:rounded-[60px] p-6 md:p-10 shadow-2xl">
-          <div className="text-center mb-8">
-            <h1 className="font-[family-name:var(--font-headline)] italic text-4xl md:text-5xl text-on-surface mb-3">
+        <div className="rounded-[56px] border border-outline-variant/15 bg-surface-container-lowest/85 p-7 shadow-[0_24px_70px_-32px_rgba(5,12,19,0.4)] backdrop-blur-xl md:p-9">
+          <div className="mb-8">
+            <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-outline">
+              Sign in
+            </p>
+            <h1 className="mb-3 font-[family-name:var(--font-headline)] text-[32px] italic leading-[1.2] text-on-surface">
               Welcome Back
             </h1>
-            <p className="text-on-surface-variant">
-              Sign in to continue your journey with The Curator.
+            <p className="text-sm leading-6 text-on-surface-variant">
+              We&apos;ll restore your profile and settings exactly where you left them.
             </p>
           </div>
 
           {error && (
-            <div className="mb-6 bg-error-container/50 border border-error text-on-error-container rounded-[30px] p-4 text-sm">
+            <div className="mb-6 rounded-2xl bg-error-container px-4 py-3 text-sm leading-5 text-on-error-container">
               {error}
             </div>
           )}
@@ -80,8 +83,8 @@ export function SignIn() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
-            <div>
-              <label className="flex items-center gap-2 mb-2 text-on-surface text-sm font-medium">
+            <div className="rounded-[28px] border border-outline-variant/20 bg-surface-container-low p-5 focus-within:border-primary">
+              <label className="mb-2.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-outline">
                 <Mail className="w-4 h-4 text-outline" />
                 Email Address
               </label>
@@ -92,12 +95,12 @@ export function SignIn() {
                 placeholder="your@email.com"
                 autoComplete="email"
                 required
-                className="w-full bg-surface-container-lowest/50 border border-outline-variant/20 rounded-2xl px-5 py-4 text-on-surface text-[15px] focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                className="w-full bg-transparent p-0 text-[17px] text-on-surface outline-none placeholder:text-outline/60"
               />
             </div>
 
-            <div>
-              <label className="flex items-center gap-2 mb-2 text-on-surface text-sm font-medium">
+            <div className="rounded-[28px] border border-outline-variant/20 bg-surface-container-low p-5 focus-within:border-primary">
+              <label className="mb-2.5 flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[0.15em] text-outline">
                 <Lock className="w-4 h-4 text-outline" />
                 Password
               </label>
@@ -109,7 +112,7 @@ export function SignIn() {
                   placeholder="Enter your password"
                   autoComplete="current-password"
                   required
-                  className="w-full bg-surface-container-lowest/50 border border-outline-variant/20 rounded-2xl pl-5 pr-12 py-4 text-on-surface text-[15px] focus:outline-none focus:ring-2 focus:ring-primary transition-all"
+                  className="w-full bg-transparent p-0 pr-10 text-[17px] text-on-surface outline-none placeholder:text-outline/60"
                 />
                 <button
                   type="button"
@@ -134,7 +137,7 @@ export function SignIn() {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full bg-inverse-surface text-white py-5 px-10 rounded-full font-semibold tracking-wide shadow-xl hover:bg-zinc-800 transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed"
+              className="w-full rounded-full bg-primary px-10 py-4 font-semibold tracking-wide text-primary-foreground shadow-xl transition-all duration-300 hover:bg-primary-dim active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? "Signing In..." : "Sign In"}
             </button>
@@ -153,7 +156,7 @@ export function SignIn() {
             <p className="text-on-surface-variant mb-4">Don&apos;t have an account?</p>
             <button
               onClick={() => navigate("/sign-up")}
-              className="bg-surface-container-lowest/30 border border-outline-variant/15 text-on-surface py-4 px-10 rounded-full font-medium tracking-wide hover:bg-surface-container-low transition-all duration-300 active:scale-95"
+              className="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-10 py-4 font-medium tracking-wide text-on-surface transition-all duration-300 hover:bg-surface-container active:scale-[0.98]"
             >
               Create Account
             </button>

@@ -1,13 +1,14 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router';
 import { ArrowLeft, Plus, Edit2, Trash2, FolderOpen, X } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
+import { AppShell } from '../components/AppShell';
 import { ArticleCard } from '../components/ArticleCard';
-import { useCollections } from '../context/CollectionsContext';
+import { useCollections, useCollectionArticles } from '../context/CollectionsContext';
 import { useSavedArticles } from '../context/SavedArticlesContext';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
-import type { Article } from '../data/articles';
+import type { Article } from '../../data/articles';
+import { FeedStack } from '../../ui/feed-stack';
 
 export function CollectionDetail() {
   const { id } = useParams<{ id: string }>();
@@ -15,11 +16,11 @@ export function CollectionDetail() {
   const { isAuthenticated } = useAuth();
   const { 
     getCollectionById, 
-    getCollectionArticles, 
     updateCollection, 
     deleteCollection,
     removeArticleFromCollection,
-    addArticleToCollection
+    addArticleToCollection,
+    isLoading,
   } = useCollections();
   const { savedArticles } = useSavedArticles();
   const { success, error: showError } = useToast();
@@ -33,24 +34,32 @@ export function CollectionDetail() {
   const [editDescription, setEditDescription] = useState('');
   
   const collection = id ? getCollectionById(id) : undefined;
-  const articles = id ? getCollectionArticles(id) : [];
+  const articles = useCollectionArticles(id ?? '');
 
   // Auth guard
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
   // Redirect if collection not found
   useEffect(() => {
-    if (isAuthenticated && id && !collection) {
+    if (isAuthenticated && id && !isLoading && !collection) {
       navigate('/collections', { replace: true });
     }
-  }, [isAuthenticated, id, collection, navigate]);
+  }, [isAuthenticated, id, collection, isLoading, navigate]);
 
-  if (!isAuthenticated || !collection) {
+  if (!isAuthenticated) {
     return null;
+  }
+
+  if (isLoading || !collection) {
+    return (
+      <AppShell title="Collection" archetype="feed">
+        <div className="py-16 text-center text-on-surface-variant">Loading collection…</div>
+      </AppShell>
+    );
   }
 
   const handleDeleteCollection = () => {
@@ -107,53 +116,27 @@ export function CollectionDetail() {
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex justify-between items-center gap-3">
-          {/* Back Button */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate('/collections')}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Collection Info */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5 flex items-center gap-3">
-            <div className={`w-8 h-8 rounded-lg ${collection.color} flex items-center justify-center shrink-0`}>
-              <FolderOpen className="w-4 h-4 text-white" />
-            </div>
-            <div className="flex-1 min-w-0">
-              <h1 className="text-lg font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface truncate">
-                {collection.name}
-              </h1>
-            </div>
-          </div>
-          
-          {/* Actions */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5 flex gap-1">
-            <button 
-              onClick={handleEdit}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <Edit2 className="w-5 h-5 text-on-surface" />
-            </button>
-            <button 
-              onClick={handleDeleteCollection}
-              className="w-10 h-10 rounded-full hover:bg-error/10 flex items-center justify-center transition-colors"
-            >
-              <Trash2 className="w-5 h-5 text-error" />
-            </button>
-          </div>
+    <AppShell title={collection.name} archetype="feed">
+      <div className="space-y-8">
+        <div className="flex items-center justify-end gap-2">
+          <button
+            type="button"
+            onClick={handleEdit}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant/20 hover:bg-surface-container"
+          >
+            <Edit2 className="h-5 w-5 text-on-surface" />
+          </button>
+          <button
+            type="button"
+            onClick={handleDeleteCollection}
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-outline-variant/20 hover:bg-error/10"
+          >
+            <Trash2 className="h-5 w-5 text-error" />
+          </button>
         </div>
-      </header>
-      
-      <main className="pt-32 px-6 max-w-5xl mx-auto">
+
         {/* Collection Header */}
-        <div className="bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 rounded-[60px] p-8 mb-8">
+        <div className="rounded-[60px] border border-outline-variant/15 bg-surface-container-lowest/70 p-8 backdrop-blur-xl">
           {collection.description && (
             <p className="text-on-surface-variant mb-4">
               {collection.description}
@@ -191,7 +174,7 @@ export function CollectionDetail() {
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          <FeedStack>
             {articles.map((article) => (
               <div key={article.id} className="relative">
                 {/* Delete Button */}
@@ -207,9 +190,9 @@ export function CollectionDetail() {
                 <ArticleCard article={article} />
               </div>
             ))}
-          </div>
+          </FeedStack>
         )}
-      </main>
+      </div>
       
       {/* Add Articles Modal */}
       {showAddModal && (
@@ -406,8 +389,6 @@ export function CollectionDetail() {
           </div>
         </div>
       )}
-      
-      <BottomNav />
-    </div>
+    </AppShell>
   );
 }

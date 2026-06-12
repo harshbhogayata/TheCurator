@@ -2,14 +2,13 @@ import React, { memo } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
-import { Image } from "expo-image";
 import { Menu } from "lucide-react-native";
 import { useRouter } from "expo-router";
 
 import { useTheme } from "../providers/theme-provider";
 import { useAuth } from "../providers/auth-provider";
 import { SubscriptionBadge } from "./subscription-badge";
-import { IMAGES } from "../data/images";
+import { ProfileAvatar } from "./profile-avatar";
 
 interface HeaderProps {
   title?: string;
@@ -34,7 +33,6 @@ function HeaderInner({
   const router = useRouter();
 
   const tint = resolvedTheme === "dark" ? "dark" : "light";
-  const avatarUri = session?.user?.avatarUrl || IMAGES.profile.main;
 
   const handleMenuPress = onMenuPress ?? (() => router.push("/(app)/menu"));
   const handleProfilePress = onProfilePress ?? (() => router.push("/(app)/profile"));
@@ -130,12 +128,12 @@ function HeaderInner({
               ]}
             />
             {showBadge && <SubscriptionBadge size="sm" />}
-            <Image
-              source={{ uri: avatarUri }}
-              style={[
-                styles.avatar,
-                { borderColor: palette.outlineVariant + "26" },
-              ]}
+            <ProfileAvatar
+              avatarUrl={session?.user?.avatarUrl}
+              displayName={session?.user?.displayName}
+              email={session?.user?.email}
+              size={30}
+              imageStyle={{ borderWidth: 1, borderColor: palette.outlineVariant + "26" }}
             />
           </Pressable>
         </View>

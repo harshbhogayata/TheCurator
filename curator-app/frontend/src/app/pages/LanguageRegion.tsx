@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Check } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
+import { Check } from 'lucide-react';
+import { AppShell } from '../components/AppShell';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
@@ -25,7 +25,7 @@ export function LanguageRegion() {
   // Auth guard
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
   
@@ -47,31 +47,9 @@ export function LanguageRegion() {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex items-center gap-3">
-          {/* Back Button */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate('/settings')}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Title */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5">
-            <h1 className="text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center">
-              Language & Region
-            </h1>
-          </div>
-        </div>
-      </header>
-      
-      <main className="pt-32 px-6 max-w-3xl mx-auto">
-        <p className="text-on-surface-variant text-center mb-8 px-4">
+    <AppShell title="Language & Region">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <p className="px-4 text-center text-on-surface-variant">
           Select your preferred region for The Curator experience
         </p>
         
@@ -119,9 +97,7 @@ export function LanguageRegion() {
             Your region preference helps customize date formats, spelling conventions (US vs UK English), and content relevance. All articles are available in English across all regions.
           </p>
         </div>
-      </main>
-      
-      <BottomNav />
-    </div>
+      </div>
+    </AppShell>
   );
 }

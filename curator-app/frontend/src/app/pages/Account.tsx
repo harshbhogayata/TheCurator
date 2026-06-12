@@ -1,15 +1,17 @@
 import { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, Camera, Mail, Calendar, MapPin, Save, User as UserIcon, AlertTriangle, X } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
+import { Camera, Mail, Calendar, MapPin, Save, User as UserIcon, AlertTriangle, X } from 'lucide-react';
+import { AppShell } from '../components/AppShell';
 import { useNavigate } from 'react-router';
 import { useAuth } from '../context/AuthContext';
 import { useToast } from '../components/Toast';
 import { IMAGES } from '../constants/images';
+import { deleteAccountRemote, updateAccountRemote } from '../../services/mobile-api';
+import { isMockBackend } from '../../lib/dev-mode';
 
 export function Account() {
   const navigate = useNavigate();
   const { user, isAuthenticated, updateProfile, signOut } = useAuth();
-  const { success } = useToast();
+  const { success, error } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const [name, setName] = useState('');
@@ -21,7 +23,7 @@ export function Account() {
   // Auth guard
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
   
@@ -48,10 +50,17 @@ export function Account() {
     setHasChanges(true);
   };
   
-  const handleSave = () => {
-    updateProfile({ name, email, profileImage });
-    setHasChanges(false);
-    success('Profile updated successfully!');
+  const handleSave = async () => {
+    try {
+      if (!isMockBackend) {
+        await updateAccountRemote({ displayName: name });
+      }
+      updateProfile({ name, email, profileImage });
+      setHasChanges(false);
+      success('Profile updated successfully!');
+    } catch {
+      error('Could not update your profile. Please try again.');
+    }
   };
   
   const handleImageUpload = () => {
@@ -85,37 +94,25 @@ export function Account() {
     }
   };
   
-  const handleDeleteAccount = () => {
-    signOut();
-    success('Account deleted successfully');
-    navigate('/', { replace: true });
+  const handleDeleteAccount = async () => {
+    try {
+      if (!isMockBackend) {
+        await deleteAccountRemote();
+      }
+      signOut();
+      success('Account deleted successfully');
+      navigate('/', { replace: true });
+    } catch {
+      setShowDeleteModal(false);
+      error(
+        'Account deletion requires a recent sign-in. Please sign in again and retry.',
+      );
+    }
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header with Separate Pill Containers */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex items-center gap-3">
-          {/* Left: Back Button (Circle Pill) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Center: Title (Long Pill) */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5">
-            <h1 className="text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center">
-              Account
-            </h1>
-          </div>
-        </div>
-      </header>
-      
-      <main className="pt-32 px-6 max-w-2xl mx-auto">
+    <AppShell title="Account">
+      <div className="mx-auto max-w-2xl space-y-6">
         {/* Profile Photo */}
         <div className="flex flex-col items-center mb-8">
           <div className="relative">
@@ -253,9 +250,7 @@ export function Account() {
           accept="image/*"
           className="hidden"
         />
-      </main>
-      
-      {/* Delete Confirmation Modal */}
+      </div>
       {showDeleteModal && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-6">
           <div className="bg-surface-container-lowest rounded-[40px] p-8 max-w-md w-full shadow-2xl">
@@ -294,8 +289,6 @@ export function Account() {
           </div>
         </div>
       )}
-      
-      <BottomNav />
-    </div>
+    </AppShell>
   );
 }

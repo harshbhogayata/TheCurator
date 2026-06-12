@@ -37,20 +37,6 @@ import { ArticleAudioPlayer } from "../../../src/ui/article-audio-player";
 import { AddToCollectionModal } from "../../../src/ui/add-to-collection-modal";
 import { useArticle, useArticles } from "../../../src/hooks/use-articles";
 
-function generateFallbackContent(excerpt: string, sources: string[]): string {
-  return `This is a synthesized narrative from ${sources.length} trusted sources, providing a comprehensive view on the developments shaping our world today.
-
-${excerpt}
-
-Our editorial team has analyzed perspectives from leading publications and research institutions to bring you this distilled insight. The convergence of these viewpoints reveals patterns and implications that individual articles might miss.
-
-This approach to journalism—aggregating and synthesizing multiple authoritative sources—represents a new paradigm in news consumption. Rather than presenting a single perspective, we offer a curated synthesis that respects the complexity of important issues while making them accessible.
-
-The implications of these developments extend across multiple sectors and geographies. Understanding these connections is essential for making informed decisions in an increasingly interconnected world.
-
-As this story continues to develop, we'll update this narrative with new insights from our network of sources, ensuring you have access to the most current and comprehensive understanding available.`;
-}
-
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -61,7 +47,7 @@ export default function ArticleScreen() {
   const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
   const { fontSizeValue, lineHeightValue } = useReadingPreferences();
   const { recordArticleRead } = useReadingStats();
-  const { data: article, isLoading: isArticleLoading } = useArticle(id ?? "");
+  const { data: article, isLoading: isArticleLoading, isError: isArticleError, refetch } = useArticle(id ?? "");
   const { data: allArticles = [] } = useArticles();
 
   const [typographyVisible, setTypographyVisible] = useState(false);
@@ -71,6 +57,7 @@ export default function ArticleScreen() {
   const startTime = useRef(Date.now());
   const scrollRef = useRef<ScrollView>(null);
   const savedScrollY = useRef(0);
+  const autoSaveAttempted = useRef(false);
   const scrollKey = `curator.scroll.${id}`;
 
   // Related articles: same category first, pad with others to always reach 3
@@ -89,7 +76,7 @@ export default function ArticleScreen() {
   // Article content
   const articleContent = useMemo(() => {
     if (!article) return "";
-    return article.content || generateFallbackContent(article.excerpt, article.sources);
+    return article.content?.trim() ?? "";
   }, [article]);
 
   const paragraphs = useMemo(
@@ -124,16 +111,17 @@ export default function ArticleScreen() {
     return () => {
       const y = savedScrollY.current;
       if (y > 50) {
-        AsyncStorage.setItem(scrollKey, String(Math.floor(y)));
+        AsyncStorage.setItem(scrollKey, String(Math.floor(y))).catch(console.error);
       } else {
-        AsyncStorage.removeItem(scrollKey);
+        AsyncStorage.removeItem(scrollKey).catch(console.error);
       }
     };
   }, [scrollKey]);
 
   // Auto-save when preference is enabled and article isn't already saved
   useEffect(() => {
-    if (article && session?.preferences.autoSaveEnabled && !isArticleSaved(article.id)) {
+    if (article && session?.preferences.autoSaveEnabled && !isArticleSaved(article.id) && !autoSaveAttempted.current) {
+      autoSaveAttempted.current = true;
       saveArticle(article.id);
     }
   }, [article, session?.preferences.autoSaveEnabled, isArticleSaved, saveArticle]);
@@ -192,6 +180,38 @@ export default function ArticleScreen() {
         >
           Loading article...
         </Text>
+      </View>
+    );
+  }
+
+  if (isArticleError) {
+    return (
+      <View style={[styles.notFound, { backgroundColor: palette.background }]}>
+        <Text
+          style={{
+            fontFamily: "Newsreader_500Medium",
+            fontSize: 24,
+            color: palette.onSurface,
+            marginBottom: 16,
+            textAlign: "center",
+          }}
+        >
+          We couldn't load this article
+        </Text>
+        <Pressable
+          onPress={() => void refetch()}
+          style={[styles.notFoundButton, { backgroundColor: palette.inverseSurface }]}
+        >
+          <Text
+            style={{
+              fontFamily: "Manrope_600SemiBold",
+              fontSize: 14,
+              color: palette.inverseOnSurface,
+            }}
+          >
+            Try Again
+          </Text>
+        </Pressable>
       </View>
     );
   }
@@ -440,11 +460,13 @@ export default function ArticleScreen() {
 
         {/* Article Body */}
         <View style={styles.bodyContainer}>
-          {paragraphs.map((paragraph, index) => (
+          {paragraphs.length > 0 ? paragraphs.map((paragraph, index) => (
             <Text
               key={index}
               style={index === 0 ? {
-                ...type.bodyLead,
+                fontFamily: "Newsreader_400Regular",
+                fontSize: fontSizeValue + 2,
+                lineHeight: (fontSizeValue + 2) * lineHeightValue,
                 color: palette.onSurface,
                 marginBottom: fontSizeValue * 1.6,
               } : {
@@ -457,7 +479,11 @@ export default function ArticleScreen() {
             >
               {paragraph}
             </Text>
-          ))}
+          )) : (
+            <Text style={[styles.unavailableCopy, { color: palette.onSurfaceVariant }]}>
+              The full narrative is not available right now.
+            </Text>
+          )}
         </View>
 
         {/* Similar Narratives */}
@@ -620,6 +646,12 @@ const styles = StyleSheet.create({
   // Body
   bodyContainer: {
     paddingHorizontal: 16,
+  },
+  unavailableCopy: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 15,
+    lineHeight: 22,
+    marginBottom: 32,
   },
 
   // Related

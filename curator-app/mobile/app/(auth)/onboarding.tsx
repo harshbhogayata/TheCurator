@@ -2,11 +2,13 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import { Pressable, Text, TextInput, useWindowDimensions, View } from "react-native";
+import * as ImagePicker from "expo-image-picker";
+import { Pressable, Text, TextInput, useWindowDimensions, View, StyleSheet } from "react-native";
 import {
   ArrowLeft,
   ArrowRight,
   BookOpen,
+  Camera,
   Check,
   Heart,
   Monitor,
@@ -33,9 +35,11 @@ import {
   type UserPreferences,
 } from "../../src/lib/types";
 import { useAuth } from "../../src/providers/auth-provider";
+import { useReadingPreferences } from "../../src/providers/reading-preferences-provider";
 import { useTheme } from "../../src/providers/theme-provider";
 import { LoadingScreen } from "../../src/ui/loading-screen";
 import { PrimaryButton } from "../../src/ui/primary-button";
+import { ProfileAvatar } from "../../src/ui/profile-avatar";
 import { Screen } from "../../src/ui/screen";
 
 const onboardingSteps = onboardingStepOrder.filter(
@@ -47,15 +51,13 @@ type VisualStep = (typeof onboardingSteps)[number];
 // ─── Static data ───────────────────────────────────────────
 
 const categoryEmojiByKey: Record<string, string> = {
-  world: "🌍",
-  business: "📈",
+  economy: "📈",
   technology: "💻",
   science: "🔬",
   culture: "🎭",
-  design: "✦",
+  health: "❤️",
+  politics: "🏛️",
   climate: "🌿",
-  policy: "🏛️",
-  sport: "⚽",
 };
 
 const themeOptions = [
@@ -576,14 +578,16 @@ export default function OnboardingScreen() {
   const {
     session,
     status,
-    errorMessage,
-    isBusy,
     updateOnboardingProfile,
     updateOnboardingCategories,
     updateOnboardingPreferences,
     completeOnboarding,
+    updateProfileAvatar,
+    errorMessage,
+    isBusy,
     clearError,
   } = useAuth();
+  const { hydrateFontSize } = useReadingPreferences();
 
   const [displayName, setDisplayName] = useState(session?.user.displayName ?? "");
   const [selectedCategories, setSelectedCategories] = useState<string[]>(
@@ -606,6 +610,23 @@ export default function OnboardingScreen() {
   const serverStep = session?.onboarding.currentStep ?? "account";
   const selectedCount = selectedCategories.length;
   const stepCopy = useMemo(() => getStepCopy(localStep), [localStep]);
+
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ['images'],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets && result.assets.length > 0) {
+        await updateProfileAvatar(result.assets[0].uri);
+      }
+    } catch (error) {
+      console.error("Image pick error", error);
+    }
+  };
 
   useEffect(() => {
     setDisplayName(session?.user.displayName ?? "");
@@ -682,7 +703,46 @@ export default function OnboardingScreen() {
     // ── Account ──────────────────────────────────────────
     if (localStep === "account") {
       return (
-        <View style={{ gap: 16 }}>
+        <View style={{ gap: 24 }}>
+          <View style={{ alignItems: "center" }}>
+            <Pressable onPress={handlePickImage}>
+              <View
+                style={{
+                  width: 96,
+                  height: 96,
+                  borderRadius: 48,
+                  overflow: "hidden",
+                  borderWidth: 3,
+                  borderColor: palette.outlineVariant + "40",
+                  backgroundColor: palette.surfaceContainerLowest,
+                }}
+              >
+                <ProfileAvatar
+                  avatarUrl={session?.user?.avatarUrl}
+                  displayName={session?.user?.displayName}
+                  email={session?.user?.email}
+                  size={90}
+                />
+              </View>
+              <View
+                style={{
+                  position: "absolute",
+                  bottom: 0,
+                  right: 0,
+                  backgroundColor: palette.primary,
+                  width: 32,
+                  height: 32,
+                  borderRadius: 16,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderWidth: 3,
+                  borderColor: palette.background,
+                }}
+              >
+                <Camera size={14} color={palette.primaryForeground} />
+              </View>
+            </Pressable>
+          </View>
           <View style={{ gap: 8 }}>
             <Text style={[type.overline, { fontSize: 13, letterSpacing: 0.5, color: palette.onSurface }]}>
               Display name
@@ -863,6 +923,7 @@ export default function OnboardingScreen() {
                   onPress={() => {
                     clearError();
                     setPreferences((cur) => ({ ...cur, textSize: opt.key }));
+                    hydrateFontSize(opt.key);
                   }}
                 />
               </View>

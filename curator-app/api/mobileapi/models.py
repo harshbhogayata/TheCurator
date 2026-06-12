@@ -27,15 +27,34 @@ class Category(UUIDPrimaryKeyModel):
         return self.name
 
 
+class ArticleStatus(models.TextChoices):
+    DRAFT = "draft", "Draft"
+    PUBLISHED = "published", "Published"
+    ARCHIVED = "archived", "Archived"
+
+
 class Article(UUIDPrimaryKeyModel):
-    slug = models.SlugField(max_length=280, unique=True, blank=True, null=True)
+    slug = models.SlugField(max_length=280, unique=True, blank=True, default="")
     title = models.CharField(max_length=240)
     excerpt = models.TextField()
-    category = models.CharField(max_length=64)
+    status = models.CharField(
+        max_length=16,
+        choices=ArticleStatus.choices,
+        default=ArticleStatus.PUBLISHED,
+        db_index=True,
+    )
+    category = models.ForeignKey(
+        "mobileapi.Category",
+        on_delete=models.PROTECT,
+        related_name="articles",
+    )
     read_time_minutes = models.PositiveSmallIntegerField(default=5)
-    published_at = models.DateField(default=timezone.localdate)
+    published_at = models.DateField(default=timezone.localdate, db_index=True)
     author = models.CharField(max_length=140)
     sources = models.JSONField(default=list, blank=True)
+    # Structured attribution: list of {"name": str, "url": str} dicts.
+    source_links = models.JSONField(default=list, blank=True)
+    topics = models.JSONField(default=list, blank=True)
     image_query = models.CharField(max_length=255, blank=True)
     image_url = models.URLField(blank=True)
     image_source_url = models.URLField(blank=True)
@@ -43,11 +62,16 @@ class Article(UUIDPrimaryKeyModel):
     content = models.TextField(blank=True)
     audio_url = models.URLField(blank=True)
     audio_duration_sec = models.PositiveIntegerField(null=True, blank=True)
+    # Precomputed at publish from embeddings (or topic overlap as fallback).
+    related_article_ids = models.JSONField(default=list, blank=True)
     rank = models.PositiveIntegerField(default=0)
-    is_active = models.BooleanField(default=True)
+    is_active = models.BooleanField(default=True, db_index=True)
 
     class Meta:
         ordering = ["-published_at", "rank", "-created_at"]
+        indexes = [
+            models.Index(fields=["-published_at", "rank", "id"], name="article_feed_idx"),
+        ]
 
     def __str__(self):
         return self.title
@@ -65,6 +89,24 @@ class Article(UUIDPrimaryKeyModel):
                 suffix += 1
             self.slug = slug
         super().save(*args, **kwargs)
+
+
+class ArticleEmbedding(UUIDPrimaryKeyModel):
+    """Semantic embedding of an article, used for related-article ranking."""
+
+    article = models.OneToOneField(
+        "mobileapi.Article",
+        on_delete=models.CASCADE,
+        related_name="embedding",
+    )
+    vector = models.JSONField(default=list, blank=True)
+    model = models.CharField(max_length=64, blank=True)
+
+    class Meta:
+        ordering = ["-updated_at"]
+
+    def __str__(self):
+        return f"Embedding · {self.article}"
 
 
 class Brief(UUIDPrimaryKeyModel):
@@ -170,10 +212,13 @@ class UserReadingEvent(UUIDPrimaryKeyModel):
         related_name="reading_events",
     )
     read_time_ms = models.PositiveIntegerField(default=0)
-    event_date = models.DateField(default=timezone.localdate)
+    event_date = models.DateField(default=timezone.localdate, db_index=True)
 
     class Meta:
         ordering = ["-created_at"]
+        indexes = [
+            models.Index(fields=["user", "-created_at"], name="reading_event_user_idx"),
+        ]
 
     def __str__(self):
         return f"{self.user} · {self.event_date} · {self.read_time_ms}ms"
@@ -199,6 +244,8 @@ class UserEntitlement(UUIDPrimaryKeyModel):
     )
     product_id = models.CharField(max_length=128, blank=True)
     revenuecat_customer_id = models.CharField(max_length=128, blank=True)
+    stripe_customer_id = models.CharField(max_length=128, blank=True, db_index=True)
+    stripe_subscription_id = models.CharField(max_length=128, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     will_renew = models.BooleanField(default=False)
 
@@ -209,6 +256,12 @@ class UserEntitlement(UUIDPrimaryKeyModel):
     def effective_tier(self):
         if self.qa_override_enabled and self.qa_override_tier:
             return self.qa_override_tier
+        if (
+            self.tier != SubscriptionTier.LIFETIME
+            and self.expires_at
+            and self.expires_at <= timezone.now()
+        ):
+            return SubscriptionTier.FREE
         return self.tier
 
     def __str__(self):
@@ -229,6 +282,9 @@ class UserDevice(UUIDPrimaryKeyModel):
     )
     expo_push_token = models.CharField(max_length=255)
     platform = models.CharField(max_length=16, choices=DevicePlatform.choices)
+    # Web Push (VAPID) subscription JSON for platform=web devices:
+    # {"endpoint": ..., "keys": {"p256dh": ..., "auth": ...}}
+    web_push_subscription = models.JSONField(default=dict, blank=True)
     app_version = models.CharField(max_length=32, blank=True)
     last_seen = models.DateTimeField(default=timezone.now)
     is_active = models.BooleanField(default=True)

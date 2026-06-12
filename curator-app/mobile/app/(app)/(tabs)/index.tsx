@@ -22,30 +22,26 @@ import { useBriefs } from "../../../src/hooks/use-briefs";
 import { useHeaderOffset } from "../../../src/lib/layout";
 import { shape } from "../../../src/ui/tokens/spacing";
 import { Header } from "../../../src/ui/header";
+
+const EDITORIAL_QUOTE = "Truth is not a destination, but a distillation of perspectives.";
+const EDITORIAL_QUOTE_ATTRIBUTION = "— The Curator Editorial Board";
 import { AdBanner } from "../../../src/ui/ad-banner";
+import { ErrorState } from "../../../src/ui/error-state";
 import { BriefCardSkeleton } from "../../../src/ui/skeleton-loader";
 import { PaywallModal } from "../../../src/ui/paywall-modal";
-import { dailyBriefs } from "../../../src/data/briefs";
 
 export default function BriefsScreen() {
   const { palette } = useTheme();
   const router = useRouter();
-  const { hasAdFree, hasAudioAccess } = useSubscription();
+  const { hasAdFree, hasBriefAudioAccess } = useSubscription();
   const { playBrief, state, currentBriefId, pause, resume } = useAudio();
-  const { data: briefs = [], isFetching, refetch } = useBriefs();
+  const { data: briefs = [], isFetching, isLoading, refetch, isError } = useBriefs();
   const headerOffset = useHeaderOffset();
 
-  // Use API data when available; fall back to static mock data only when API returns empty
-  const displayBriefs = briefs.length > 0 ? briefs : dailyBriefs;
+  const displayBriefs = briefs;
 
   const [refreshing, setRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
   const [paywallVisible, setPaywallVisible] = useState(false);
-
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(t);
-  }, []);
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -57,7 +53,7 @@ export default function BriefsScreen() {
 
   const handlePlayBrief = useCallback(
     (id: string, audioUrl: string) => {
-      if (!hasAudioAccess) {
+      if (!hasBriefAudioAccess) {
         setPaywallVisible(true);
         return;
       }
@@ -69,7 +65,7 @@ export default function BriefsScreen() {
         playBrief(id, audioUrl);
       }
     },
-    [hasAudioAccess, currentBriefId, state, playBrief, pause, resume]
+    [hasBriefAudioAccess, currentBriefId, state, playBrief, pause, resume]
   );
 
   return (
@@ -101,7 +97,7 @@ export default function BriefsScreen() {
           </View>
         )}
 
-        {!hasAudioAccess && (
+        {!hasBriefAudioAccess && (
           <View
             style={[
               styles.paywallNotice,
@@ -140,15 +136,37 @@ export default function BriefsScreen() {
           </View>
         )}
 
-        {isLoading || isFetching ? (
+        {isError ? (
+          <ErrorState
+            title="Briefs could not load"
+            message="Pull to refresh or try again when your connection is stable."
+            onRetry={() => void refetch()}
+          />
+        ) : isLoading ? (
           <View style={{ gap: 24 }}>
             <BriefCardSkeleton />
             <BriefCardSkeleton />
             <BriefCardSkeleton />
           </View>
+        ) : displayBriefs.length === 0 ? (
+          <View
+            style={{
+              alignItems: "center",
+              justifyContent: "center",
+              paddingVertical: 80,
+            }}
+          >
+            <Sparkles size={48} color={palette.outlineVariant} />
+            <Text style={{ fontSize: 20, fontFamily: "Newsreader_700Bold", color: palette.onSurface, marginTop: 16 }}>
+              No briefs available
+            </Text>
+            <Text style={{ fontSize: 14, fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant, marginTop: 8, textAlign: "center", paddingHorizontal: 48 }}>
+              We'll notify you as soon as new curated briefings are ready.
+            </Text>
+          </View>
         ) : (
           <>
-        {/* Featured Brief */}
+            {/* Featured Brief */}
         <View style={{ marginBottom: 40 }}>
           <View
             style={[
@@ -211,7 +229,7 @@ export default function BriefsScreen() {
             </View>
 
             {/* Summary text for non-subscribers */}
-            {!hasAudioAccess && (
+            {!hasBriefAudioAccess && (
               <Text
                 numberOfLines={3}
                 style={[
@@ -234,7 +252,7 @@ export default function BriefsScreen() {
                   { backgroundColor: palette.inverseSurface },
                 ]}
               >
-                {!hasAudioAccess ? (
+                {!hasBriefAudioAccess ? (
                   <Lock size={26} color={palette.inverseOnSurface} />
                 ) : currentBriefId === featuredBrief.id && state === "playing" ? (
                   <Pause size={28} color={palette.inverseOnSurface} fill={palette.inverseOnSurface} />
@@ -283,7 +301,7 @@ export default function BriefsScreen() {
                         { backgroundColor: palette.inverseSurface },
                       ]}
                     >
-                      {!hasAudioAccess ? (
+                      {!hasBriefAudioAccess ? (
                         <Lock size={18} color={palette.inverseOnSurface} />
                       ) : isPlaying ? (
                         <Pause size={20} color={palette.inverseOnSurface} fill={palette.inverseOnSurface} />
@@ -349,7 +367,7 @@ export default function BriefsScreen() {
                           {brief.publishedDate}
                         </Text>
                       </View>
-                      {!hasAudioAccess && (
+                      {!hasBriefAudioAccess && (
                         <Text
                           numberOfLines={2}
                           style={{
@@ -394,10 +412,10 @@ export default function BriefsScreen() {
               style={{ opacity: 0.3, marginBottom: 24 }}
             />
             <Text style={[styles.quoteText, { color: palette.onBackground }]}>
-              {"\u201CTruth is not a destination, but a distillation of perspectives.\u201D"}
+              {`\u201C${EDITORIAL_QUOTE}\u201D`}
             </Text>
             <Text style={[styles.quoteAttribution, { color: palette.outline }]}>
-              {"\u2014 The Curator Editorial Board"}
+              {EDITORIAL_QUOTE_ATTRIBUTION}
             </Text>
           </View>
         </View>

@@ -9,6 +9,7 @@ import {
   useState,
 } from "react";
 
+import { Alert } from "react-native";
 import {
   clearSavedArticlesRemote,
   listSavedArticleIds,
@@ -16,6 +17,7 @@ import {
   unsaveArticleById,
 } from "../services/mobile-api";
 import { useAuth } from "./auth-provider";
+import { useSubscription } from "./subscription-provider";
 
 interface SavedArticlesContextValue {
   savedArticleIds: string[];
@@ -33,6 +35,7 @@ const SavedArticlesContext = createContext<SavedArticlesContextValue | null>(nul
 
 export function SavedArticlesProvider({ children }: PropsWithChildren) {
   const { status } = useAuth();
+  const { hasUnlimitedSaves, maxSaves } = useSubscription();
   const [savedArticleIds, setSavedArticleIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -83,11 +86,24 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
 
   const saveArticle = useCallback(
     (id: string) => {
-      setSavedArticleIds((prev) => {
-        if (prev.includes(id)) {
-          return prev;
-        }
+      if (savedArticleIds.includes(id)) {
+        return;
+      }
 
+      if (!hasUnlimitedSaves && savedArticleIds.length >= maxSaves) {
+        Alert.alert(
+          "Limit Reached",
+          `You've reached the limit of ${maxSaves} saved articles on your current tier. Upgrade to save more!`,
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
+      if (!MOCK_BACKEND && status !== "signed-in") {
+        return;
+      }
+
+      setSavedArticleIds((prev) => {
         const next = [...prev, id];
         if (MOCK_BACKEND) {
           void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -107,11 +123,15 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
           setSavedArticleIds((prev) => prev.filter((articleId) => articleId !== id));
         });
     },
-    [status],
+    [status, savedArticleIds, hasUnlimitedSaves, maxSaves],
   );
 
   const unsaveArticle = useCallback(
     (id: string) => {
+      if (!MOCK_BACKEND && status !== "signed-in") {
+        return;
+      }
+
       setSavedArticleIds((prev) => {
         const next = prev.filter((articleId) => articleId !== id);
         if (MOCK_BACKEND) {

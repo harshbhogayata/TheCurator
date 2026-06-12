@@ -1,9 +1,12 @@
+import { organicShapeStyle } from '../../lib/layout';
+import { shape } from '../../ui/tokens/spacing';
+
 export function ArticleCardSkeleton() {
   return (
     <div 
       className="relative overflow-hidden bg-surface-container-lowest border border-outline-variant/15 animate-pulse"
       style={{ 
-        borderRadius: '80px 40px 100px 60px',
+        ...organicShapeStyle(shape.imageHero),
         height: '300px'
       }}
     >

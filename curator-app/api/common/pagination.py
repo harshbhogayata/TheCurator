@@ -4,17 +4,17 @@ from datetime import date, datetime
 from typing import Optional, Tuple
 
 
-def encode_cursor(published_at: date, record_id: str) -> str:
-    payload = {"pub": published_at.isoformat(), "id": str(record_id)}
+def encode_cursor(published_at: date, rank: int, record_id: str) -> str:
+    payload = {"pub": published_at.isoformat(), "rank": int(rank), "id": str(record_id)}
     return base64.urlsafe_b64encode(json.dumps(payload, separators=(",", ":")).encode()).decode()
 
 
-def decode_cursor(cursor: str) -> Optional[Tuple[date, str]]:
+def decode_cursor(cursor: str) -> Optional[Tuple[date, int, str]]:
     try:
         padded = cursor + "=" * (-len(cursor) % 4)
         raw = base64.urlsafe_b64decode(padded.encode()).decode()
         data = json.loads(raw)
-        return date.fromisoformat(data["pub"]), data["id"]
+        return date.fromisoformat(data["pub"]), int(data.get("rank", 0)), data["id"]
     except Exception:
         return None
 
@@ -44,20 +44,22 @@ class CursorPage:
             if decoded is None:
                 self._invalid = True
                 return self
-            cursor_date, cursor_id = decoded
+            cursor_date, cursor_rank, cursor_id = decoded
             from django.db.models import Q
             self.queryset = self.queryset.filter(
                 Q(published_at__lt=cursor_date)
-                | Q(published_at=cursor_date, id__lt=cursor_id)
+                | Q(published_at=cursor_date, rank__gt=cursor_rank)
+                | Q(published_at=cursor_date, rank=cursor_rank, id__gt=cursor_id)
             )
 
+        self.queryset = self.queryset.order_by("-published_at", "rank", "id")
         raw = list(self.queryset[: self.limit + 1])
         has_next = len(raw) > self.limit
         self._items = raw[: self.limit]
 
         if has_next and self._items:
             last = self._items[-1]
-            self._next_cursor = encode_cursor(last.published_at, last.id)
+            self._next_cursor = encode_cursor(last.published_at, getattr(last, "rank", 0), last.id)
         else:
             self._next_cursor = None
 

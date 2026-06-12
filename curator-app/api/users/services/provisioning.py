@@ -64,12 +64,19 @@ def provision_user_from_claims(claims):
         raise ValueError("The Firebase token is missing an email address.")
 
     display_name = claims.get("name") or claims.get("display_name") or ""
-    avatar_url = claims.get("picture") or ""
+    picture = (claims.get("picture") or "").strip()
     provider = _provider_from_claims(claims)
 
     user = User.objects.filter(firebase_uid=firebase_uid).first()
     if not user:
-        user = User.objects.filter(email__iexact=email).first()
+        email_match = User.objects.filter(email__iexact=email).first()
+        if email_match:
+            # Only attach this Firebase credential to a pre-existing account when
+            # the token's email is verified. An unverified sign-in must not be able
+            # to take over an account that was created with a verified provider.
+            if not claims.get("email_verified"):
+                raise ValueError("Verify your email before signing in with this account.")
+            user = email_match
 
     if not user:
         user = User(email=email)
@@ -82,8 +89,8 @@ def provision_user_from_claims(claims):
 
     if display_name:
         user.display_name = display_name
-    if avatar_url:
-        user.avatar_url = avatar_url
+    if picture.startswith("https://"):
+        user.avatar_url = picture
     if claims.get("email_verified") and not user.email_verified_at:
         user.email_verified_at = timezone.now()
 

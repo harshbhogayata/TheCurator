@@ -41,6 +41,8 @@ Thumbs.db
 *.key
 *.mobileprovision
 *.orig.*
+google-play-key.json
+play-service-account*.json
 web-build/
 android/
 ios/

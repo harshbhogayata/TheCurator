@@ -1,225 +1,214 @@
-import { useState, useEffect } from 'react';
-import { Menu, Search, SlidersHorizontal, TrendingUp } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
-import { ArticleCard } from '../components/ArticleCard';
-import { SubscriptionBadge } from '../components/SubscriptionBadge';
-import { AdBanner } from '../components/AdBanner';
-import { AdCard } from '../components/AdCard';
-import { articles } from '../data/articles';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Search as SearchIcon } from 'lucide-react';
 import { useNavigate } from 'react-router';
+
+import { AppShell } from '../components/AppShell';
+import { ArticleCard } from '../components/ArticleCard';
+import { AdBanner } from '../components/AdBanner';
+import { ArticleCardSkeleton } from '../components/SkeletonLoaders';
+import { FeedStack } from '../../ui/feed-stack';
+import { EditorialGrid } from '../../ui/editorial-grid';
+import { useLayout } from '../../providers/layout-provider';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { IMAGES } from '../constants/images';
+import { useArticles, useForYouArticles } from '../../hooks/use-articles';
+import { useCategories } from '../../hooks/use-categories';
 
-const categories = [
-  'All',
-  'Politics',
-  'Technology',
-  'Science',
-  'Business',
-  'Culture',
-  'Environment',
-  'Health',
-  'World'
-];
+function normalizeCategory(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_]+/g, '-');
+}
+
+function formatCategoryLabel(value: string): string {
+  return value.replace(/[-_]+/g, ' ').replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export function Explore() {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated } = useAuth();
   const { hasAdFree } = useSubscription();
-  const [selectedCategory, setSelectedCategory] = useState('All');
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  // Redirect to welcome if not authenticated
+  const { isWebDesktop } = useLayout();
+  const { data: articles = [], isLoading: isArticlesLoading, refetch } = useArticles();
+  const { data: apiCategories, isLoading: isCategoriesLoading } = useCategories();
+
+  const [viewMode, setViewMode] = useState<'foryou' | 'today' | 'global'>('today');
+  const { data: forYouArticles = [], isLoading: isForYouLoading } = useForYouArticles(
+    viewMode === 'foryou',
+  );
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const isLoading =
+    isArticlesLoading || isCategoriesLoading || (viewMode === 'foryou' && isForYouLoading);
+
+  const categoryOptions = useMemo(() => {
+    if (apiCategories && apiCategories.length > 0) {
+      return [
+        { key: 'all', label: 'All' },
+        ...apiCategories.map((category) => ({
+          key: normalizeCategory(category.slug),
+          label: category.name,
+        })),
+      ];
+    }
+
+    const articleCategories = Array.from(
+      new Set(articles.map((article) => normalizeCategory(article.category)).filter(Boolean)),
+    );
+    return [
+      { key: 'all', label: 'All' },
+      ...articleCategories.map((category) => ({
+        key: category,
+        label: formatCategoryLabel(category),
+      })),
+    ];
+  }, [apiCategories, articles]);
+
+  const sourceArticles = viewMode === 'foryou' ? forYouArticles : articles;
+  const topNarratives =
+    viewMode === 'global' ? articles.slice(6, 8) : sourceArticles.slice(0, 2);
+
+  const filteredExploreArticles = useMemo(() => {
+    let list = sourceArticles.slice(2);
+    if (selectedCategory !== 'all') {
+      list = list.filter((a) => normalizeCategory(a.category) === selectedCategory);
+    }
+    return list;
+  }, [sourceArticles, selectedCategory]);
+
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
-  
-  // Don't render if not authenticated
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void refetch().finally(() => setRefreshing(false));
+  }, [refetch]);
+
   if (!isAuthenticated) {
     return null;
   }
-  
-  const filteredArticles = articles.filter(article => {
-    const matchesCategory = selectedCategory === 'All' || article.category === selectedCategory;
-    const matchesSearch = searchQuery === '' || 
-      article.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      article.category.toLowerCase().includes(searchQuery.toLowerCase());
-    return matchesCategory && matchesSearch;
-  });
-  
-  const trendingTopics = [
-    'Climate Policy',
-    'AI Governance',
-    'Space Mining',
-    'Digital Democracy',
-    'Longevity Research'
-  ];
-  
-  // Create grid with ad cards interspersed for free users
-  const createArticleGrid = () => {
-    if (hasAdFree) {
-      return filteredArticles.map((article) => (
-        <ArticleCard key={article.id} article={article} variant="featured" />
-      ));
-    }
-    
-    // For free users, insert ad card every 3 articles
-    const gridItems: JSX.Element[] = [];
-    filteredArticles.forEach((article, index) => {
-      gridItems.push(
-        <ArticleCard key={article.id} article={article} variant="featured" />
-      );
-      
-      // Add ad card after every 3rd article (but not at the very end)
-      if ((index + 1) % 3 === 0 && index < filteredArticles.length - 1) {
-        gridItems.push(
-          <AdCard key={`ad-${index}`} />
-        );
-      }
-    });
-    
-    return gridItems;
-  };
-  
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header with Separate Pill Containers */}
-      <header className="fixed top-0 w-full z-50 pt-4 sm:pt-6 px-4 sm:px-6">
-        <div className="flex justify-between items-center gap-2 sm:gap-3 mb-4">
-          {/* Left: Menu Button (Circle Pill) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate('/menu')}
-              className="w-9 h-9 sm:w-10 sm:h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <Menu className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Center: Title (Long Pill) */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-4 sm:px-6 py-2 sm:py-2.5 min-w-0">
-            <h1 className="text-xl sm:text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center truncate">
-              Explore
-            </h1>
-          </div>
-          
-          {/* Right: Badge + Profile (Pill Container) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-3 sm:px-4 py-2 flex items-center gap-2 sm:gap-3">
-            <SubscriptionBadge size="sm" />
-            <div 
-              className="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/15 cursor-pointer shrink-0"
-              onClick={() => navigate('/account')}
-            >
-              <img 
-                src={user?.profileImage || IMAGES.profile.main}
-                className="w-full h-full object-cover" 
-                alt="User profile" 
-              />
-            </div>
-          </div>
-        </div>
-        
-        {/* Search Bar (Separate Pill) */}
-        <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] relative overflow-hidden">
-          <Search className="absolute left-4 sm:left-5 top-1/2 -translate-y-1/2 w-5 h-5 text-outline pointer-events-none z-10" />
-          <input 
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search narratives, categories..."
-            className="w-full py-3 px-12 sm:px-14 bg-transparent text-on-surface placeholder:text-outline focus:outline-none"
-          />
-        </div>
-      </header>
-      
-      <main className="pt-36 sm:pt-40 px-4 sm:px-6 max-w-6xl mx-auto">
-        {/* Ad Banner for free users */}
+    <AppShell title="Explore" archetype="feed">
+      <div className="space-y-8 lg:space-y-10">
         {!hasAdFree && <AdBanner position="top" />}
-        
-        {/* Trending Topics */}
-        <section className="mb-8">
-          <div className="flex items-center gap-2 mb-4 px-2">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            <h2 className="font-[family-name:var(--font-headline)] text-xl italic text-on-surface">
-              Trending Now
-            </h2>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {trendingTopics.map((topic) => (
-              <button
-                key={topic}
-                onClick={() => setSearchQuery(topic)}
-                className="px-5 py-2 rounded-full bg-primary-container hover:bg-primary-fixed text-on-primary-container text-sm border border-outline-variant/15 transition-all"
-              >
-                {topic}
-              </button>
-            ))}
-          </div>
-        </section>
-        
-        {/* Category Filter */}
-        <div className="mb-8 overflow-x-auto hide-scrollbar">
-          <div className="flex gap-2 pb-2">
-            {categories.map((category) => (
-              <button
-                key={category}
-                onClick={() => setSelectedCategory(category)}
-                className={`px-5 py-2 rounded-full text-sm uppercase tracking-widest whitespace-nowrap transition-all ${
-                  selectedCategory === category
-                    ? 'bg-secondary-container text-on-secondary-container border border-outline-variant/15'
-                    : 'bg-transparent text-outline hover:bg-surface-container-low'
-                }`}
-              >
-                {category}
-              </button>
-            ))}
-          </div>
-        </div>
-        
-        {/* Results Count */}
-        <div className="mb-6 px-2">
-          <p className="text-outline text-sm">
-            {filteredArticles.length} {filteredArticles.length === 1 ? 'narrative' : 'narratives'} found
-          </p>
-        </div>
-        
-        {/* Articles Grid */}
-        {filteredArticles.length > 0 ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
-            {createArticleGrid()}
+
+        {isLoading ? (
+          <div className="space-y-8">
+            <ArticleCardSkeleton />
+            <ArticleCardSkeleton />
           </div>
         ) : (
-          <div className="text-center py-20">
-            <div className="w-24 h-24 mx-auto mb-6 rounded-full bg-surface-container flex items-center justify-center">
-              <Search className="w-10 h-10 text-outline" />
+          <>
+            <div className="flex flex-wrap items-end justify-between gap-4">
+              <div>
+                <p className="mb-2 hidden text-[10px] font-semibold uppercase tracking-[0.28em] text-outline lg:block">
+                  Curated from trusted sources
+                </p>
+                <h2 className="font-[family-name:var(--font-headline)] text-xl italic text-on-surface sm:text-2xl lg:text-4xl">
+                Top Narratives
+                </h2>
+              </div>
+              <div className="flex gap-2">
+                {(['foryou', 'today', 'global'] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    onClick={() => {
+                      setViewMode(mode);
+                      setSelectedCategory('all');
+                    }}
+                    className={`rounded-full border px-4 py-2 text-[10px] uppercase tracking-widest transition-all ${
+                      viewMode === mode
+                        ? 'border-outline-variant/20 bg-secondary-container text-on-secondary-container'
+                        : 'border-transparent text-outline hover:bg-surface-container-low'
+                    }`}
+                  >
+                    {mode === 'foryou' ? 'For You' : mode === 'today' ? 'Today' : 'Global'}
+                  </button>
+                ))}
+              </div>
             </div>
-            <h3 className="font-[family-name:var(--font-headline)] text-2xl text-on-surface mb-2">
-              No narratives found
-            </h3>
-            <p className="text-on-surface-variant mb-4">
-              Try adjusting your search or filters
-            </p>
-            <button
-              onClick={() => {
-                setSearchQuery('');
-                setSelectedCategory('All');
-              }}
-              className="bg-inverse-surface text-inverse-on-surface px-6 py-2 rounded-full hover:bg-primary transition-all"
-            >
-              Clear Filters
-            </button>
-          </div>
+
+            {!isWebDesktop && (
+              <FeedStack>
+                {topNarratives.map((article, index) => (
+                  <div key={article.id}>
+                    <ArticleCard article={article} variant={index === 0 ? 'featured' : 'default'} />
+                    {index === 0 && !hasAdFree && (
+                      <div className="mt-8">
+                        <AdBanner position="inline" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </FeedStack>
+            )}
+
+            {isWebDesktop && !hasAdFree && <AdBanner position="inline" />}
+
+            <div className="overflow-x-auto pb-2 lg:overflow-visible">
+              <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
+                {categoryOptions.map((cat) => {
+                  const isSelected = selectedCategory === cat.key;
+                  return (
+                    <button
+                      key={cat.key}
+                      type="button"
+                      onClick={() => setSelectedCategory(cat.key)}
+                      className={`rounded-full border px-4 py-2 text-[10px] uppercase tracking-widest transition-all ${
+                        isSelected
+                          ? 'border-outline-variant/20 bg-secondary-container text-on-secondary-container'
+                          : 'border-outline-variant/20 text-outline hover:bg-surface-container-low'
+                      }`}
+                    >
+                      {cat.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            <div className="flex items-center justify-between gap-4">
+              <p className="text-sm text-on-surface-variant">{filteredExploreArticles.length} narratives</p>
+              {isWebDesktop && (
+                <p className="text-xs uppercase tracking-[0.22em] text-outline">
+                  {viewMode === 'today' ? 'Today' : 'Global'} edition
+                </p>
+              )}
+            </div>
+
+            {isWebDesktop ? (
+              <EditorialGrid topArticles={topNarratives} stories={filteredExploreArticles} />
+            ) : filteredExploreArticles.length === 0 ? (
+              <div className="py-16 text-center">
+                <SearchIcon className="mx-auto h-12 w-12 text-outline-variant" />
+                <h3 className="mt-4 text-xl text-on-surface">No narratives found</h3>
+                <p className="mt-2 text-on-surface-variant">Try adjusting your filters.</p>
+              </div>
+            ) : (
+              <FeedStack>
+                {filteredExploreArticles.map((article) => (
+                  <ArticleCard key={article.id} article={article} />
+                ))}
+              </FeedStack>
+            )}
+          </>
         )}
-        
-        {/* Bottom Ad Banner for free users */}
-        {!hasAdFree && filteredArticles.length > 0 && <AdBanner position="bottom" />}
-      </main>
-      
-      <BottomNav />
-    </div>
+
+        <div className="flex justify-center">
+          <button
+            type="button"
+            onClick={onRefresh}
+            disabled={refreshing}
+            className="text-sm text-outline hover:text-primary disabled:opacity-50"
+          >
+            {refreshing ? 'Refreshing…' : 'Refresh feed'}
+          </button>
+        </div>
+      </div>
+    </AppShell>
   );
 }

@@ -22,6 +22,7 @@ import { useAuth } from "./auth-provider";
 
 interface CollectionsContextValue {
   collections: Collection[];
+  isLoading: boolean;
   createCollection: (
     name: string,
     description?: string,
@@ -47,17 +48,23 @@ const CollectionsContext = createContext<CollectionsContextValue | null>(null);
 export function CollectionsProvider({ children }: PropsWithChildren) {
   const { status } = useAuth();
   const [collections, setCollections] = useState<Collection[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
+    setIsLoading(true);
+
     if (MOCK_BACKEND) {
       let cancelled = false;
       AsyncStorage.getItem(STORAGE_KEY).then((value) => {
-        if (!cancelled && value) {
-          try {
-            setCollections(JSON.parse(value));
-          } catch {
-            setCollections([]);
+        if (!cancelled) {
+          if (value) {
+            try {
+              setCollections(JSON.parse(value));
+            } catch {
+              setCollections([]);
+            }
           }
+          setIsLoading(false);
         }
       });
 
@@ -68,6 +75,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
 
     if (status !== "signed-in") {
       setCollections([]);
+      setIsLoading(false);
       return;
     }
 
@@ -86,6 +94,11 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       .catch(() => {
         if (!cancelled) {
           setCollections([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) {
+          setIsLoading(false);
         }
       });
 
@@ -289,6 +302,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const value = useMemo<CollectionsContextValue>(
     () => ({
       collections,
+      isLoading,
       createCollection,
       updateCollection,
       deleteCollection,
@@ -298,6 +312,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
     }),
     [
       collections,
+      isLoading,
       createCollection,
       updateCollection,
       deleteCollection,

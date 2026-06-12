@@ -6,7 +6,7 @@ from rest_framework.response import Response
 
 def compute_etag(data) -> str:
     raw = json.dumps(data, sort_keys=True, default=str, separators=(",", ":"))
-    digest = hashlib.sha1(raw.encode()).hexdigest()
+    digest = hashlib.sha256(raw.encode()).hexdigest()
     return f'W/"{digest}"'
 
 

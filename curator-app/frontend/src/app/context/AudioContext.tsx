@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useRef, ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useRef, type ReactNode } from 'react';
 
 interface AudioState {
   isPlaying: boolean;
@@ -49,7 +49,7 @@ export function AudioProvider({ children }: { children: ReactNode }) {
     const handleDurationChange = () => {
       setAudioState(prev => ({
         ...prev,
-        duration: audio.duration
+        duration: Number.isFinite(audio.duration) ? audio.duration : 0
       }));
     };
     
@@ -105,7 +105,9 @@ export function AudioProvider({ children }: { children: ReactNode }) {
       }));
     }
     
-    audioRef.current.play();
+    void audioRef.current.play().catch(() => {
+      setAudioState(prev => ({ ...prev, isPlaying: false }));
+    });
   };
   
   const pauseBrief = () => {
@@ -115,20 +117,24 @@ export function AudioProvider({ children }: { children: ReactNode }) {
   
   const resumeBrief = () => {
     if (!audioRef.current) return;
-    audioRef.current.play();
+    void audioRef.current.play().catch(() => {
+      setAudioState(prev => ({ ...prev, isPlaying: false }));
+    });
   };
   
   const seekTo = (time: number) => {
     if (!audioRef.current) return;
-    audioRef.current.currentTime = time;
+    if (Number.isFinite(time)) {
+      audioRef.current.currentTime = Math.max(0, time);
+    }
   };
   
   const skipForward = () => {
     if (!audioRef.current) return;
-    audioRef.current.currentTime = Math.min(
-      audioRef.current.currentTime + 15,
-      audioRef.current.duration
-    );
+    const duration = Number.isFinite(audioRef.current.duration)
+      ? audioRef.current.duration
+      : audioRef.current.currentTime + 15;
+    audioRef.current.currentTime = Math.min(audioRef.current.currentTime + 15, duration);
   };
   
   const skipBackward = () => {

@@ -1,17 +1,32 @@
-import { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import {
+  createContext,
+  useContext,
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+} from 'react';
 import { X, CheckCircle, AlertCircle, Info, AlertTriangle } from 'lucide-react';
 
 type ToastType = 'success' | 'error' | 'info' | 'warning';
 
-interface Toast {
+export interface ToastPayload {
   id: string;
   message: string;
+  title?: string;
   type: ToastType;
-  duration?: number;
+  duration: number;
 }
 
 interface ToastContextType {
   showToast: (message: string, type?: ToastType, duration?: number) => void;
+  notify: (payload: {
+    message: string;
+    title?: string;
+    type?: ToastType;
+    duration?: number;
+  }) => void;
   success: (message: string, duration?: number) => void;
   error: (message: string, duration?: number) => void;
   info: (message: string, duration?: number) => void;
@@ -20,44 +35,155 @@ interface ToastContextType {
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
-export function ToastProvider({ children }: { children: ReactNode }) {
-  const [toasts, setToasts] = useState<Toast[]>([]);
+const TOAST_SHAPE = {
+  borderTopLeftRadius: 28,
+  borderTopRightRadius: 14,
+  borderBottomRightRadius: 36,
+  borderBottomLeftRadius: 20,
+} as const;
 
-  const removeToast = useCallback((id: string) => {
-    setToasts((prev) => prev.filter((toast) => toast.id !== id));
+const ICON_TILE = {
+  borderTopLeftRadius: 14,
+  borderTopRightRadius: 8,
+  borderBottomRightRadius: 18,
+  borderBottomLeftRadius: 10,
+} as const;
+
+function getToastTheme(type: ToastType) {
+  switch (type) {
+    case 'success':
+      return {
+        bg: 'var(--secondary-container)',
+        border: 'color-mix(in srgb, var(--outline-variant) 30%, transparent)',
+        iconBg: 'color-mix(in srgb, var(--secondary-container) 80%, #4caf50 20%)',
+        iconColor: '#3d6b42',
+        Icon: CheckCircle,
+      };
+    case 'error':
+      return {
+        bg: 'var(--error-container)',
+        border: 'color-mix(in srgb, var(--error) 25%, transparent)',
+        iconBg: 'color-mix(in srgb, var(--error-container) 70%, var(--error) 30%)',
+        iconColor: 'var(--on-error-container)',
+        Icon: AlertCircle,
+      };
+    case 'warning':
+      return {
+        bg: 'var(--secondary-container)',
+        border: 'color-mix(in srgb, #c8a84a 35%, transparent)',
+        iconBg: 'color-mix(in srgb, var(--secondary-container) 75%, #f5d76e 25%)',
+        iconColor: '#7a5c12',
+        Icon: AlertTriangle,
+      };
+    case 'info':
+    default:
+      return {
+        bg: 'var(--primary-container)',
+        border: 'color-mix(in srgb, var(--outline-variant) 30%, transparent)',
+        iconBg: 'var(--surface-container-high)',
+        iconColor: 'var(--primary)',
+        Icon: Info,
+      };
+  }
+}
+
+export function ToastProvider({ children }: { children: ReactNode }) {
+  const [queue, setQueue] = useState<ToastPayload[]>([]);
+  const [active, setActive] = useState<ToastPayload | null>(null);
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const clearTimer = useCallback(() => {
+    if (timerRef.current) {
+      clearTimeout(timerRef.current);
+      timerRef.current = null;
+    }
   }, []);
 
-  const showToast = useCallback((message: string, type: ToastType = 'info', duration = 4000) => {
-    const id = Date.now().toString() + Math.random();
-    const toast: Toast = { id, message, type, duration };
-    
-    setToasts((prev) => [...prev, toast]);
-    
-    if (duration > 0) {
-      setTimeout(() => removeToast(id), duration);
+  useEffect(() => {
+    if (!active && queue.length > 0) {
+      const [next, ...rest] = queue;
+      setActive(next);
+      setQueue(rest);
     }
-  }, [removeToast]);
+  }, [active, queue]);
 
-  const success = useCallback((message: string, duration = 4000) => {
-    showToast(message, 'success', duration);
-  }, [showToast]);
+  const dismiss = useCallback(
+    (id: string) => {
+      clearTimer();
+      setActive((current) => (current?.id === id ? null : current));
+      setQueue((prev) => prev.filter((t) => t.id !== id));
+    },
+    [clearTimer],
+  );
 
-  const error = useCallback((message: string, duration = 5000) => {
-    showToast(message, 'error', duration);
-  }, [showToast]);
+  useEffect(() => {
+    if (!active) return undefined;
 
-  const info = useCallback((message: string, duration = 4000) => {
-    showToast(message, 'info', duration);
-  }, [showToast]);
+    clearTimer();
+    if (active.duration > 0) {
+      timerRef.current = setTimeout(() => dismiss(active.id), active.duration);
+    }
 
-  const warning = useCallback((message: string, duration = 4000) => {
-    showToast(message, 'warning', duration);
-  }, [showToast]);
+    return clearTimer;
+  }, [active, clearTimer, dismiss]);
+
+  const notify = useCallback(
+    ({
+      message,
+      title,
+      type = 'info',
+      duration = 4500,
+    }: {
+      message: string;
+      title?: string;
+      type?: ToastType;
+      duration?: number;
+    }) => {
+      const payload: ToastPayload = {
+        id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+        message,
+        title,
+        type,
+        duration,
+      };
+
+      setActive((current) => {
+        if (!current) return payload;
+        setQueue((prev) => [...prev, payload]);
+        return current;
+      });
+    },
+    [],
+  );
+
+  const showToast = useCallback(
+    (message: string, type: ToastType = 'info', duration = 4500) => {
+      notify({ message, type, duration });
+    },
+    [notify],
+  );
+
+  const success = useCallback(
+    (message: string, duration = 4500) => notify({ message, type: 'success', duration }),
+    [notify],
+  );
+  const error = useCallback(
+    (message: string, duration = 5500) => notify({ message, type: 'error', duration }),
+    [notify],
+  );
+  const info = useCallback(
+    (message: string, duration = 4500) => notify({ message, type: 'info', duration }),
+    [notify],
+  );
+  const warning = useCallback(
+    (message: string, duration = 5000) => notify({ message, type: 'warning', duration }),
+    [notify],
+  );
 
   return (
-    <ToastContext.Provider value={{ showToast, success, error, info, warning }}>
+    <ToastContext.Provider value={{ showToast, notify, success, error, info, warning }}>
       {children}
-      <ToastContainer toasts={toasts} removeToast={removeToast} />
+      <ToastViewport toast={active} queueCount={queue.length} onDismiss={dismiss} />
     </ToastContext.Provider>
   );
 }
@@ -70,47 +196,78 @@ export function useToast() {
   return context;
 }
 
-function ToastContainer({ toasts, removeToast }: { toasts: Toast[]; removeToast: (id: string) => void }) {
-  return (
-    <div className="fixed bottom-24 right-6 z-[100] flex flex-col gap-3 max-w-md">
-      {toasts.map((toast) => (
-        <ToastItem key={toast.id} toast={toast} onClose={() => removeToast(toast.id)} />
-      ))}
-    </div>
-  );
-}
+function ToastViewport({
+  toast,
+  queueCount,
+  onDismiss,
+}: {
+  toast: ToastPayload | null;
+  queueCount: number;
+  onDismiss: (id: string) => void;
+}) {
+  if (!toast) return null;
 
-function ToastItem({ toast, onClose }: { toast: Toast; onClose: () => void }) {
-  const icons = {
-    success: CheckCircle,
-    error: AlertCircle,
-    info: Info,
-    warning: AlertTriangle,
-  };
-
-  const styles = {
-    success: 'bg-green-600 text-white',
-    error: 'bg-red-600 text-white',
-    info: 'bg-blue-600 text-white',
-    warning: 'bg-amber-600 text-white',
-  };
-
-  const Icon = icons[toast.type];
+  const theme = getToastTheme(toast.type);
+  const { Icon } = theme;
 
   return (
-    <div 
-      className={`${styles[toast.type]} rounded-[30px] px-6 py-4 shadow-2xl flex items-center gap-3 animate-slide-in-right backdrop-blur-xl border border-white/20`}
-      role="alert"
+    <div
+      className="pointer-events-none fixed inset-x-4 top-[92px] z-[250] flex justify-end md:inset-x-auto md:right-8 md:top-[100px]"
+      aria-live="polite"
     >
-      <Icon className="w-5 h-5 shrink-0" />
-      <p className="flex-1 font-medium text-sm">{toast.message}</p>
-      <button 
-        onClick={onClose}
-        className="w-6 h-6 rounded-full hover:bg-white/20 flex items-center justify-center transition-colors"
-        aria-label="Close"
+      <div
+        className="pointer-events-auto w-full max-w-[min(100%,420px)] overflow-hidden border shadow-[0_18px_48px_-18px_rgba(49,51,43,0.45)] backdrop-blur-xl animate-toast-enter"
+        style={{
+          backgroundColor: theme.bg,
+          borderColor: theme.border,
+          ...TOAST_SHAPE,
+        }}
+        role="status"
       >
-        <X className="w-4 h-4" />
-      </button>
+        <div className="flex items-start gap-3 px-4 py-3.5 pr-3">
+          <div
+            className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center"
+            style={{ backgroundColor: theme.iconBg, ...ICON_TILE }}
+          >
+            <Icon className="h-[18px] w-[18px]" style={{ color: theme.iconColor }} strokeWidth={2.2} />
+          </div>
+
+          <div className="min-w-0 flex-1 pt-0.5">
+            {toast.title && (
+              <p className="font-[family-name:var(--font-headline)] text-[15px] italic leading-tight text-on-surface">
+                {toast.title}
+              </p>
+            )}
+            <p className={`text-[13px] font-medium leading-relaxed text-on-surface-variant ${toast.title ? 'mt-1' : ''}`}>
+              {toast.message}
+            </p>
+            {queueCount > 0 && (
+              <p className="mt-1.5 text-[10px] font-bold uppercase tracking-[0.18em] text-outline">
+                +{queueCount} more
+              </p>
+            )}
+          </div>
+
+          <button
+            type="button"
+            onClick={() => onDismiss(toast.id)}
+            className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full transition-colors hover:bg-surface-container-high/80"
+            aria-label="Dismiss notification"
+          >
+            <X className="h-4 w-4 text-on-surface-variant" />
+          </button>
+        </div>
+
+        {toast.duration > 0 && (
+          <div className="h-[3px] w-full bg-surface-container-high/80">
+            <div
+              key={toast.id}
+              className="h-full origin-left bg-outline/45 animate-toast-progress"
+              style={{ animationDuration: `${toast.duration}ms` }}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 }

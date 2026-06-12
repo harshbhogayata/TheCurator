@@ -7,7 +7,54 @@ from django.utils import timezone
 from rest_framework.test import APIRequestFactory, force_authenticate
 
 from users.models import IdentityProvider, User, UserIdentity
+from users.services.provisioning import provision_user_from_claims
 from users.views import AccountView, CurrentSessionView, IdentitySyncView
+
+
+class ProvisioningTests(TestCase):
+    def _claims(self, **overrides):
+        claims = {
+            "uid": "firebase-new-uid",
+            "email": "new@example.com",
+            "email_verified": True,
+            "firebase": {"sign_in_provider": "password"},
+        }
+        claims.update(overrides)
+        return claims
+
+    def test_creates_user_for_new_firebase_uid(self):
+        user = provision_user_from_claims(self._claims())
+        self.assertEqual(user.email, "new@example.com")
+        self.assertEqual(user.firebase_uid, "firebase-new-uid")
+
+    def test_links_existing_account_when_email_verified(self):
+        existing = User.objects.create_user(
+            email="owner@example.com",
+            password="secret123",
+            firebase_uid="firebase-google-uid",
+        )
+
+        user = provision_user_from_claims(
+            self._claims(uid="firebase-password-uid", email="owner@example.com", email_verified=True)
+        )
+
+        self.assertEqual(user.id, existing.id)
+        self.assertEqual(user.firebase_uid, "firebase-password-uid")
+
+    def test_refuses_to_link_existing_account_when_email_unverified(self):
+        User.objects.create_user(
+            email="owner@example.com",
+            password="secret123",
+            firebase_uid="firebase-google-uid",
+        )
+
+        with self.assertRaises(ValueError):
+            provision_user_from_claims(
+                self._claims(uid="attacker-uid", email="owner@example.com", email_verified=False)
+            )
+
+        owner = User.objects.get(email="owner@example.com")
+        self.assertEqual(owner.firebase_uid, "firebase-google-uid")
 
 
 class UserViewTests(TestCase):
@@ -62,3 +109,24 @@ class UserViewTests(TestCase):
         self.assertEqual(response.status_code, 204)
         delete_remote_user.assert_called_once_with(self.user.firebase_uid)
         self.assertFalse(User.objects.filter(id=self.user.id).exists())
+
+    def test_account_patch_updates_avatar_url(self):
+        request = self.factory.patch(
+            "/api/mobile/account",
+            {"avatarUrl": "https://storage.example.com/avatars/profile.jpg"},
+            format="json",
+        )
+        force_authenticate(request, user=self.user)
+
+        response = AccountView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.user.refresh_from_db()
+        self.assertEqual(
+            self.user.avatar_url,
+            "https://storage.example.com/avatars/profile.jpg",
+        )
+        self.assertEqual(
+            response.data["user"]["avatarUrl"],
+            "https://storage.example.com/avatars/profile.jpg",
+        )

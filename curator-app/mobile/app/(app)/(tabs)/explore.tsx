@@ -20,10 +20,19 @@ import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import { AdBanner } from "../../../src/ui/ad-banner";
 import { ArticleCardSkeleton } from "../../../src/ui/skeleton-loader";
-import { categories as staticCategories } from "../../../src/data/articles";
 import type { Article } from "../../../src/data/articles";
 import { useArticles } from "../../../src/hooks/use-articles";
 import { useCategories } from "../../../src/hooks/use-categories";
+
+function normalizeCategory(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_]+/g, "-");
+}
+
+function formatCategoryLabel(value: string): string {
+  return value
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default function ExploreScreen() {
   const { palette } = useTheme();
@@ -31,23 +40,34 @@ export default function ExploreScreen() {
 
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
-  const { data: articles = [], refetch } = useArticles();
-  const { data: apiCategories } = useCategories();
-  const categoryNames = useMemo(() => {
+  const { data: articles = [], isLoading: isArticlesLoading, refetch } = useArticles();
+  const { data: apiCategories, isLoading: isCategoriesLoading } = useCategories();
+  const categoryOptions = useMemo(() => {
     if (apiCategories && apiCategories.length > 0) {
-      return ["All", ...apiCategories.map((c) => c.name)];
+      return [
+        { key: "all", label: "All" },
+        ...apiCategories.map((category) => ({
+          key: normalizeCategory(category.slug),
+          label: category.name,
+        })),
+      ];
     }
-    return staticCategories;
-  }, [apiCategories]);
-  const [viewMode, setViewMode] = useState<"today" | "global">("today");
-  const [selectedCategory, setSelectedCategory] = useState("All");
-  const [refreshing, setRefreshing] = useState(false);
-  const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(t);
-  }, []);
+    const articleCategories = Array.from(
+      new Set(articles.map((article) => normalizeCategory(article.category)).filter(Boolean)),
+    );
+    return [
+      { key: "all", label: "All" },
+      ...articleCategories.map((category) => ({
+        key: category,
+        label: formatCategoryLabel(category),
+      })),
+    ];
+  }, [apiCategories, articles]);
+  const [viewMode, setViewMode] = useState<"today" | "global">("today");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const isLoading = isArticlesLoading || isCategoriesLoading;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -59,9 +79,9 @@ export default function ExploreScreen() {
 
   const filteredExploreArticles = useMemo(() => {
     let list = articles.slice(2);
-    if (selectedCategory !== "All") {
+    if (selectedCategory !== "all") {
       list = list.filter(
-        (a) => a.category.toLowerCase() === selectedCategory.toLowerCase()
+        (a) => normalizeCategory(a.category) === selectedCategory
       );
     }
     return list;
@@ -99,7 +119,7 @@ export default function ExploreScreen() {
               accessibilityRole="button"
               accessibilityLabel="Today's narratives"
               accessibilityState={{ selected: viewMode === "today" }}
-              onPress={() => { setViewMode("today"); setSelectedCategory("All"); }}
+              onPress={() => { setViewMode("today"); setSelectedCategory("all"); }}
               style={[
                 styles.toggleButton,
                 {
@@ -122,7 +142,7 @@ export default function ExploreScreen() {
               accessibilityRole="button"
               accessibilityLabel="Global narratives"
               accessibilityState={{ selected: viewMode === "global" }}
-              onPress={() => { setViewMode("global"); setSelectedCategory("All"); }}
+              onPress={() => { setViewMode("global"); setSelectedCategory("all"); }}
               style={[
                 styles.toggleButton,
                 {
@@ -163,17 +183,17 @@ export default function ExploreScreen() {
             showsHorizontalScrollIndicator={false}
             contentContainerStyle={{ gap: 8 }}
           >
-            {categoryNames.map((cat) => {
-              const isSelected = selectedCategory === cat;
+            {categoryOptions.map((cat) => {
+              const isSelected = selectedCategory === cat.key;
               return (
                 <Pressable
-                  key={cat}
+                  key={cat.key}
                   accessibilityRole="button"
-                  accessibilityLabel={`Filter by ${cat}`}
+                  accessibilityLabel={`Filter by ${cat.label}`}
                   accessibilityState={{ selected: isSelected }}
                   onPress={() => {
                     hapticSelect();
-                    setSelectedCategory(cat);
+                    setSelectedCategory(cat.key);
                   }}
                   style={[
                     styles.categoryChip,
@@ -189,7 +209,7 @@ export default function ExploreScreen() {
                       { color: isSelected ? palette.onSecondaryContainer : palette.outline },
                     ]}
                   >
-                    {cat}
+                    {cat.label}
                   </Text>
                 </Pressable>
               );
@@ -202,7 +222,7 @@ export default function ExploreScreen() {
         </Text>
       </>
     );
-  }, [isLoading, hasAdFree, viewMode, selectedCategory, topNarratives, filteredExploreArticles.length, categoryNames, palette]);
+  }, [isLoading, hasAdFree, viewMode, selectedCategory, topNarratives, filteredExploreArticles.length, categoryOptions, palette]);
 
   const renderItem = useCallback(({ item }: { item: Article }) => (
     <View style={{ marginBottom: 32 }}>

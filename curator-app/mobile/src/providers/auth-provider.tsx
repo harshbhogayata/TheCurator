@@ -6,6 +6,7 @@ import {
   useEffect,
   useMemo,
   useState,
+  useRef,
 } from "react";
 import {
   createUserWithEmailAndPassword,
@@ -21,10 +22,12 @@ import { defaultPreferences } from "../lib/types";
 import type { AuthStatus, SessionPayload, UserPreferences } from "../lib/types";
 import { useUIStore } from "../lib/store";
 import { apiRequest } from "../services/api-client";
-import { deleteAccountRemote } from "../services/mobile-api";
+import { uploadProfileAvatarImage } from "../services/avatar-upload";
+import { deleteAccountRemote, updateAccount } from "../services/mobile-api";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
 import { resetQueryCache } from "../lib/query-client";
 import { useTheme } from "./theme-provider";
+import { getAuthErrorMessage } from "../lib/auth-errors";
 
 // Set EXPO_PUBLIC_MOCK_BACKEND=true in .env to short-circuit auth locally.
 // Defaults to false so production builds are safe without explicit opt-in.
@@ -38,6 +41,7 @@ function buildMockSession(overrides?: Partial<SessionPayload>): SessionPayload {
       email: "demo@curator.app",
       displayName: null,
       avatarUrl: null,
+      firebaseUid: "mock-user-id",
       memberSince: now,
     },
     onboarding: {
@@ -77,6 +81,7 @@ interface AuthContextValue {
   }) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
   updateProfileDetails: (payload: ProfileStepPayload) => Promise<void>;
+  updateProfileAvatar: (avatarUrl: string) => Promise<void>;
   updateOnboardingProfile: (payload: ProfileStepPayload) => Promise<void>;
   updateOnboardingCategories: (payload: CategoryStepPayload) => Promise<void>;
   updateOnboardingPreferences: (
@@ -96,17 +101,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
     MOCK_BACKEND ? "signed-out" : firebaseConfigured ? "loading" : "signed-out",
   );
   const [session, setSession] = useState<SessionPayload | null>(null);
+  const activeExchangePromiseRef = useRef<Promise<void> | null>(null);
+  const activeUserIdRef = useRef<string | null>(null);
 
   const { runBusy, setError, clearError, isBusy, globalError } = useUIStore();
 
   const dismissSessionError = useCallback(() => {
     clearError();
+    activeUserIdRef.current = null;
+    void resetQueryCache();
     setStatus("signed-out");
     setSession(null);
   }, [clearError]);
 
   const applySession = useCallback(
     (payload: SessionPayload) => {
+      if (activeUserIdRef.current && activeUserIdRef.current !== payload.user.id) {
+        void resetQueryCache();
+      }
+      activeUserIdRef.current = payload.user.id;
       setSession(payload);
       setStatus("signed-in");
       hydratePreference(payload.preferences.themePreference);
@@ -129,7 +142,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!firebaseConfigured) {
         setStatus("signed-out");
         setSession(null);
-        return;
+        throw new Error("Firebase is not configured yet.");
       }
 
       const auth = getFirebaseAuth();
@@ -138,24 +151,45 @@ export function AuthProvider({ children }: PropsWithChildren) {
       if (!activeUser) {
         setStatus("signed-out");
         setSession(null);
-        return;
+        throw new Error("No active user session found. Please sign in again.");
       }
 
-      const idToken = await activeUser.getIdToken();
-      const payload = await apiRequest<SessionPayload>("/api/mobile/auth/session", {
-        method: "POST",
-        token: idToken,
-      });
+      if (activeExchangePromiseRef.current) {
+        return activeExchangePromiseRef.current;
+      }
 
-      applySession(payload);
+      const promise = (async () => {
+        try {
+          const idToken = await activeUser.getIdToken();
+          const payload = await apiRequest<SessionPayload>("/api/mobile/v1/auth/session", {
+            method: "POST",
+            token: idToken,
+          });
+          applySession(payload);
+        } finally {
+          activeExchangePromiseRef.current = null;
+        }
+      })();
+
+      activeExchangePromiseRef.current = promise;
+      return promise;
     },
     [applySession],
   );
 
   const refreshSession = useCallback(async () => {
     setStatus("loading");
-    await exchangeSession();
-  }, [exchangeSession]);
+    try {
+      await exchangeSession();
+    } catch (error) {
+      setStatus("error");
+      setError(
+        error instanceof Error
+          ? error.message
+          : "We couldn't refresh your session. Please try again.",
+      );
+    }
+  }, [exchangeSession, setError]);
 
   useEffect(() => {
     if (MOCK_BACKEND) {
@@ -172,6 +206,8 @@ export function AuthProvider({ children }: PropsWithChildren) {
     const unsubscribe = onIdTokenChanged(auth, async (firebaseUser) => {
       try {
         if (!firebaseUser) {
+          activeUserIdRef.current = null;
+          void resetQueryCache();
           setSession(null);
           setStatus("signed-out");
           return;
@@ -201,11 +237,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
         throw new Error("You need to be signed in to continue.");
       }
 
-      const idToken = await currentUser.getIdToken();
       const payload = await apiRequest<SessionPayload>(path, {
         method,
         body,
-        token: idToken,
       });
 
       applySession(payload);
@@ -223,21 +257,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
               email,
               displayName: null,
               avatarUrl: null,
+              firebaseUid: "mock-user-id",
               memberSince: new Date().toISOString(),
             },
             onboarding: {
               currentStep: "complete",
               isCompleted: true,
               completedAt: new Date().toISOString(),
-              selectedCategories: ["world", "technology", "culture"],
+              selectedCategories: ["economy", "technology", "culture"],
             },
           });
           applySession(mock);
           return;
         }
-        const auth = getFirebaseAuth();
-        const credential = await signInWithEmailAndPassword(auth, email, password);
-        await exchangeSession(credential.user);
+        try {
+          const auth = getFirebaseAuth();
+          const credential = await signInWithEmailAndPassword(auth, email.trim(), password);
+          await exchangeSession(credential.user);
+        } catch (error) {
+          throw new Error(getAuthErrorMessage(error, "sign-in"), { cause: error });
+        }
       }),
     [applySession, exchangeSession, runBusy],
   );
@@ -260,20 +299,26 @@ export function AuthProvider({ children }: PropsWithChildren) {
               email,
               displayName: displayName?.trim() || null,
               avatarUrl: null,
+              firebaseUid: "mock-user-id",
               memberSince: new Date().toISOString(),
             },
           });
           applySession(mock);
           return;
         }
-        const auth = getFirebaseAuth();
-        const credential = await createUserWithEmailAndPassword(auth, email, password);
+        try {
+          const auth = getFirebaseAuth();
+          const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
 
-        if (displayName?.trim()) {
-          await updateProfile(credential.user, { displayName: displayName.trim() });
+          if (displayName?.trim()) {
+            await updateProfile(credential.user, { displayName: displayName.trim() });
+            await credential.user.getIdToken(true);
+          }
+
+          await exchangeSession(credential.user);
+        } catch (error) {
+          throw new Error(getAuthErrorMessage(error, "sign-up"), { cause: error });
         }
-
-        await exchangeSession(credential.user);
       }),
     [applySession, exchangeSession, runBusy],
   );
@@ -285,10 +330,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
           await new Promise((resolve) => setTimeout(resolve, 400));
           return;
         }
-        const auth = getFirebaseAuth();
-        await sendPasswordResetEmail(auth, email.trim());
+        try {
+          const auth = getFirebaseAuth();
+          await sendPasswordResetEmail(auth, email.trim());
+        } catch (error) {
+          throw new Error(getAuthErrorMessage(error, "password-reset"), { cause: error });
+        }
       }),
     [runBusy],
+  );
+
+  const updateProfileCore = useCallback(
+    async (payload: ProfileStepPayload) => {
+      await withToken("/api/mobile/v1/onboarding/profile", "PATCH", payload);
+      const auth = getFirebaseAuth();
+      if (auth.currentUser) {
+        await updateProfile(auth.currentUser, { displayName: payload.displayName.trim() });
+      }
+    },
+    [withToken],
   );
 
   const updateProfileDetails = useCallback(
@@ -307,9 +367,44 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/onboarding/profile", "PATCH", payload);
+        await updateProfileCore(payload);
       }),
-    [runBusy, withToken],
+    [runBusy, updateProfileCore],
+  );
+
+  const updateProfileAvatar = useCallback(
+    async (localUri: string) =>
+      runBusy(async () => {
+        if (MOCK_BACKEND) {
+          setSession((current) => {
+            const base = current ?? buildMockSession();
+            return {
+              ...base,
+              user: {
+                ...base.user,
+                avatarUrl: localUri,
+              },
+            };
+          });
+          return;
+        }
+
+        const auth = getFirebaseAuth();
+        const currentUser = auth.currentUser;
+
+        if (!currentUser) {
+          throw new Error("You need to be signed in to update your profile photo.");
+        }
+
+        const remoteUrl = await uploadProfileAvatarImage(localUri);
+
+        await updateProfile(currentUser, { photoURL: remoteUrl });
+        await currentUser.getIdToken(true);
+
+        const payload = await updateAccount({ avatarUrl: remoteUrl });
+        applySession(payload);
+      }),
+    [applySession, runBusy],
   );
 
   const updateOnboardingProfile = useCallback(
@@ -332,9 +427,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/onboarding/profile", "PATCH", payload);
+        await updateProfileCore(payload);
       }),
-    [runBusy, withToken],
+    [runBusy, updateProfileCore],
   );
 
   const updateOnboardingCategories = useCallback(
@@ -357,7 +452,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/onboarding/categories", "PATCH", payload);
+        await withToken("/api/mobile/v1/onboarding/categories", "PATCH", payload);
       }),
     [runBusy, withToken],
   );
@@ -385,7 +480,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const body = options?.skipNotifications
           ? { ...payload, skipNotifications: true }
           : payload;
-        await withToken("/api/mobile/onboarding/preferences", "PATCH", body);
+        await withToken("/api/mobile/v1/onboarding/preferences", "PATCH", body);
       }),
     [runBusy, withToken],
   );
@@ -408,7 +503,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/onboarding/complete", "POST");
+        await withToken("/api/mobile/v1/onboarding/complete", "POST");
       }),
     [runBusy, withToken],
   );
@@ -418,12 +513,14 @@ export function AuthProvider({ children }: PropsWithChildren) {
       runBusy(async () => {
         await resetQueryCache();
         if (MOCK_BACKEND) {
+          activeUserIdRef.current = null;
           setSession(null);
           setStatus("signed-out");
           return;
         }
         const auth = getFirebaseAuth();
         await firebaseSignOut(auth);
+        activeUserIdRef.current = null;
         setSession(null);
         setStatus("signed-out");
       }),
@@ -433,17 +530,20 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const deleteAccount = useCallback(
     async () =>
       runBusy(async () => {
-        await resetQueryCache();
         if (MOCK_BACKEND) {
+          await resetQueryCache();
+          activeUserIdRef.current = null;
           setSession(null);
           setStatus("signed-out");
           return;
         }
 
         await deleteAccountRemote();
+        await resetQueryCache();
 
         const auth = getFirebaseAuth();
         await firebaseSignOut(auth);
+        activeUserIdRef.current = null;
         setSession(null);
         setStatus("signed-out");
       }),
@@ -464,6 +564,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signUpWithEmail,
       requestPasswordReset,
       updateProfileDetails,
+      updateProfileAvatar,
       updateOnboardingProfile,
       updateOnboardingCategories,
       updateOnboardingPreferences,

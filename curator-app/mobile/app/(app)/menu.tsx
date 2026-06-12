@@ -4,7 +4,6 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
-import { Image } from "expo-image";
 import {
   X,
   Sparkles,
@@ -26,7 +25,8 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useSubscription } from "../../src/providers/subscription-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
-import { IMAGES } from "../../src/data/images";
+import { ProfileAvatar } from "../../src/ui/profile-avatar";
+import { userDisplayName } from "../../src/lib/user-display-name";
 
 const menuItems = [
   { icon: Sparkles, label: "Daily Briefs", path: "/(app)/(tabs)" as const },
@@ -55,8 +55,7 @@ export default function MenuScreen() {
     ]);
   };
 
-  const displayName = session?.user?.displayName || "Guest User";
-  const avatarUri = session?.user?.avatarUrl || IMAGES.profile.main;
+  const displayName = userDisplayName(session?.user);
   const tint = resolvedTheme === "dark" ? "dark" : "light";
   const memberLabel =
     tier === "lifetime"
@@ -177,10 +176,11 @@ export default function MenuScreen() {
                 { borderColor: palette.outlineVariant + "40" },
               ]}
             >
-              <Image
-                source={{ uri: avatarUri }}
-                style={StyleSheet.absoluteFill}
-                contentFit="cover"
+              <ProfileAvatar
+                avatarUrl={session?.user?.avatarUrl}
+                displayName={session?.user?.displayName}
+                email={session?.user?.email}
+                size={64}
               />
             </View>
 

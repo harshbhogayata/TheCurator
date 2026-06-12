@@ -7,17 +7,21 @@ from users.models import User, UserIdentity
 class UserProfileSerializer(serializers.ModelSerializer):
     displayName = serializers.SerializerMethodField()
     avatarUrl = serializers.SerializerMethodField()
+    firebaseUid = serializers.SerializerMethodField()
     memberSince = serializers.DateTimeField(source="member_since")
 
     class Meta:
         model = User
-        fields = ("id", "email", "displayName", "avatarUrl", "memberSince")
+        fields = ("id", "email", "displayName", "avatarUrl", "firebaseUid", "memberSince")
 
     def get_displayName(self, obj):
         return obj.display_name or None
 
     def get_avatarUrl(self, obj):
         return obj.avatar_url or None
+
+    def get_firebaseUid(self, obj):
+        return obj.firebase_uid or None
 
 
 class UserIdentitySerializer(serializers.ModelSerializer):
@@ -99,13 +103,22 @@ class SessionSerializer(serializers.Serializer):
 
 class AccountUpdateSerializer(serializers.ModelSerializer):
     displayName = serializers.CharField(source="display_name", max_length=80, required=False)
+    avatarUrl = serializers.URLField(source="avatar_url", max_length=500, required=False, allow_blank=True)
 
     class Meta:
         model = User
-        fields = ("displayName",)
+        fields = ("displayName", "avatarUrl")
 
     def validate_displayName(self, value):
         trimmed = value.strip()
         if not trimmed:
             raise serializers.ValidationError("This field may not be blank.")
+        return trimmed
+
+    def validate_avatarUrl(self, value):
+        trimmed = (value or "").strip()
+        if not trimmed:
+            return ""
+        if not trimmed.startswith("https://"):
+            raise serializers.ValidationError("Avatar URL must use HTTPS.")
         return trimmed

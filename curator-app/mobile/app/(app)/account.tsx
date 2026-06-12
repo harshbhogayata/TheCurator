@@ -1,27 +1,54 @@
-import { useMemo, useState } from "react";
+import { useMemo, useState, useEffect } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import { Download, Hash, Link2, Mail, Save, User } from "lucide-react-native";
+import * as ImagePicker from "expo-image-picker";
+import { Camera, Download, Hash, Link2, Mail, Save, User } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useSubscription } from "../../src/providers/subscription-provider";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { ProfileAvatar } from "../../src/ui/profile-avatar";
+import { ApiError } from "../../src/services/api-client";
 
 export default function AccountScreen() {
   const { palette } = useTheme();
-  const { session, deleteAccount, updateProfileDetails, isBusy } = useAuth();
+  const { session, deleteAccount, updateProfileDetails, updateProfileAvatar, signOut, isBusy } =
+    useAuth();
   const { tier } = useSubscription();
   const { showToast } = useToast();
   const router = useRouter();
 
-  const displayName = session?.user?.displayName || "Guest User";
-  const email = session?.user?.email || "user@example.com";
-  const uid = session?.user?.id || "N/A";
+  const displayName = session?.user?.displayName || "";
+  const email = session?.user?.email || "";
+  const uid = session?.user?.id || "";
+  const avatarUrl = session?.user?.avatarUrl || null;
 
   const [name, setName] = useState(displayName);
+
+  useEffect(() => {
+    setName(session?.user?.displayName ?? "");
+  }, [session?.user?.displayName]);
+
+  const handlePickImage = async () => {
+    try {
+      const result = await ImagePicker.launchImageLibraryAsync({
+        mediaTypes: ["images"],
+        allowsEditing: true,
+        aspect: [1, 1],
+        quality: 0.8,
+      });
+
+      if (!result.canceled && result.assets.length > 0) {
+        await updateProfileAvatar(result.assets[0].uri);
+        showToast("success", "Profile picture updated.");
+      }
+    } catch {
+      showToast("error", "Couldn't update your profile picture right now.");
+    }
+  };
   const handleDeleteAccount = () => {
     Alert.alert(
       "Delete Account?",
@@ -32,9 +59,35 @@ export default function AccountScreen() {
           text: "Delete",
           style: "destructive",
           onPress: () =>
-            void deleteAccount().catch(() =>
-              showToast("error", "Couldn't delete your account right now."),
-            ),
+            void deleteAccount().catch((error) => {
+              const code =
+                error instanceof ApiError &&
+                typeof error.details === "object" &&
+                error.details !== null &&
+                "code" in error.details
+                  ? error.details.code
+                  : null;
+
+              if (code === "reauth_required") {
+                Alert.alert(
+                  "Sign In Again",
+                  "For security, sign out and sign back in before deleting your account.",
+                  [
+                    { text: "Not Now", style: "cancel" },
+                    {
+                      text: "Sign Out",
+                      style: "destructive",
+                      onPress: () => {
+                        void signOut().finally(() => router.replace("/(auth)/welcome"));
+                      },
+                    },
+                  ],
+                );
+                return;
+              }
+
+              showToast("error", "Couldn't delete your account right now. Please try again.");
+            }),
         },
       ]
     );
@@ -81,20 +134,30 @@ export default function AccountScreen() {
       >
         <View style={styles.hero}>
           <View style={styles.avatarWrap}>
-            <View
-              style={[
-                styles.avatar,
-                {
-                  backgroundColor: palette.primaryContainer,
-                  borderColor: palette.outlineVariant + "40",
-                },
-              ]}
+            <Pressable
+              onPress={() => void handlePickImage()}
+              disabled={isBusy}
+              style={({ pressed }) => [pressed && { opacity: 0.92 }]}
             >
-              <Text style={[styles.avatarText, { color: palette.onPrimaryContainer }]}>
-                {liveDisplayName.charAt(0).toUpperCase()}
-              </Text>
-            </View>
+              <ProfileAvatar
+                avatarUrl={avatarUrl}
+                displayName={session?.user?.displayName}
+                email={session?.user?.email}
+                size={96}
+              />
 
+              <View
+                style={[
+                  styles.cameraButton,
+                  {
+                    backgroundColor: palette.primary,
+                    borderColor: palette.background,
+                  },
+                ]}
+              >
+                <Camera size={14} color={palette.primaryForeground} />
+              </View>
+            </Pressable>
           </View>
 
           <Text style={[styles.heroName, { color: palette.onSurface }]}>
@@ -359,6 +422,23 @@ const styles = StyleSheet.create({
     width: 104,
     height: 104,
     borderRadius: 52,
+    borderWidth: 3,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarImage: {
+    width: 104,
+    height: 104,
+    borderRadius: 52,
+    borderWidth: 3,
+  },
+  cameraButton: {
+    position: "absolute",
+    right: 0,
+    bottom: 0,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
     borderWidth: 3,
     alignItems: "center",
     justifyContent: "center",

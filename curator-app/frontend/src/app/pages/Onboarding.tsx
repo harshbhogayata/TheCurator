@@ -9,22 +9,13 @@ import {
   Monitor,
   Moon,
   Sun,
+  User,
   Zap
 } from "lucide-react";
 import { IdentityProviderButtons } from "../components/IdentityProviderButtons";
 import { useAuth } from "../context/AuthContext";
 import { useTheme } from "../context/ThemeContext";
-
-const categories = [
-  { id: "technology", label: "Technology", emoji: "💻" },
-  { id: "politics", label: "Politics", emoji: "🏛️" },
-  { id: "business", label: "Business", emoji: "📈" },
-  { id: "science", label: "Science", emoji: "🔬" },
-  { id: "culture", label: "Culture", emoji: "🎭" },
-  { id: "climate", label: "Climate", emoji: "🌍" },
-  { id: "health", label: "Health", emoji: "⚕️" },
-  { id: "sports", label: "Sports", emoji: "⚽" },
-] as const;
+import { categoryOptions } from "../../lib/types";
 
 type NotificationFrequency = "daily" | "breaking" | "weekly" | "none";
 type ThemePreference = "light" | "dark" | "system";
@@ -45,8 +36,10 @@ export function Onboarding() {
   const { setTheme } = useTheme();
 
   const [step, setStep] = useState(1);
+  const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedTheme, setSelectedTheme] = useState<ThemePreference>("system");
   const [notificationFrequency, setNotificationFrequency] =
@@ -66,11 +59,10 @@ export function Onboarding() {
   }, [selectedCategories]);
 
   useEffect(() => {
-    // Do not route without permission:
-    // if (authStatus === "authenticated" && onboarding?.completed) {
-    //   navigate("/home", { replace: true });
-    //   return;
-    // }
+    if (authStatus === "authenticated" && onboarding?.completed) {
+      navigate("/brief", { replace: true });
+      return;
+    }
 
     if (authStatus === "authenticated" && onboarding) {
       setStep(Math.max(2, onboarding.currentStep));
@@ -102,11 +94,16 @@ export function Onboarding() {
       return;
     }
 
+    if (!agreedToTerms) {
+      setError("Agree to the Privacy Policy and Terms of Service to continue.");
+      return;
+    }
+
     setIsSubmitting(true);
     setError("");
 
     try {
-      await signUp("", email, password);
+      await signUp(displayName, email, password);
       setStep(2);
       navigate("/onboarding", { replace: true });
     } catch (err) {
@@ -205,9 +202,7 @@ export function Onboarding() {
       if (isAuthenticated) {
         await completeOnboarding();
       }
-      // do not route without permission
-      // navigate("/home", { replace: true });
-      console.log('Would navigate to /home');
+      navigate("/brief", { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Unable to complete onboarding right now.");
     } finally {
@@ -328,13 +323,17 @@ export function Onboarding() {
 
           {/* ════════════════  STEP 1 — Account  ════════════════ */}
           {step === 1 && (
-            <div className="flex-1 flex flex-col justify-center space-y-6 animate-fade-in">
+            <div className="mx-auto flex w-full max-w-lg flex-1 flex-col justify-center animate-fade-in">
+              <div className="space-y-6 rounded-[56px] border border-outline-variant/15 bg-surface-container-lowest/85 p-7 shadow-[0_24px_70px_-32px_rgba(5,12,19,0.4)] backdrop-blur-xl md:p-9">
               <div className="text-center space-y-2">
+                <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-outline">
+                  Create account
+                </p>
                 <h1 className="font-[family-name:var(--font-headline)] italic text-[clamp(2rem,8vw,3.5rem)] text-on-surface leading-tight">
-                  Create Your Account
+                  Join The Curator
                 </h1>
                 <p className="text-outline text-[clamp(0.875rem,2.5vw,1.125rem)]">
-                  Join thoughtful readers in a calmer, smarter news experience.
+                  Create your account, then we&apos;ll tailor your experience.
                 </p>
               </div>
 
@@ -354,6 +353,21 @@ export function Onboarding() {
 
               <div className="space-y-3">
                 <div>
+                  <label className="mb-1.5 flex items-center gap-2 text-sm font-medium text-on-surface">
+                    <User className="h-4 w-4 text-outline" />
+                    Display Name
+                  </label>
+                  <input
+                    type="text"
+                    value={displayName}
+                    onChange={(event) => setDisplayName(event.target.value)}
+                    placeholder="Optional"
+                    autoComplete="name"
+                    maxLength={60}
+                    className="w-full rounded-[28px] border border-outline-variant/20 bg-input-background px-5 py-3.5 text-[15px] text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
                   <label className="block text-on-surface mb-1.5 text-sm font-medium">
                     Email Address
                   </label>
@@ -364,7 +378,7 @@ export function Onboarding() {
                     placeholder="your@email.com"
                     autoComplete="email"
                     required
-                    className="w-full bg-input-background border border-outline-variant/20 rounded-full px-5 py-3.5 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary transition-all text-[15px]"
+                    className="w-full rounded-[28px] border border-outline-variant/20 bg-input-background px-5 py-3.5 text-[15px] text-on-surface placeholder:text-outline transition-all focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
 
@@ -377,19 +391,40 @@ export function Onboarding() {
                     placeholder="At least 8 characters"
                     autoComplete="new-password"
                     required
-                    className="w-full bg-input-background border border-outline-variant/20 rounded-full px-5 py-3.5 text-on-surface placeholder:text-outline focus:outline-none focus:ring-2 focus:ring-primary transition-all text-[15px]"
+                    className="w-full rounded-[28px] border border-outline-variant/20 bg-input-background px-5 py-3.5 text-[15px] text-on-surface placeholder:text-outline transition-all focus:outline-none focus:ring-2 focus:ring-primary"
                   />
                 </div>
               </div>
 
+              <label className="flex cursor-pointer items-start gap-3 text-sm font-normal text-on-surface-variant">
+                <input
+                  type="checkbox"
+                  checked={agreedToTerms}
+                  onChange={(event) => setAgreedToTerms(event.target.checked)}
+                  className="mt-0.5 h-5 w-5 rounded-md accent-primary"
+                />
+                <span>
+                  I agree to the{" "}
+                  <a className="font-semibold text-primary hover:underline" href="/privacy">
+                    Privacy Policy
+                  </a>{" "}
+                  and{" "}
+                  <a className="font-semibold text-primary hover:underline" href="/terms">
+                    Terms of Service
+                  </a>
+                  .
+                </span>
+              </label>
+
               <button
                 onClick={() => void handleNext()}
-                disabled={isSubmitting}
+                disabled={isSubmitting || !agreedToTerms}
                 className="w-full bg-primary hover:bg-primary-dim text-primary-foreground py-4 px-10 rounded-full font-semibold tracking-wide shadow-xl transition-all duration-300 active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 group text-[15px]"
               >
                 {isSubmitting ? "Creating Account..." : "Continue"}
                 {!isSubmitting && <ArrowRight className="w-5 h-5 group-hover:translate-x-1 transition-transform" />}
               </button>
+              </div>
             </div>
           )}
 
@@ -407,13 +442,13 @@ export function Onboarding() {
 
               {/* Category grid — 2 cols, aspect-ratio based so it scales on any phone */}
               <div className="grid grid-cols-2 gap-[3%] flex-1 content-center">
-                {categories.map((category) => {
-                  const isSelected = selectedCategories.includes(category.id);
+                {categoryOptions.map((category) => {
+                  const isSelected = selectedCategories.includes(category.key);
 
                   return (
                     <button
-                      key={category.id}
-                      onClick={() => handleCategoryToggle(category.id)}
+                      key={category.key}
+                      onClick={() => handleCategoryToggle(category.key)}
                       className={`relative flex flex-col items-center justify-center rounded-2xl sm:rounded-3xl transition-all duration-300 py-[12%] ${
                         isSelected
                           ? "bg-primary border-2 border-primary shadow-lg scale-[1.03]"
@@ -441,7 +476,7 @@ export function Onboarding() {
 
               {/* Bottom nav */}
               {bottomNav(
-                () => authStatus !== "authenticated" ? navigate("/") : undefined,
+                () => authStatus !== "authenticated" ? navigate("/welcome") : undefined,
                 () => void handleSkipInterest(),
                 () => void handleNext(),
                 isSubmitting || selectedCategories.length < 3,

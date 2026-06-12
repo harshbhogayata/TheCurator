@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Plus, FolderOpen, Check } from 'lucide-react';
 import { useCollections } from '../context/CollectionsContext';
 import { useToast } from './Toast';
-import type { Article } from '../data/articles';
+import type { Article } from '../../data/articles';
 
 interface AddToCollectionModalProps {
   article: Article;

@@ -36,3 +36,27 @@ class HealthView(views.APIView):
             "redis": redis_status,
         }
         return response.Response(payload, status=status_code)
+
+
+class RootWelcomeView(views.APIView):
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        endpoints = {
+            "health": request.build_absolute_uri("/health/"),
+            "api_root": request.build_absolute_uri("/api/"),
+            "articles": request.build_absolute_uri("/api/mobile/v1/articles"),
+            "briefs": request.build_absolute_uri("/api/mobile/v1/briefs"),
+            "categories": request.build_absolute_uri("/api/mobile/v1/categories"),
+        }
+        if settings.DEBUG:
+            endpoints["admin"] = request.build_absolute_uri("/admin/")
+
+        return response.Response({
+            "name": "The Curator API Gateway",
+            "status": "online",
+            "message": "Premium AI-Curated Journalism Platform",
+            "version": getattr(settings, "APP_VERSION", "1.0.0"),
+            "endpoints": endpoints,
+        })

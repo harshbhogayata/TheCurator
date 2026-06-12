@@ -4,19 +4,25 @@ import { ArrowRight } from 'lucide-react';
 import { IdentityProviderButtons } from '../components/IdentityProviderButtons';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useAuth } from '../context/AuthContext';
+import { isDevBypassAuth } from '../../lib/dev-mode';
 import { IMAGES } from '../constants/images';
 
 export function Welcome() {
   const navigate = useNavigate();
   const { authStatus, onboarding, providerAvailability } = useAuth();
   const showIdentityProviders =
-    providerAvailability.entra && (providerAvailability.google || providerAvailability.apple);
+    !isDevBypassAuth &&
+    providerAvailability.entra &&
+    (providerAvailability.google || providerAvailability.apple);
 
   useEffect(() => {
-    // Do not route without permission:
-    // if (authStatus === 'authenticated' && onboarding) {
-    //   navigate(onboarding.completed ? '/home' : '/onboarding', { replace: true });
-    // }
+    if (isDevBypassAuth) {
+      navigate('/brief', { replace: true });
+      return;
+    }
+    if (authStatus === 'authenticated' && onboarding) {
+      navigate(onboarding.completed ? '/brief' : '/onboarding', { replace: true });
+    }
   }, [authStatus, navigate, onboarding]);
 
   return (

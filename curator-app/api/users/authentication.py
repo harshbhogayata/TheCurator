@@ -35,8 +35,12 @@ class FirebaseAuthentication(authentication.BaseAuthentication):
         except ValueError as exc:
             raise exceptions.AuthenticationFailed(str(exc)) from exc
         except FirebaseError as exc:
-            logger.exception("Firebase token verification failed: %s", exc)
-            raise exceptions.AuthenticationFailed("Firebase token verification failed.") from exc
+            logger.warning("Firebase authentication verification failed.", exc_info=True)
+            if "Token used too early" in str(exc):
+                raise exceptions.AuthenticationFailed(
+                    "Authentication could not be verified because the server clock is out of sync.",
+                ) from exc
+            raise exceptions.AuthenticationFailed("Firebase authentication verification failed.") from exc
 
         request.firebase_claims = claims
         return (user, claims)

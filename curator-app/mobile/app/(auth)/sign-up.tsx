@@ -1,6 +1,6 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "expo-router";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Linking, Platform, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { KeyboardAvoidingView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Controller, useForm } from "react-hook-form";
@@ -22,6 +22,7 @@ const schema = z.object({
 });
 
 type SignUpValues = z.infer<typeof schema>;
+const SITE_URL = "https://thecurator.app";
 
 export default function SignUpScreen() {
   const { palette } = useTheme();
@@ -143,9 +144,25 @@ export default function SignUpScreen() {
               </View>
               <Text style={[styles.termsText, { color: palette.onSurfaceVariant }]}>
                 I agree to the{" "}
-                <Text style={{ color: palette.primary, fontFamily: "Manrope_600SemiBold" }}>Privacy Policy</Text>
+                <Text
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    void Linking.openURL(`${SITE_URL}/privacy`);
+                  }}
+                  style={{ color: palette.primary, fontFamily: "Manrope_600SemiBold" }}
+                >
+                  Privacy Policy
+                </Text>
                 {" "}and{" "}
-                <Text style={{ color: palette.primary, fontFamily: "Manrope_600SemiBold" }}>Terms of Service</Text>
+                <Text
+                  onPress={(event) => {
+                    event.stopPropagation();
+                    void Linking.openURL(`${SITE_URL}/terms`);
+                  }}
+                  style={{ color: palette.primary, fontFamily: "Manrope_600SemiBold" }}
+                >
+                  Terms of Service
+                </Text>
               </Text>
             </Pressable>
           </AuthCard>

@@ -7,6 +7,7 @@ import {
   type BottomSheetBackdropProps,
 } from "@gorhom/bottom-sheet";
 
+import { useTextSizePreference } from "../hooks/use-text-size-preference";
 import { useTheme } from "../providers/theme-provider";
 import {
   useReadingPreferences,
@@ -33,7 +34,8 @@ const LINE_HEIGHT_OPTIONS: { key: LineHeight; label: string }[] = [
 
 function TypographySettingsInner({ visible, onClose }: TypographySettingsProps) {
   const { palette } = useTheme();
-  const { preferences, setFontSize, setLineHeight } = useReadingPreferences();
+  const { fontSize, selectTextSize } = useTextSizePreference();
+  const { preferences, setLineHeight } = useReadingPreferences();
   const modalRef = useRef<BottomSheetModal>(null);
 
   useEffect(() => {
@@ -76,11 +78,11 @@ function TypographySettingsInner({ visible, onClose }: TypographySettingsProps) 
         </Text>
         <View style={styles.optionsRow}>
           {FONT_SIZE_OPTIONS.map((option) => {
-            const isSelected = preferences.fontSize === option.key;
+            const isSelected = fontSize === option.key;
             return (
               <Pressable
                 key={option.key}
-                onPress={() => setFontSize(option.key)}
+                onPress={() => selectTextSize(option.key)}
                 style={[
                   styles.optionButton,
                   {

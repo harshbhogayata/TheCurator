@@ -1,4 +1,5 @@
 from pathlib import Path
+from urllib.parse import urlparse
 
 import environ
 from django.core.exceptions import ImproperlyConfigured
@@ -26,10 +27,23 @@ def _get_secret_key():
 
 SECRET_KEY = _get_secret_key()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
+RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")
+API_PUBLIC_BASE_URL_ENV = env("API_PUBLIC_BASE_URL", default="")
 
-ALLOWED_HOSTS = env.list("DJANGO_ALLOWED_HOSTS", default=["127.0.0.1", "localhost"])
+ALLOWED_HOSTS = env.list(
+    "DJANGO_ALLOWED_HOSTS",
+    default=["127.0.0.1", "localhost"] if DEBUG else [],
+)
 if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
+if RAILWAY_PUBLIC_DOMAIN and RAILWAY_PUBLIC_DOMAIN not in ALLOWED_HOSTS:
+    ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
+if API_PUBLIC_BASE_URL_ENV:
+    api_public_host = urlparse(API_PUBLIC_BASE_URL_ENV).hostname
+    if api_public_host and api_public_host not in ALLOWED_HOSTS:
+        ALLOWED_HOSTS.append(api_public_host)
+if not DEBUG and not ALLOWED_HOSTS:
+    raise ImproperlyConfigured("DJANGO_ALLOWED_HOSTS or a platform public domain is required in production.")
 
 CSRF_TRUSTED_ORIGINS = env.list(
     "CSRF_TRUSTED_ORIGINS",
@@ -38,6 +52,15 @@ CSRF_TRUSTED_ORIGINS = env.list(
 render_csrf_origin = f"https://{RENDER_EXTERNAL_HOSTNAME}" if RENDER_EXTERNAL_HOSTNAME else ""
 if render_csrf_origin and render_csrf_origin not in CSRF_TRUSTED_ORIGINS:
     CSRF_TRUSTED_ORIGINS.append(render_csrf_origin)
+railway_csrf_origin = f"https://{RAILWAY_PUBLIC_DOMAIN}" if RAILWAY_PUBLIC_DOMAIN else ""
+if railway_csrf_origin and railway_csrf_origin not in CSRF_TRUSTED_ORIGINS:
+    CSRF_TRUSTED_ORIGINS.append(railway_csrf_origin)
+if API_PUBLIC_BASE_URL_ENV:
+    parsed_api_public_url = urlparse(API_PUBLIC_BASE_URL_ENV)
+    if parsed_api_public_url.scheme and parsed_api_public_url.netloc:
+        api_public_origin = f"{parsed_api_public_url.scheme}://{parsed_api_public_url.netloc}"
+        if api_public_origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(api_public_origin)
 CORS_ALLOWED_ORIGINS = env.list(
     "CORS_ALLOWED_ORIGINS",
     default=[
@@ -66,10 +89,14 @@ INSTALLED_APPS = [
     "users",
     "onboarding",
     "health",
+    "content_pipeline",
+    "publicapi",
+    "billing",
 ]
 
 MIDDLEWARE = [
     "django.middleware.security.SecurityMiddleware",
+    "whitenoise.middleware.WhiteNoiseMiddleware",
     "common.middleware.RequestIdMiddleware",
     "corsheaders.middleware.CorsMiddleware",
     "django.contrib.sessions.middleware.SessionMiddleware",
@@ -118,6 +145,8 @@ else:
     DATABASES = {
         "default": env.db("DATABASE_URL"),
     }
+
+DATABASES["default"]["CONN_MAX_AGE"] = env.int("CONN_MAX_AGE", default=0 if DEBUG else 600)
 
 PASSWORD_HASHERS = [
     "django.contrib.auth.hashers.PBKDF2PasswordHasher",
@@ -169,6 +198,8 @@ REST_FRAMEWORK = {
         "sensitive": "5/minute",
         "search": "30/minute",
         "feedback": "5/hour",
+        "public_reads": "240/minute",
+        "webhooks": "120/minute",
     },
 }
 
@@ -177,6 +208,7 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 128 * 1024
 TRUST_PROXY = env.bool("TRUST_PROXY", default=False)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY else None
 USE_X_FORWARDED_HOST = TRUST_PROXY
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
@@ -189,18 +221,91 @@ SECURE_HSTS_INCLUDE_SUBDOMAINS = env.bool(
     default=not DEBUG,
 )
 SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=not DEBUG)
+SECURE_CONTENT_TYPE_NOSNIFF = True
 
 FIREBASE_PROJECT_ID = env("FIREBASE_PROJECT_ID", default="")
 FIREBASE_CREDENTIALS_PATH = env("FIREBASE_CREDENTIALS_PATH", default="")
 FIREBASE_CREDENTIALS_JSON = env("FIREBASE_CREDENTIALS_JSON", default="")
+FIREBASE_CLOCK_SKEW_SECONDS = env.int("FIREBASE_CLOCK_SKEW_SECONDS", default=60)
+if not 0 <= FIREBASE_CLOCK_SKEW_SECONDS <= 60:
+    raise ImproperlyConfigured("FIREBASE_CLOCK_SKEW_SECONDS must be between 0 and 60.")
+FIREBASE_LOCAL_CLOCK_OFFSET_SECONDS = env.int(
+    "FIREBASE_LOCAL_CLOCK_OFFSET_SECONDS",
+    default=0,
+)
+if not 0 <= FIREBASE_LOCAL_CLOCK_OFFSET_SECONDS <= 300:
+    raise ImproperlyConfigured(
+        "FIREBASE_LOCAL_CLOCK_OFFSET_SECONDS must be between 0 and 300.",
+    )
+if not DEBUG and FIREBASE_LOCAL_CLOCK_OFFSET_SECONDS:
+    raise ImproperlyConfigured(
+        "FIREBASE_LOCAL_CLOCK_OFFSET_SECONDS is a local-development escape hatch only.",
+    )
 APP_VERSION = env("APP_VERSION", default="dev")
-render_public_base_url = f"https://{RENDER_EXTERNAL_HOSTNAME}" if RENDER_EXTERNAL_HOSTNAME else "http://127.0.0.1:8000"
-API_PUBLIC_BASE_URL = env("API_PUBLIC_BASE_URL", default=render_public_base_url)
+
+
+def _get_api_public_base_url():
+    if API_PUBLIC_BASE_URL_ENV:
+        parsed = urlparse(API_PUBLIC_BASE_URL_ENV)
+        if not parsed.scheme or not parsed.netloc:
+            raise ImproperlyConfigured("API_PUBLIC_BASE_URL must be an absolute URL.")
+        if not DEBUG and parsed.scheme != "https":
+            raise ImproperlyConfigured("API_PUBLIC_BASE_URL must use HTTPS in production.")
+        return API_PUBLIC_BASE_URL_ENV.rstrip("/")
+
+    if RENDER_EXTERNAL_HOSTNAME:
+        return f"https://{RENDER_EXTERNAL_HOSTNAME}"
+    if RAILWAY_PUBLIC_DOMAIN:
+        return f"https://{RAILWAY_PUBLIC_DOMAIN}"
+    if DEBUG:
+        return "http://127.0.0.1:8000"
+
+    raise ImproperlyConfigured(
+        "API_PUBLIC_BASE_URL, RENDER_EXTERNAL_HOSTNAME, or RAILWAY_PUBLIC_DOMAIN is required in production."
+    )
+
+
+API_PUBLIC_BASE_URL = _get_api_public_base_url()
 DATA_EXPORT_STORAGE_DIR = env("DATA_EXPORT_STORAGE_DIR", default=str(BASE_DIR / "generated_exports"))
 DATA_EXPORT_ASYNC = env.bool("DATA_EXPORT_ASYNC", default=False)
 DATA_EXPORT_EXPIRY_HOURS = env.int("DATA_EXPORT_EXPIRY_HOURS", default=24)
 REVENUECAT_WEBHOOK_SECRET = env("REVENUECAT_WEBHOOK_SECRET", default="")
 REVENUECAT_PRODUCT_TIER_MAP = env.json("REVENUECAT_PRODUCT_TIER_MAP", default={})
+
+# Stripe (web checkout). Maps subscription tiers to Stripe Price IDs, e.g.
+# {"basic": "price_123", "premium": "price_456", "lifetime": "price_789"}.
+STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
+STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
+STRIPE_TIER_PRICE_MAP = env.json("STRIPE_TIER_PRICE_MAP", default={})
+# Public web app origin used for checkout/portal redirect URLs.
+WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecurator.app")
+
+# Web Push (VAPID). Generate keys with: python -m py_vapid (or `npx web-push generate-vapid-keys`).
+WEBPUSH_VAPID_PUBLIC_KEY = env("WEBPUSH_VAPID_PUBLIC_KEY", default="")
+WEBPUSH_VAPID_PRIVATE_KEY = env("WEBPUSH_VAPID_PRIVATE_KEY", default="")
+WEBPUSH_VAPID_CLAIMS_EMAIL = env("WEBPUSH_VAPID_CLAIMS_EMAIL", default="")
+
+# Article narration (OpenAI TTS) + media storage (S3-compatible, e.g. Cloudflare R2).
+# Used only by the `generate_article_audio` management command; the app never
+# needs these at runtime because audio is served from AUDIO_PUBLIC_BASE_URL.
+OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
+OPENAI_TTS_MODEL = env("OPENAI_TTS_MODEL", default="gpt-4o-mini-tts")
+OPENAI_TTS_VOICE = env("OPENAI_TTS_VOICE", default="alloy")
+
+# Content pipeline (RSS/API ingestion + LLM rewriting + editorial review).
+OPENAI_CHAT_MODEL = env("OPENAI_CHAT_MODEL", default="gpt-4o-mini")
+PIPELINE_ENABLED = env.bool("PIPELINE_ENABLED", default=True)
+# When True, approved drafts publish automatically; otherwise editors publish
+# from the review queue in Django admin.
+PIPELINE_AUTO_PUBLISH = env.bool("PIPELINE_AUTO_PUBLISH", default=False)
+PIPELINE_MAX_DRAFTS_PER_RUN = env.int("PIPELINE_MAX_DRAFTS_PER_RUN", default=10)
+PIPELINE_MIN_CLUSTER_SOURCES = env.int("PIPELINE_MIN_CLUSTER_SOURCES", default=1)
+AUDIO_S3_ENDPOINT_URL = env("AUDIO_S3_ENDPOINT_URL", default="")
+AUDIO_S3_BUCKET = env("AUDIO_S3_BUCKET", default="")
+AUDIO_S3_ACCESS_KEY_ID = env("AUDIO_S3_ACCESS_KEY_ID", default="")
+AUDIO_S3_SECRET_ACCESS_KEY = env("AUDIO_S3_SECRET_ACCESS_KEY", default="")
+AUDIO_S3_REGION = env("AUDIO_S3_REGION", default="auto")
+AUDIO_PUBLIC_BASE_URL = env("AUDIO_PUBLIC_BASE_URL", default="")
 
 SENTRY_DSN = env("SENTRY_DSN", default="")
 if SENTRY_DSN:
@@ -216,6 +321,29 @@ if SENTRY_DSN:
 
 CELERY_BROKER_URL = env("CELERY_BROKER_URL", default="")
 CELERY_RESULT_BACKEND = env("CELERY_RESULT_BACKEND", default=CELERY_BROKER_URL)
+CELERY_TIMEZONE = TIME_ZONE
+
+# Server-side cache for hot public feeds. Uses Redis when available
+# (REDIS_URL, or the Celery broker in production), otherwise an in-process
+# fallback. In DEBUG, Redis must be opted into explicitly so local dev and
+# tests never depend on a running Redis instance.
+REDIS_CACHE_URL = env("REDIS_URL", default="" if DEBUG else CELERY_BROKER_URL)
+if REDIS_CACHE_URL and REDIS_CACHE_URL.startswith("redis"):
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.redis.RedisCache",
+            "LOCATION": REDIS_CACHE_URL,
+            "TIMEOUT": 300,
+        }
+    }
+else:
+    CACHES = {
+        "default": {
+            "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+            "LOCATION": "curator-default",
+            "TIMEOUT": 300,
+        }
+    }
 
 EMAIL_BACKEND = env("EMAIL_BACKEND", default="django.core.mail.backends.console.EmailBackend")
 EMAIL_HOST = env("EMAIL_HOST", default="")
@@ -223,6 +351,7 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@thecurator.app")
 
 LOGGING = {
     "version": 1,

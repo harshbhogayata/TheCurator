@@ -1,47 +1,47 @@
-import { useState, useEffect } from 'react';
-import { Menu, Trash2, Bookmark, FolderPlus, Lock } from 'lucide-react';
-import { BottomNav } from '../components/BottomNav';
-import { ArticleCard } from '../components/ArticleCard';
-import { SubscriptionBadge } from '../components/SubscriptionBadge';
-import { PaywallModal } from '../components/PaywallModal';
-import { AddToCollectionModal } from '../components/AddToCollectionModal';
-import { useSavedArticles } from '../context/SavedArticlesContext';
+import { useEffect, useMemo, useState } from 'react';
+import { Trash2, Bookmark, FolderPlus, Lock } from 'lucide-react';
 import { useNavigate } from 'react-router';
+
+import { AppShell } from '../components/AppShell';
+import { ArticleCard } from '../components/ArticleCard';
+import { PaywallModal } from '../components/PaywallModal';
+import { useSavedArticles } from '../context/SavedArticlesContext';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
 import { useToast } from '../components/Toast';
-import type { Article } from '../data/articles';
-import { IMAGES } from '../constants/images';
+import { useSavedArticlesList } from '../../hooks/use-articles';
+import { ArticleCardSkeleton } from '../components/SkeletonLoaders';
+import { isMockBackend } from '../../lib/dev-mode';
+import { FeedStack } from '../../ui/feed-stack';
 
 export function Saved() {
   const navigate = useNavigate();
-  const { isAuthenticated, user } = useAuth();
-  const { savedArticles, savedCount, unsaveArticle } = useSavedArticles();
+  const { isAuthenticated } = useAuth();
+  const { unsaveArticle, savedCount, savedArticles: contextSaved } = useSavedArticles();
   const { hasUnlimitedSaves, maxSaves } = useSubscription();
   const { success } = useToast();
+  const { data: apiSaved = [], isLoading: isApiLoading } = useSavedArticlesList();
+  const savedArticles = isMockBackend ? contextSaved : apiSaved;
+  const isLoading = isMockBackend ? false : isApiLoading;
+
   const [showCollectionPaywall, setShowCollectionPaywall] = useState(false);
   const [selectedArticles, setSelectedArticles] = useState<Set<string>>(new Set());
   const [filterText, setFilterText] = useState('');
-  const [filteredArticles, setFilteredArticles] = useState(savedArticles);
-  
-  // Calculate percentage and remaining saves
+
   const percentUsed = maxSaves === Infinity ? 0 : Math.round((savedCount / maxSaves) * 100);
   const remainingSaves = maxSaves === Infinity ? Infinity : maxSaves - savedCount;
 
-  // Auth guard
   useEffect(() => {
     if (!isAuthenticated) {
-      navigate('/', { replace: true });
+      navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
-  useEffect(() => {
-    const filtered = savedArticles.filter(article => 
-      article.title.toLowerCase().includes(filterText.toLowerCase())
-    );
-    setFilteredArticles(filtered);
-  }, [filterText, savedArticles]);
-  
+  const filteredArticles = useMemo(
+    () => savedArticles.filter((article) => article.title.toLowerCase().includes(filterText.toLowerCase())),
+    [savedArticles, filterText],
+  );
+
   if (!isAuthenticated) {
     return null;
   }
@@ -54,229 +54,161 @@ export function Saved() {
   };
 
   const handleBulkDelete = () => {
-    selectedArticles.forEach(id => unsaveArticle(id));
+    selectedArticles.forEach((id) => unsaveArticle(id));
     setSelectedArticles(new Set());
     success('Articles removed from saved');
   };
 
-  const toggleArticleSelection = (articleId: string) => {
-    const newSelection = new Set(selectedArticles);
-    if (newSelection.has(articleId)) {
-      newSelection.delete(articleId);
-    } else {
-      newSelection.add(articleId);
-    }
-    setSelectedArticles(newSelection);
-  };
-
   return (
-    <div className="min-h-screen bg-gradient-to-br from-surface via-background to-surface-container-low pb-32">
-      {/* Header with Separate Pill Containers */}
-      <header className="fixed top-0 w-full z-50 pt-6 px-6">
-        <div className="flex justify-between items-center gap-3">
-          {/* Left: Menu Button (Circle Pill) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate('/menu')}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <Menu className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Center: Title (Long Pill) */}
-          <div className="flex-1 rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-6 py-2.5">
-            <h1 className="text-2xl font-[family-name:var(--font-headline)] italic tracking-tight text-on-surface text-center">
-              Saved
-            </h1>
-          </div>
-          
-          {/* Right: Badge + Profile (Pill Container) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] px-4 py-2 flex items-center gap-3">
-            <SubscriptionBadge size="sm" />
-            <div 
-              className="w-8 h-8 rounded-full overflow-hidden border border-outline-variant/15 cursor-pointer"
-              onClick={() => navigate('/account')}
-            >
-              <img 
-                src={user?.profileImage || IMAGES.profile.main}
-                className="w-full h-full object-cover" 
-                alt="User profile" 
-              />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="pt-32 px-6 max-w-5xl mx-auto">
-        {/* Storage Limit Banner */}
+    <AppShell title="Saved" archetype="feed">
+      <div className="space-y-8">
         {!hasUnlimitedSaves && (
-          <div className={`mb-8 rounded-[40px] p-6 border ${
-            percentUsed >= 90 
-              ? 'bg-error-container/50 border-error' 
-              : percentUsed >= 70 
-                ? 'bg-tertiary-container/50 border-outline-variant/15'
-                : 'bg-surface-container-lowest/70 border-outline-variant/15'
-          } backdrop-blur-xl`}>
-            <div className="flex items-center justify-between mb-3">
+          <div
+            className={`rounded-[40px] border p-6 backdrop-blur-xl ${
+              percentUsed >= 90
+                ? 'border-error bg-error-container/50'
+                : 'border-outline-variant/15 bg-surface-container-lowest/70'
+            }`}
+          >
+            <div className="mb-3 flex items-center justify-between">
               <div>
                 <h3 className="font-semibold text-on-surface">
-                  {percentUsed >= 90 ? '⚠️ Almost Full' : `${savedCount} of ${maxSaves} Articles Saved`}
+                  {savedCount} of {maxSaves} articles saved
                 </h3>
-                <p className="text-sm text-on-surface-variant mt-1">
-                  {remainingSaves === Infinity ? 'Unlimited' : `${remainingSaves} ${remainingSaves === 1 ? 'slot' : 'slots'} remaining`}
+                <p className="mt-1 text-sm text-on-surface-variant">
+                  {remainingSaves === Infinity ? 'Unlimited' : `${remainingSaves} slots remaining`}
                 </p>
               </div>
               {percentUsed >= 70 && (
-                <button 
+                <button
+                  type="button"
                   onClick={() => navigate('/donate')}
-                  className="bg-inverse-surface text-white px-4 py-2 rounded-full text-sm hover:bg-primary transition-all"
+                  className="rounded-full bg-inverse-surface px-4 py-2 text-sm text-white hover:bg-primary"
                 >
                   Upgrade
                 </button>
               )}
             </div>
-            
-            {/* Progress Bar */}
-            <div className="w-full h-2 bg-surface-container rounded-full overflow-hidden">
-              <div 
-                className={`h-full transition-all ${
-                  percentUsed >= 90 ? 'bg-error' : percentUsed >= 70 ? 'bg-tertiary' : 'bg-primary'
-                }`}
+            <div className="h-2 overflow-hidden rounded-full bg-surface-container">
+              <div
+                className={`h-full ${percentUsed >= 90 ? 'bg-error' : 'bg-primary'}`}
                 style={{ width: `${Math.min(percentUsed, 100)}%` }}
               />
             </div>
           </div>
         )}
 
-        {/* Collections CTA */}
-        <div className="mb-8 bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 rounded-[40px] p-6 flex items-start gap-4">
-          <div className="w-12 h-12 rounded-full bg-secondary-container flex items-center justify-center shrink-0">
+        <div className="flex items-start gap-4 rounded-[40px] border border-outline-variant/15 bg-surface-container-lowest/70 p-6">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-secondary-container">
             {hasUnlimitedSaves ? (
-              <FolderPlus className="w-6 h-6 text-on-secondary-container" />
+              <FolderPlus className="h-6 w-6 text-on-secondary-container" />
             ) : (
-              <Lock className="w-6 h-6 text-on-secondary-container" />
+              <Lock className="h-6 w-6 text-on-secondary-container" />
             )}
           </div>
-          <div className="flex-1">
-            <h3 className="font-[family-name:var(--font-headline)] text-xl text-on-surface mb-2">
+          <div>
+            <h3 className="font-[family-name:var(--font-headline)] text-xl text-on-surface">
               {hasUnlimitedSaves ? 'Organize with Collections' : 'Unlock Collections'}
             </h3>
-            <p className="text-on-surface-variant leading-relaxed mb-4">
-              {hasUnlimitedSaves 
-                ? 'Create custom collections to organize your saved articles by topic, project, or interest.'
-                : 'Upgrade to Premium tier to create unlimited collections and organize your reading list.'
-              }
+            <p className="mt-2 text-on-surface-variant">
+              {hasUnlimitedSaves
+                ? 'Create custom collections to organize saved articles.'
+                : 'Upgrade to Premium to create unlimited collections.'}
             </p>
-            <button 
-              onClick={() => hasUnlimitedSaves ? navigate('/collections') : setShowCollectionPaywall(true)}
-              className="text-primary text-sm hover:underline"
+            <button
+              type="button"
+              onClick={() => (hasUnlimitedSaves ? navigate('/collections') : setShowCollectionPaywall(true))}
+              className="mt-3 text-sm text-primary hover:underline"
             >
               {hasUnlimitedSaves ? 'Manage Collections →' : 'Learn More'}
             </button>
           </div>
         </div>
 
-        {/* Bulk Actions */}
         {selectedArticles.size > 0 && (
-          <div className="mb-6 bg-inverse-surface text-white rounded-[30px] p-4 flex items-center justify-between">
-            <span className="font-medium">
-              {selectedArticles.size} {selectedArticles.size === 1 ? 'article' : 'articles'} selected
-            </span>
+          <div className="flex items-center justify-between rounded-[30px] bg-inverse-surface p-4 text-white">
+            <span>{selectedArticles.size} selected</span>
             <div className="flex gap-3">
-              <button
-                onClick={() => setSelectedArticles(new Set())}
-                className="px-4 py-2 rounded-full bg-white/20 hover:bg-white/30 transition-colors"
-              >
+              <button type="button" onClick={() => setSelectedArticles(new Set())} className="rounded-full bg-white/20 px-4 py-2">
                 Cancel
               </button>
-              <button
-                onClick={handleBulkDelete}
-                className="px-4 py-2 rounded-full bg-error hover:bg-error/90 transition-colors flex items-center gap-2"
-              >
-                <Trash2 className="w-4 h-4" />
+              <button type="button" onClick={handleBulkDelete} className="flex items-center gap-2 rounded-full bg-error px-4 py-2">
+                <Trash2 className="h-4 w-4" />
                 Delete
               </button>
             </div>
           </div>
         )}
 
-        {/* Filter Input */}
-        <div className="mb-6">
-          <input
-            type="text"
-            placeholder="Filter articles..."
-            value={filterText}
-            onChange={(e) => setFilterText(e.target.value)}
-            className="w-full px-4 py-2 rounded-full bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 text-on-surface"
-          />
-        </div>
+        <input
+          type="text"
+          placeholder="Filter articles..."
+          value={filterText}
+          onChange={(e) => setFilterText(e.target.value)}
+          className="w-full rounded-full border border-outline-variant/15 bg-surface-container-lowest/70 px-4 py-2 text-on-surface"
+        />
 
-        {/* Saved Articles Grid */}
-        {filteredArticles.length === 0 ? (
-          <div className="bg-surface-container-lowest/70 backdrop-blur-xl border border-outline-variant/15 rounded-[60px] p-16 text-center">
-            <Bookmark className="w-16 h-16 mx-auto mb-4 text-outline" />
-            <h2 className="font-[family-name:var(--font-headline)] text-3xl text-on-surface mb-3">
-              No Saved Articles Yet
-            </h2>
-            <p className="text-on-surface-variant mb-6 max-w-md mx-auto">
-              Start saving articles you want to read later. Tap the bookmark icon on any article.
+        {isLoading ? (
+          <FeedStack>
+            <ArticleCardSkeleton />
+            <ArticleCardSkeleton />
+          </FeedStack>
+        ) : filteredArticles.length === 0 ? (
+          <div className="rounded-[60px] border border-outline-variant/15 bg-surface-container-lowest/70 p-16 text-center">
+            <Bookmark className="mx-auto mb-4 h-16 w-16 text-outline" />
+            <h2 className="font-[family-name:var(--font-headline)] text-3xl text-on-surface">No saved articles yet</h2>
+            <p className="mx-auto mt-3 max-w-md text-on-surface-variant">
+              Start saving articles you want to read later.
             </p>
             <button
+              type="button"
               onClick={() => navigate('/explore')}
-              className="bg-inverse-surface text-white px-8 py-3 rounded-full hover:bg-primary transition-all"
+              className="mt-6 rounded-full bg-inverse-surface px-8 py-3 text-white hover:bg-primary"
             >
               Explore Articles
             </button>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-12">
+          <FeedStack>
             {filteredArticles.map((article) => (
               <div key={article.id} className="relative">
-                {/* Selection Checkbox */}
-                <div className="absolute top-4 left-4 z-10">
+                <div className="absolute left-4 top-4 z-10">
                   <button
-                    onClick={() => toggleArticleSelection(article.id)}
-                    className={`w-8 h-8 rounded-full border-2 flex items-center justify-center transition-all ${
-                      selectedArticles.has(article.id)
-                        ? 'bg-primary border-primary'
-                        : 'bg-surface-container border-outline-variant hover:border-primary'
+                    type="button"
+                    onClick={() => {
+                      const next = new Set(selectedArticles);
+                      if (next.has(article.id)) next.delete(article.id);
+                      else next.add(article.id);
+                      setSelectedArticles(next);
+                    }}
+                    className={`flex h-8 w-8 items-center justify-center rounded-full border-2 ${
+                      selectedArticles.has(article.id) ? 'border-primary bg-primary' : 'border-outline-variant bg-surface-container'
                     }`}
-                  >
-                    {selectedArticles.has(article.id) && (
-                      <svg className="w-5 h-5 text-primary-foreground" fill="currentColor" viewBox="0 0 20 20">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </button>
+                  />
                 </div>
-
-                {/* Delete Button */}
-                <div className="absolute top-4 right-4 z-10">
+                <div className="absolute right-4 top-4 z-10">
                   <button
+                    type="button"
                     onClick={() => handleDelete(article.id)}
-                    className="w-8 h-8 rounded-full bg-error text-error-foreground flex items-center justify-center hover:scale-110 transition-transform shadow-lg"
+                    className="flex h-8 w-8 items-center justify-center rounded-full bg-error text-error-foreground shadow-lg"
                   >
-                    <Trash2 className="w-4 h-4" />
+                    <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-
                 <ArticleCard article={article} />
               </div>
             ))}
-          </div>
+          </FeedStack>
         )}
-      </main>
+      </div>
 
-      <BottomNav />
-
-      <PaywallModal 
+      <PaywallModal
         isOpen={showCollectionPaywall}
         onClose={() => setShowCollectionPaywall(false)}
         feature="Collections"
-        description="Create unlimited custom collections to organize your saved articles by topic, project, or reading list. Available for Premium tier and above."
+        description="Create unlimited custom collections to organize your saved articles."
         requiredTier="premium"
       />
-    </div>
+    </AppShell>
   );
 }

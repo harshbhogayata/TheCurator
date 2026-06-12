@@ -21,7 +21,7 @@ import { ArticleCard } from "../../../src/ui/article-card";
 import { SwipeableArticleCard } from "../../../src/ui/swipeable-article-card";
 import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { CompactCardSkeleton } from "../../../src/ui/skeleton-loader";
-import { useArticles } from "../../../src/hooks/use-articles";
+import { useSavedArticlesList } from "../../../src/hooks/use-articles";
 import { type } from "../../../src/ui/tokens/typography";
 
 export default function SavedScreen() {
@@ -32,24 +32,18 @@ export default function SavedScreen() {
   const { hasUnlimitedSaves, maxSaves } = useSubscription();
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
-  const { data: articles = [] } = useArticles();
+  const { data: articles = [], isLoading } = useSavedArticlesList();
 
-  const [isLoading, setIsLoading] = useState(true);
   const [filterQuery, setFilterQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 600);
-    return () => clearTimeout(t);
-  }, []);
-
-  // Get saved articles from data
+  // Get saved articles from the backend saved-only article query.
   const savedArticles = useMemo(() => {
     return articles.filter((article) => isArticleSaved(article.id));
-  }, [articles, savedArticleIds, isArticleSaved]);
+  }, [articles, isArticleSaved]);
 
   const categoryChips = useMemo(() => {
     const cats = [...new Set(savedArticles.map((a) => a.category))];
@@ -260,6 +254,7 @@ export default function SavedScreen() {
             placeholderTextColor={palette.onSurfaceVariant}
             value={filterQuery}
             onChangeText={setFilterQuery}
+            accessibilityLabel="Filter saved articles"
           />
         </View>
 

@@ -1,6 +1,7 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { View, Text, TextInput, ScrollView, Pressable } from "react-native";
 import { useLocalSearchParams } from "expo-router";
+import { FlashList } from "@shopify/flash-list";
 import {
   Search as SearchIcon,
   X,
@@ -15,10 +16,20 @@ import { useSavedArticles } from "../../../src/providers/saved-articles-provider
 import { useReadingStats } from "../../../src/providers/reading-stats-provider";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
-import { categories } from "../../../src/data/articles";
 import type { Article } from "../../../src/data/articles";
 import { useArticles } from "../../../src/hooks/use-articles";
+import { useCategories } from "../../../src/hooks/use-categories";
 import { type } from "../../../src/ui/tokens/typography";
+
+function normalizeCategory(value: string): string {
+  return value.trim().toLowerCase().replace(/[\s_]+/g, "-");
+}
+
+function formatCategoryLabel(value: string): string {
+  return value
+    .replace(/[-_]+/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
 
 export default function SearchScreen() {
   const { palette } = useTheme();
@@ -28,6 +39,7 @@ export default function SearchScreen() {
   const { recentArticleIds } = useReadingStats();
   const { q } = useLocalSearchParams<{ q?: string }>();
   const { data: articles = [] } = useArticles();
+  const { data: apiCategories = [] } = useCategories();
 
   const recentArticles = useMemo(
     () =>
@@ -46,6 +58,21 @@ export default function SearchScreen() {
   const [readingStatus, setReadingStatus] = useState<"all" | "saved" | "unsaved">("all");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
 
+  const categoryOptions = useMemo(() => {
+    if (apiCategories.length > 0) {
+      return apiCategories.map((category) => ({
+        key: normalizeCategory(category.slug),
+        label: category.name,
+      }));
+    }
+
+    return Array.from(new Set(articles.map((article) => normalizeCategory(article.category)).filter(Boolean)))
+      .map((category) => ({
+        key: category,
+        label: formatCategoryLabel(category),
+      }));
+  }, [apiCategories, articles]);
+
   const toggleCategory = (cat: string) => {
     setSelectedCategories((prev) =>
       prev.includes(cat) ? prev.filter((c) => c !== cat) : [...prev, cat],
@@ -61,7 +88,7 @@ export default function SearchScreen() {
         if (!matchesTitle && !matchesExcerpt) return false;
       }
       if (selectedCategories.length > 0) {
-        if (!selectedCategories.includes(article.category)) return false;
+        if (!selectedCategories.includes(normalizeCategory(article.category))) return false;
       }
       if (readingStatus === "saved") {
         if (!isArticleSaved(article.id)) return false;
@@ -72,20 +99,19 @@ export default function SearchScreen() {
     });
   }, [articles, searchQuery, selectedCategories, readingStatus, isArticleSaved]);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: palette.background }}>
-      <Header title="Search" />
+  const renderItem = useCallback(({ item }: { item: Article }) => (
+    <View style={{ marginBottom: 16 }}>
+      <ArticleCard article={item} variant="compact" />
+    </View>
+  ), []);
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: headerOffset, paddingBottom: 128 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+  const listHeader = useMemo(() => {
+    return (
+      <View style={{ paddingBottom: 8 }}>
         {/* Search input */}
         <View
           style={{
-            marginHorizontal: contentPadding,
+            marginHorizontal: 4,
             flexDirection: "row",
             alignItems: "center",
             gap: 12,
@@ -112,6 +138,7 @@ export default function SearchScreen() {
             value={searchQuery}
             onChangeText={setSearchQuery}
             autoCapitalize="none"
+            accessibilityLabel="Search narratives"
           />
           {searchQuery.length > 0 && (
             <Pressable onPress={() => setSearchQuery("")} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
@@ -127,7 +154,7 @@ export default function SearchScreen() {
           accessibilityState={{ expanded: filtersExpanded }}
           onPress={() => setFiltersExpanded((prev) => !prev)}
           style={{
-            marginHorizontal: contentPadding,
+            marginHorizontal: 4,
             marginTop: 14,
             flexDirection: "row",
             alignItems: "center",
@@ -148,24 +175,22 @@ export default function SearchScreen() {
 
         {/* Filters panel */}
         {filtersExpanded && (
-          <View style={{ marginHorizontal: contentPadding, marginTop: 14, gap: 16 }}>
+          <View style={{ marginHorizontal: 4, marginTop: 14, gap: 16 }}>
             {/* Categories */}
             <View>
               <Text style={[type.overline, { letterSpacing: 2, color: palette.onSurfaceVariant, marginBottom: 10, paddingHorizontal: 4 }]}>
                 Categories
               </Text>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 8 }}>
-                {categories
-                  .filter((cat) => cat !== "All")
-                  .map((cat) => {
-                    const selected = selectedCategories.includes(cat);
+                {categoryOptions.map((cat) => {
+                    const selected = selectedCategories.includes(cat.key);
                     return (
                       <Pressable
-                        key={cat}
+                        key={cat.key}
                         accessibilityRole="button"
-                        accessibilityLabel={`Filter by ${cat}`}
+                        accessibilityLabel={`Filter by ${cat.label}`}
                         accessibilityState={{ selected }}
-                        onPress={() => toggleCategory(cat)}
+                        onPress={() => toggleCategory(cat.key)}
                         style={{
                           paddingHorizontal: 14,
                           paddingVertical: 7,
@@ -180,7 +205,7 @@ export default function SearchScreen() {
                         }}
                       >
                         <Text style={[type.labelSm, { fontFamily: "Manrope_500Medium", fontSize: 11, color: selected ? palette.onSecondaryContainer : palette.outline }]}>
-                          {cat}
+                          {cat.label}
                         </Text>
                       </Pressable>
                     );
@@ -229,7 +254,7 @@ export default function SearchScreen() {
 
         {/* Continue Reading — shown when not actively searching */}
         {!searchQuery && recentArticles.length > 0 && (
-          <View style={{ marginTop: 24 }}>
+          <View style={{ marginTop: 24, marginHorizontal: -contentPadding }}>
             <Text
               style={[
                 type.title,
@@ -256,37 +281,66 @@ export default function SearchScreen() {
           </View>
         )}
 
-        {/* Results */}
-        {filteredArticles.length > 0 ? (
-          <View style={{ paddingHorizontal: contentPadding, marginTop: 24, gap: 16 }}>
-            <Text style={[type.labelSm, { fontFamily: "Manrope_500Medium", fontSize: 11, color: palette.outline, paddingHorizontal: 4, marginBottom: 4 }]}>
-              {filteredArticles.length} {filteredArticles.length === 1 ? "narrative" : "narratives"}
-            </Text>
-            {filteredArticles.map((article) => (
-              <ArticleCard key={article.id} article={article} variant="compact" />
-            ))}
-          </View>
-        ) : (
-          <View
-            style={{
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 80,
-            }}
-          >
-            <SearchIcon size={40} color={palette.outlineVariant} />
-            <Text style={[type.title, { color: palette.onSurface, marginTop: 16 }]}>
-              {searchQuery ? "No results" : "Start searching"}
-            </Text>
-            <Text style={[type.label, { fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant, marginTop: 8, textAlign: "center", paddingHorizontal: 48, lineHeight: 20 }]}>
-
-              {searchQuery
-                ? "Try different keywords or adjust your filters."
-                : "Search across all narratives, topics, and sources."}
-            </Text>
-          </View>
+        {/* Results title */}
+        {filteredArticles.length > 0 && (
+          <Text style={[type.labelSm, { fontFamily: "Manrope_500Medium", fontSize: 11, color: palette.outline, paddingHorizontal: 4, marginTop: 24, marginBottom: 8 }]}>
+            {filteredArticles.length} {filteredArticles.length === 1 ? "narrative" : "narratives"}
+          </Text>
         )}
-      </ScrollView>
+      </View>
+    );
+  }, [
+    palette,
+    searchQuery,
+    filtersExpanded,
+    selectedCategories,
+    readingStatus,
+    recentArticles,
+    filteredArticles.length,
+    contentPadding,
+    categoryOptions,
+  ]);
+
+  const listEmpty = useMemo(() => {
+    return (
+      <View
+        style={{
+          alignItems: "center",
+          justifyContent: "center",
+          paddingVertical: 80,
+        }}
+      >
+        <SearchIcon size={40} color={palette.outlineVariant} />
+        <Text style={[type.title, { color: palette.onSurface, marginTop: 16 }]}>
+          {searchQuery ? "No results" : "Start searching"}
+        </Text>
+        <Text style={[type.label, { fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant, marginTop: 8, textAlign: "center", paddingHorizontal: 48, lineHeight: 20 }]}>
+          {searchQuery
+            ? "Try different keywords or adjust your filters."
+            : "Search across all narratives, topics, and sources."}
+        </Text>
+      </View>
+    );
+  }, [palette, searchQuery]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      <Header title="Search" />
+
+      <FlashList
+        data={filteredArticles}
+        keyExtractor={(article) => article.id}
+        renderItem={renderItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          paddingTop: headerOffset,
+          paddingBottom: 128,
+          paddingHorizontal: contentPadding,
+        }}
+      />
     </View>
   );
 }

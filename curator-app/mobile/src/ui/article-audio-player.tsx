@@ -8,13 +8,15 @@ import { useRouter } from "expo-router";
 import { useTheme } from "../providers/theme-provider";
 import { useAudio } from "../providers/audio-provider";
 import { useSubscription } from "../providers/subscription-provider";
+import { fetchArticleAudio } from "../services/mobile-api";
 import { PaywallModal } from "./paywall-modal";
 
 interface ArticleAudioPlayerProps {
   articleId: string;
   audioUrl?: string;
-  durationSec?: number;
+  durationSec?: number | null;
   title: string;
+  isBrief?: boolean;
 }
 
 function formatTime(ms: number): string {
@@ -29,10 +31,12 @@ function ArticleAudioPlayerInner({
   audioUrl,
   durationSec,
   title,
+  isBrief = false,
 }: ArticleAudioPlayerProps) {
   const { palette } = useTheme();
   const router = useRouter();
-  const { hasAudioAccess } = useSubscription();
+  const { hasAudioAccess, hasBriefAudioAccess } = useSubscription();
+  const canListen = isBrief ? hasBriefAudioAccess : hasAudioAccess;
   const {
     state,
     currentBriefId,
@@ -46,12 +50,14 @@ function ArticleAudioPlayerInner({
   } = useAudio();
 
   const [paywallVisible, setPaywallVisible] = useState(false);
+  const [isResolvingAudio, setIsResolvingAudio] = useState(false);
 
-  if (!audioUrl) return null;
+  const hasAudio = Boolean(audioUrl || durationSec);
+  if (!hasAudio) return null;
 
   const isThisArticle = currentBriefId === articleId;
   const isPlaying = isThisArticle && state === "playing";
-  const isLoading = isThisArticle && state === "loading";
+  const isLoading = (isThisArticle && state === "loading") || isResolvingAudio;
   const isActive = isThisArticle && state !== "idle";
 
   const effectiveDurationMs =
@@ -61,15 +67,24 @@ function ArticleAudioPlayerInner({
     effectiveDurationMs > 0 ? effectivePositionMs / effectiveDurationMs : 0;
   const progressPercent = `${Math.min(progress * 100, 100)}%`;
 
-  const handlePlayPause = useCallback(() => {
-    if (!hasAudioAccess) {
+  const handlePlayPause = useCallback(async () => {
+    if (!canListen) {
       Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
       setPaywallVisible(true);
       return;
     }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (!isActive) {
-      playBrief(articleId, audioUrl);
+      setIsResolvingAudio(true);
+      try {
+        const playableUrl = audioUrl || (await fetchArticleAudio(articleId)).audioUrl;
+        await playBrief(articleId, playableUrl);
+      } catch {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+        setPaywallVisible(true);
+      } finally {
+        setIsResolvingAudio(false);
+      }
       return;
     }
     if (isPlaying) {
@@ -78,7 +93,7 @@ function ArticleAudioPlayerInner({
       resume();
     }
   }, [
-    hasAudioAccess,
+    canListen,
     isActive,
     isPlaying,
     playBrief,
@@ -120,12 +135,12 @@ function ArticleAudioPlayerInner({
               style={[styles.durationText, { color: palette.outline }]}
               numberOfLines={1}
             >
-              {hasAudioAccess
+              {canListen
                 ? `${formatTime(effectivePositionMs)} / ${formatTime(effectiveDurationMs)}`
                 : "Subscriber exclusive"}
             </Text>
           </View>
-          {!hasAudioAccess && (
+          {!canListen && (
             <View
               style={[
                 styles.lockBadge,
@@ -155,7 +170,7 @@ function ArticleAudioPlayerInner({
         {/* Controls */}
         <View style={styles.controlsRow}>
           <Pressable
-            onPress={hasAudioAccess ? skipBackward : () => setPaywallVisible(true)}
+            onPress={canListen ? skipBackward : () => setPaywallVisible(true)}
             disabled={!isActive}
             style={[
               styles.controlButton,
@@ -174,14 +189,14 @@ function ArticleAudioPlayerInner({
               { backgroundColor: palette.primary },
             ]}
             accessibilityLabel={
-              !hasAudioAccess
+              !canListen
                 ? "Unlock audio"
                 : isPlaying
                   ? "Pause audio"
                   : "Play audio"
             }
           >
-            {!hasAudioAccess ? (
+            {!canListen ? (
               <Lock size={22} color={palette.primaryForeground} />
             ) : isLoading ? (
               <Text style={{ color: palette.primaryForeground, fontSize: 14 }}>

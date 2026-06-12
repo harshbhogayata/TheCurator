@@ -19,6 +19,7 @@ import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
 import type { PurchasesPackage } from "react-native-purchases";
+import Constants from "expo-constants";
 
 interface Plan {
   id: "free" | "basic" | "premium" | "lifetime";
@@ -53,7 +54,7 @@ const plans: Plan[] = [
       "Ad-free reading experience",
       "Early access to daily briefs",
       "Monthly newsletter",
-      "Save up to 50 articles",
+      "Save up to 100 articles",
     ],
   },
   {
@@ -95,6 +96,38 @@ const planIcons = {
 };
 
 const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const RC_PRODUCT_IDS: Partial<Record<Exclude<Plan["id"], "free">, string>> = {
+  basic: process.env.EXPO_PUBLIC_RC_BASIC_PRODUCT_ID,
+  premium: process.env.EXPO_PUBLIC_RC_PREMIUM_PRODUCT_ID,
+  lifetime: process.env.EXPO_PUBLIC_RC_LIFETIME_PRODUCT_ID,
+};
+
+function normalizeIdentifier(value?: string | null): string {
+  return (value ?? "").trim().toLowerCase();
+}
+
+function findPackageForPlan(packages: PurchasesPackage[], planId: Plan["id"]): PurchasesPackage | undefined {
+  if (planId === "free") {
+    return undefined;
+  }
+
+  const configuredProductId = normalizeIdentifier(RC_PRODUCT_IDS[planId]);
+  return packages.find((pkg) => {
+    const identifiers = [
+      normalizeIdentifier(pkg.identifier),
+      normalizeIdentifier(pkg.product?.identifier),
+    ].filter(Boolean);
+
+    if (configuredProductId) {
+      return identifiers.includes(configuredProductId);
+    }
+
+    return identifiers.some((id) => {
+      const tokens = id.replace(/[$.-]/g, "_").split("_").filter(Boolean);
+      return tokens.includes(planId);
+    });
+  });
+}
 
 export default function DonateScreen() {
   const { palette } = useTheme();
@@ -103,13 +136,15 @@ export default function DonateScreen() {
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
   const selectedPlanData = plans.find((plan) => plan.id === selectedPlan) ?? plans[2];
+  const selectedPackage = findPackageForPlan(packages, selectedPlan);
 
   const handleSubscribe = async () => {
-    if (MOCK_BACKEND) {
+    const isExpoGo = Constants.appOwnership === "expo";
+    if (MOCK_BACKEND || isExpoGo) {
       setTier(selectedPlan);
       const msg = selectedPlan === "free"
         ? "Switched to Free plan."
-        : `You're now a ${selectedPlan} member! Thank you for your support.`;
+        : `You're now a ${selectedPlan} member! [Expo Go Mock Enabled] Thank you for your support.`;
       showToast("success", msg);
       router.back();
       return;
@@ -120,9 +155,7 @@ export default function DonateScreen() {
        return;
     }
 
-    // Attempt to find matching RC package by identifier (usually matches tier string)
-    // Note: Enterprise setup would have explicit mapping.
-    const pkg = packages.find(p => p.identifier.toLowerCase() === selectedPlan);
+    const pkg = selectedPackage;
     
     if (!pkg) {
       showToast("error", "This package is not available for purchase right now.");
@@ -218,6 +251,8 @@ export default function DonateScreen() {
             const Icon = planIcons[plan.id];
             const isSelected = selectedPlan === plan.id;
             const isCurrent = tier === plan.id;
+            const storePackage = findPackageForPlan(packages, plan.id);
+            const priceLabel = storePackage?.product.priceString ?? `$${plan.price}${plan.period || " one-time"}`;
 
             return (
               <Pressable
@@ -328,9 +363,9 @@ export default function DonateScreen() {
                       color: palette.onSurface,
                     }}
                   >
-                    ${plan.price}
+                    {plan.id === "free" ? "$0" : priceLabel.replace(plan.period, "")}
                   </Text>
-                  {plan.period ? (
+                  {plan.id !== "free" && storePackage?.product.priceString ? null : plan.period ? (
                     <Text
                       style={{
                         fontFamily: "Manrope_400Regular",
@@ -381,10 +416,10 @@ export default function DonateScreen() {
         {/* Subscribe Button — the most important CTA in the app */}
         <View
           style={{
-            backgroundColor: "#111111",
+            backgroundColor: palette.primary,
             borderRadius: 28,
             marginBottom: 16,
-            shadowColor: "#000",
+            shadowColor: palette.primary,
             shadowOffset: { width: 0, height: 10 },
             shadowOpacity: 0.28,
             shadowRadius: 24,
@@ -395,6 +430,7 @@ export default function DonateScreen() {
           <Pressable
             onPress={handleSubscribe}
             android_ripple={{ color: "rgba(255,255,255,0.12)" }}
+            disabled={isPurchasing}
             style={({ pressed }) => ({
               width: "100%",
               minHeight: 96,
@@ -402,7 +438,7 @@ export default function DonateScreen() {
               flexDirection: "row",
               alignItems: "center",
               gap: 16,
-              opacity: pressed ? 0.92 : 1,
+              opacity: pressed || isPurchasing ? 0.92 : 1,
             })}
           >
             <View
@@ -410,12 +446,12 @@ export default function DonateScreen() {
                 width: 52,
                 height: 52,
                 borderRadius: 26,
-                backgroundColor: "rgba(255,255,255,0.16)",
+                backgroundColor: palette.primaryForeground + "26", // 15% opacity white/black
                 alignItems: "center",
                 justifyContent: "center",
               }}
             >
-              <CreditCard size={24} color="#ffffff" />
+              <CreditCard size={24} color={palette.primaryForeground} />
             </View>
 
             <View style={{ flex: 1, minWidth: 0 }}>
@@ -424,7 +460,7 @@ export default function DonateScreen() {
                 style={{
                   fontFamily: "Manrope_700Bold",
                   fontSize: 19,
-                  color: "#ffffff",
+                  color: palette.primaryForeground,
                   letterSpacing: 0.2,
                 }}
               >
@@ -435,17 +471,17 @@ export default function DonateScreen() {
                 style={{
                   fontFamily: "Manrope_400Regular",
                   fontSize: 14,
-                  color: "rgba(255,255,255,0.78)",
+                  color: palette.primaryForeground + "C7", // ~78% opacity
                   marginTop: 4,
                 }}
               >
                 {selectedPlanData.price === 0
                   ? "Always free"
-                  : `$${selectedPlanData.price}${selectedPlanData.period || " one-time"}`}
+                  : selectedPackage?.product.priceString ?? `$${selectedPlanData.price}${selectedPlanData.period || " one-time"}`}
               </Text>
             </View>
 
-            <ChevronRight size={22} color="#ffffff" />
+            <ChevronRight size={22} color={palette.primaryForeground} />
           </Pressable>
         </View>
 

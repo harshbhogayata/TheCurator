@@ -79,9 +79,9 @@
   --radius: 1rem;
   
   /* Font families */
-  --font-headline: 'Newsreader', serif;
-  --font-body: 'Manrope', sans-serif;
-  --font-label: 'Manrope', sans-serif;
+  --font-headline: 'Newsreader Variable', 'Newsreader', serif;
+  --font-body: 'Manrope Variable', 'Manrope', sans-serif;
+  --font-label: 'Manrope Variable', 'Manrope', sans-serif;
   
   /* Chart colors kept for compatibility */
   --chart-1: oklch(0.646 0.222 41.116);
@@ -558,6 +558,36 @@
 
 .animate-slide-in-right {
   animation: slide-in-right 0.3s ease-out;
+}
+
+@keyframes toast-enter {
+  from {
+    transform: translateY(-12px) scale(0.96);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0) scale(1);
+    opacity: 1;
+  }
+}
+
+.animate-toast-enter {
+  animation: toast-enter 0.32s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@keyframes toast-progress {
+  from {
+    transform: scaleX(1);
+  }
+  to {
+    transform: scaleX(0);
+  }
+}
+
+.animate-toast-progress {
+  animation-name: toast-progress;
+  animation-timing-function: linear;
+  animation-fill-mode: forwards;
 }
 
 /* Micro-interaction Animations */

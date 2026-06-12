@@ -30,6 +30,7 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { useSubscription } from "../../src/providers/subscription-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useToast } from "../../src/providers/toast-provider";
+import { useTextSizePreference } from "../../src/hooks/use-text-size-preference";
 import { updatePreferences as updatePreferencesRemote } from "../../src/services/mobile-api";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
@@ -239,6 +240,7 @@ function ToggleRow({
 
 export default function SettingsScreen() {
   const { palette, preference, setPreference } = useTheme();
+  const { selectTextSize } = useTextSizePreference();
   const { tier } = useSubscription();
   const {
     session,
@@ -250,18 +252,12 @@ export default function SettingsScreen() {
   } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
-  const fallbackCategories = useMemo(
-    () => categoryOptions.slice(0, 3).map((category) => category.key),
-    [],
-  );
   const sessionCategories = session?.onboarding.selectedCategories ?? [];
 
   const [preferences, setPreferences] = useState<UserPreferences>(
     session?.preferences ?? defaultPreferences,
   );
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(
-    sessionCategories.length ? sessionCategories : fallbackCategories,
-  );
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(sessionCategories);
   const handleSignOut = () => {
     Alert.alert("Sign Out?", "Are you sure you want to sign out?", [
       { text: "Cancel", style: "cancel" },
@@ -279,12 +275,8 @@ export default function SettingsScreen() {
     }
 
     setPreferences(session.preferences);
-    setSelectedCategories(
-      session.onboarding.selectedCategories.length
-        ? session.onboarding.selectedCategories
-        : fallbackCategories,
-    );
-  }, [fallbackCategories, session]);
+    setSelectedCategories(session.onboarding.selectedCategories);
+  }, [session]);
 
   const tierCopy = useMemo(() => {
     if (tier === "lifetime") {
@@ -319,24 +311,32 @@ export default function SettingsScreen() {
   }, [tier]);
 
   const applyPreferenceUpdate = (updater: (current: UserPreferences) => UserPreferences) => {
+    const previous = preferences;
+    const previousTheme = preference;
     const next = updater(preferences);
+
     setPreferences(next);
 
     if (next.themePreference !== preference) {
       setPreference(next.themePreference);
     }
 
-    // Use the dedicated v1 preferences API for post-onboarding updates,
-    // and keep onboarding endpoint as fallback for session sync.
+    updateSessionPreferences(next);
+
     void updatePreferencesRemote(next)
       .then((payload) => {
-        updateSessionPreferences(payload);
+        updateSessionPreferences({ ...next, ...payload });
       })
       .catch(() => {
-        // Fall back to the session-level onboarding route.
-        void updateOnboardingPreferences(next).catch(() => {
-          showToast("error", "Couldn't update your settings right now.");
-        });
+        void updateOnboardingPreferences(next)
+          .catch(() => {
+            setPreferences(previous);
+            updateSessionPreferences(previous);
+            if (previous.themePreference !== next.themePreference) {
+              setPreference(previous.themePreference);
+            }
+            showToast("error", "Couldn't update your settings right now.");
+          });
       });
   };
 
@@ -348,12 +348,14 @@ export default function SettingsScreen() {
       return;
     }
 
+    const previous = selectedCategories;
     const next = isSelected
       ? selectedCategories.filter((item) => item !== key)
       : [...selectedCategories, key];
 
     setSelectedCategories(next);
     void updateOnboardingCategories({ categories: next }).catch(() => {
+      setSelectedCategories(previous);
       showToast("error", "Couldn't update your interests right now.");
     });
   };
@@ -533,12 +535,13 @@ export default function SettingsScreen() {
                 label={option.label}
                 width="31%"
                 selected={preferences.textSize === option.value}
-                onPress={() =>
-                  applyPreferenceUpdate((current) => ({
+                onPress={() => {
+                  selectTextSize(option.value);
+                  setPreferences((current) => ({
                     ...current,
                     textSize: option.value,
-                  }))
-                }
+                  }));
+                }}
               />
             ))}
           </View>

@@ -1,0 +1,12 @@
+{
+  "expo": {
+    "name": "Curator",
+    "slug": "curator-mobile",
+    "userInterfaceStyle": "automatic",
+    "extra": {
+      "eas": {
+        "projectId": "584dd577-0bcb-4201-bb11-6f81bc75cc00"
+      }
+    }
+  }
+}

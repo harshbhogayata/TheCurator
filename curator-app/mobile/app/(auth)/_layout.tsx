@@ -13,7 +13,7 @@ export default function AuthLayout() {
     if (!session.onboarding.isCompleted && currentScreen !== "onboarding") {
       return <Redirect href="/(auth)/onboarding" />;
     }
-    if (session.onboarding.isCompleted && currentScreen !== "onboarding") {
+    if (session.onboarding.isCompleted) {
       return <Redirect href="/(app)/(tabs)" />;
     }
   }

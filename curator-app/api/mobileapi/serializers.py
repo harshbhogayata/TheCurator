@@ -6,6 +6,7 @@ from rest_framework import serializers
 from onboarding.models import UserPreference
 from mobileapi.models import (
     Article,
+    ArticleStatus,
     Brief,
     Category,
     DataExportRequest,
@@ -29,6 +30,7 @@ def _as_utc_start_of_day(value):
 
 
 class ArticleSerializer(serializers.ModelSerializer):
+    category = serializers.SlugRelatedField(slug_field="slug", queryset=Category.objects.all())
     slug = serializers.CharField(read_only=True)
     readTime = serializers.SerializerMethodField()
     readTimeMinutes = serializers.IntegerField(source="read_time_minutes")
@@ -38,9 +40,11 @@ class ArticleSerializer(serializers.ModelSerializer):
     imageUrl = serializers.CharField(source="image_url", allow_blank=True)
     imageSourceUrl = serializers.CharField(source="image_source_url", allow_blank=True)
     imageAttribution = serializers.CharField(source="image_attribution", allow_blank=True)
-    audioUrl = serializers.CharField(source="audio_url", allow_blank=True)
+    audioUrl = serializers.SerializerMethodField()
     audioDurationSec = serializers.IntegerField(source="audio_duration_sec", allow_null=True)
     relatedArticleIds = serializers.SerializerMethodField()
+    sourceLinks = serializers.JSONField(source="source_links", read_only=True)
+    topics = serializers.JSONField(read_only=True)
 
     class Meta:
         model = Article
@@ -56,6 +60,8 @@ class ArticleSerializer(serializers.ModelSerializer):
             "publishedAt",
             "author",
             "sources",
+            "sourceLinks",
+            "topics",
             "imageQuery",
             "imageUrl",
             "imageSourceUrl",
@@ -75,9 +81,31 @@ class ArticleSerializer(serializers.ModelSerializer):
     def get_publishedAt(self, obj):
         return _as_utc_start_of_day(obj.published_at)
 
+    def get_audioUrl(self, obj):
+        return ""
+
     def get_relatedArticleIds(self, obj):
+        # Prefer related articles precomputed from embeddings at publish time.
+        if obj.related_article_ids:
+            valid_ids = Article.objects.filter(
+                id__in=obj.related_article_ids,
+                is_active=True,
+                status=ArticleStatus.PUBLISHED,
+            ).values_list("id", flat=True)
+            ordered = [
+                article_id
+                for article_id in obj.related_article_ids
+                if any(str(valid) == str(article_id) for valid in valid_ids)
+            ]
+            if ordered:
+                return [str(article_id) for article_id in ordered[:3]]
+
         related_ids = (
-            Article.objects.filter(is_active=True, category=obj.category)
+            Article.objects.filter(
+                is_active=True,
+                status=ArticleStatus.PUBLISHED,
+                category=obj.category,
+            )
             .exclude(id=obj.id)
             .values_list("id", flat=True)[:3]
         )
@@ -212,8 +240,6 @@ class EntitlementSerializer(serializers.ModelSerializer):
             "productId",
             "expiresAt",
             "willRenew",
-            "qa_override_enabled",
-            "qa_override_tier",
             "qaOverrideEnabled",
             "qaOverrideTier",
         )
@@ -284,9 +310,30 @@ class DeviceSerializer(serializers.ModelSerializer):
 
 class DeviceWriteSerializer(serializers.Serializer):
     deviceId = serializers.UUIDField(required=False)
-    expoPushToken = serializers.CharField(max_length=255)
+    expoPushToken = serializers.CharField(max_length=255, required=False, allow_blank=True, default="")
     platform = serializers.ChoiceField(choices=DevicePlatform.choices)
     appVersion = serializers.CharField(max_length=32, required=False, allow_blank=True, default="")
+    # Web Push subscription JSON (platform=web only).
+    webPushSubscription = serializers.JSONField(required=False)
+
+    def validate(self, attrs):
+        subscription = attrs.get("webPushSubscription") or {}
+        if attrs.get("platform") == DevicePlatform.WEB:
+            endpoint = subscription.get("endpoint") if isinstance(subscription, dict) else None
+            if not endpoint:
+                raise serializers.ValidationError(
+                    {"webPushSubscription": "A subscription with an endpoint is required for web devices."}
+                )
+            if not attrs.get("expoPushToken"):
+                # Stable identity for the device row: hash of the push endpoint.
+                import hashlib
+
+                attrs["expoPushToken"] = "webpush:" + hashlib.sha256(
+                    endpoint.encode("utf-8")
+                ).hexdigest()
+        elif not attrs.get("expoPushToken"):
+            raise serializers.ValidationError({"expoPushToken": "This field is required."})
+        return attrs
 
 
 class FeedbackCreateSerializer(serializers.Serializer):

@@ -27,6 +27,10 @@ interface ArticleCardProps {
 }
 
 export function getImageUrl(article: Article): string {
+  if (article.imageUrl) {
+    return article.imageUrl;
+  }
+
   const query = article.imageQuery.toLowerCase();
 
   if (query.includes("modern architecture shadows geometric")) return IMAGES.editorial.economy;
@@ -54,6 +58,7 @@ function ArticleCardInner({
   const reduceMotion = useReduceMotion();
   const isSaved = isArticleSaved(article.id);
   const imageUrl = getImageUrl(article);
+  const hasAudio = Boolean(article.audioUrl || article.audioDurationSec);
 
   const pressAnimationStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],
@@ -132,7 +137,7 @@ function ArticleCardInner({
             <Text style={[styles.compactReadTime, { color: palette.outline }]}>
               {article.readTime}
             </Text>
-            {article.audioUrl ? (
+            {hasAudio ? (
               <Headphones size={11} color={palette.outline} />
             ) : null}
           </View>
@@ -207,7 +212,7 @@ function ArticleCardInner({
           )}
 
           {/* Audio available badge */}
-          {article.audioUrl ? (
+          {hasAudio ? (
             <View
               style={[
                 styles.audioBadge,

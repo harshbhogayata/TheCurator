@@ -11,6 +11,8 @@ services:
     envVars:
       - key: DJANGO_DEBUG
         value: false
+      - key: PYTHON_VERSION
+        value: 3.13.1
       - key: DJANGO_SECRET_KEY
         generateValue: true
       - key: DATABASE_URL
@@ -25,10 +27,52 @@ services:
         sync: false
       - key: FIREBASE_CREDENTIALS_JSON
         sync: false
+      - key: FIREBASE_CLOCK_SKEW_SECONDS
+        value: 60
+      - key: CORS_ALLOWED_ORIGINS
+        sync: false
+      - key: CSRF_TRUSTED_ORIGINS
+        sync: false
+      - key: WEB_BASE_URL
+        sync: false
       - key: REVENUECAT_WEBHOOK_SECRET
         sync: false
       - key: REVENUECAT_PRODUCT_TIER_MAP
         value: '{}'
+
+  - type: web
+    name: thecurator-web
+    runtime: node
+    rootDir: curator-app/frontend
+    plan: free
+    autoDeploy: true
+    buildCommand: npm ci && npm run build
+    startCommand: npm run start
+    envVars:
+      - key: NODE_VERSION
+        value: 20.19.1
+      - key: VITE_API_URL
+        sync: false
+      - key: VITE_SITE_URL
+        sync: false
+      - key: VITE_FIREBASE_API_KEY
+        sync: false
+      - key: VITE_FIREBASE_AUTH_DOMAIN
+        sync: false
+      - key: VITE_FIREBASE_PROJECT_ID
+        sync: false
+      - key: VITE_FIREBASE_STORAGE_BUCKET
+        sync: false
+      - key: VITE_FIREBASE_MESSAGING_SENDER_ID
+        sync: false
+      - key: VITE_FIREBASE_APP_ID
+        sync: false
+      - key: VITE_DEV_BYPASS_AUTH
+        value: false
+      - key: VITE_MOCK_BACKEND
+        value: false
+      - key: VITE_MOCK_PREMIUM
+        value: false
 
 databases:
   - name: thecurator-postgres

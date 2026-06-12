@@ -91,18 +91,25 @@ export function AudioProvider({ children }: PropsWithChildren) {
       setPositionMs(0);
       setDurationMs(0);
 
-      const { sound } = await Audio.Sound.createAsync(
-        { uri },
-        {
-          shouldPlay: true,
-          rate: playbackSpeed,
-          progressUpdateIntervalMillis: 250,
-        },
-        onPlaybackStatusUpdate,
-      );
+      try {
+        const { sound } = await Audio.Sound.createAsync(
+          { uri },
+          {
+            shouldPlay: true,
+            rate: playbackSpeed,
+            progressUpdateIntervalMillis: 250,
+          },
+          onPlaybackStatusUpdate,
+        );
 
-      soundRef.current = sound;
-      setState("playing");
+        soundRef.current = sound;
+        setState("playing");
+      } catch (error) {
+        console.error("Failed to load/play audio brief:", error);
+        setState("idle");
+        setCurrentBriefId(null);
+        throw error;
+      }
     },
     [state, playbackSpeed, onPlaybackStatusUpdate, unloadCurrentSound],
   );

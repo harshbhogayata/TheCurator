@@ -31,7 +31,7 @@ export function NotFound() {
             Go Back
           </button>
           <button
-            onClick={() => navigate('/home')}
+            onClick={() => navigate('/brief')}
             className="bg-inverse-surface hover:bg-primary text-white px-8 py-4 rounded-full transition-all flex items-center justify-center gap-2"
           >
             <Home className="w-5 h-5" />

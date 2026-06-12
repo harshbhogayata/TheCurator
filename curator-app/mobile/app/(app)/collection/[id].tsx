@@ -18,7 +18,7 @@ import { useSavedArticles } from "../../../src/providers/saved-articles-provider
 import { useToast } from "../../../src/providers/toast-provider";
 import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { SwipeableArticleCard } from "../../../src/ui/swipeable-article-card";
-import { useArticles } from "../../../src/hooks/use-articles";
+import { useArticlesByIds, useSavedArticlesList } from "../../../src/hooks/use-articles";
 import { PillPageHeader } from "../../../src/ui/pill-page-header";
 
 export default function CollectionDetailScreen() {
@@ -30,9 +30,9 @@ export default function CollectionDetailScreen() {
     addArticleToCollection,
     removeArticleFromCollection,
     deleteCollection,
+    isLoading: isCollectionsLoading,
   } = useCollections();
   const { savedArticleIds } = useSavedArticles();
-  const { data: allArticles = [] } = useArticles();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -40,6 +40,8 @@ export default function CollectionDetailScreen() {
   const editModalRef = useRef<BottomSheetModal>(null);
 
   const collection = id ? getCollection(id) : undefined;
+  const { data: collectionArticleDetails = [] } = useArticlesByIds(collection?.articleIds ?? []);
+  const { data: savedArticleDetails = [] } = useSavedArticlesList();
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editName, setEditName] = useState(collection?.name ?? "");
@@ -61,6 +63,16 @@ export default function CollectionDetailScreen() {
     [],
   );
 
+  if (isCollectionsLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontFamily: "Newsreader_500Medium_Italic", fontSize: 20, color: palette.onSurfaceVariant }}>
+          Loading collection...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
   if (!collection) {
     return (
       <SafeAreaView style={{ flex: 1, backgroundColor: palette.background, alignItems: "center", justifyContent: "center" }}>
@@ -77,8 +89,8 @@ export default function CollectionDetailScreen() {
     );
   }
 
-  const collectionArticles = allArticles.filter((a) => collection.articleIds.includes(a.id));
-  const availableArticles = allArticles.filter(
+  const collectionArticles = collectionArticleDetails.filter((a) => collection.articleIds.includes(a.id));
+  const availableArticles = savedArticleDetails.filter(
     (a) => savedArticleIds.includes(a.id) && !collection.articleIds.includes(a.id),
   );
 

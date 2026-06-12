@@ -1,5 +1,6 @@
 import logging
-from datetime import datetime
+from datetime import UTC, datetime
+from uuid import UUID
 
 from django.conf import settings
 from django.db import transaction
@@ -26,7 +27,7 @@ def _event_datetime_from_ms(value):
     if not value:
         return None
     try:
-        return datetime.fromtimestamp(int(value) / 1000, tz=timezone.utc)
+        return datetime.fromtimestamp(int(value) / 1000, tz=UTC)
     except (TypeError, ValueError, OSError):
         return None
 
@@ -39,12 +40,13 @@ def _resolve_tier_from_product_id(product_id: str):
     if product_id in configured_map:
         return configured_map[product_id]
 
-    normalized = product_id.lower()
-    if "lifetime" in normalized:
+    # Split into exact tokens by standard separators to avoid loose substring mismatches
+    tokens = set(product_id.lower().replace(".", "_").replace("-", "_").split("_"))
+    if "lifetime" in tokens:
         return SubscriptionTier.LIFETIME
-    if "premium" in normalized:
+    if "premium" in tokens:
         return SubscriptionTier.PREMIUM
-    if "basic" in normalized:
+    if "basic" in tokens:
         return SubscriptionTier.BASIC
     return SubscriptionTier.FREE
 
@@ -66,6 +68,12 @@ def _resolve_user_from_event(event):
             continue
         seen.add(candidate)
         user = User.objects.filter(firebase_uid=candidate).first()
+        if user:
+            return user, candidate
+        try:
+            user = User.objects.filter(id=UUID(candidate)).first()
+        except (TypeError, ValueError):
+            user = None
         if user:
             return user, candidate
 

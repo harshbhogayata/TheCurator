@@ -46,7 +46,8 @@ def validate_download_token(export_request: DataExportRequest, token: str) -> bo
     if not token:
         return False
     try:
-        payload = signing.loads(token, salt=EXPORT_SIGNING_SALT)
+        max_age = getattr(settings, "DATA_EXPORT_EXPIRY_HOURS", 24) * 3600
+        payload = signing.loads(token, salt=EXPORT_SIGNING_SALT, max_age=max_age)
     except signing.BadSignature:
         return False
 
@@ -68,7 +69,7 @@ def _serialize_saved_articles(user):
             "article": {
                 "id": str(saved.article_id),
                 "title": saved.article.title,
-                "category": saved.article.category,
+                "category": saved.article.category.slug if saved.article.category else "",
                 "publishedAt": saved.article.published_at.isoformat(),
             },
         }

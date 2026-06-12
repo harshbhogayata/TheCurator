@@ -2,6 +2,7 @@ import React, { memo, useCallback, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { X } from "lucide-react-native";
+import { useRouter } from "expo-router";
 
 import { useTheme } from "../providers/theme-provider";
 import { useSubscription } from "../providers/subscription-provider";
@@ -11,7 +12,7 @@ interface AdBannerProps {
   onClose?: () => void;
 }
 
-const AD_VARIANTS = [
+const SUPPORT_VARIANTS = [
   {
     title: "Upgrade to Premium",
     description: "Remove ads and unlock unlimited saves, audio briefs, and more.",
@@ -29,11 +30,12 @@ const AD_VARIANTS = [
 function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
   const { palette } = useTheme();
   const { tier } = useSubscription();
+  const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
 
-  const adVariant = useMemo(() => {
-    const index = Math.floor(Math.random() * AD_VARIANTS.length);
-    return AD_VARIANTS[index];
+  const supportVariant = useMemo(() => {
+    const index = Math.floor(Math.random() * SUPPORT_VARIANTS.length);
+    return SUPPORT_VARIANTS[index];
   }, []);
 
   const handleClose = useCallback(() => {
@@ -67,7 +69,7 @@ function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
                 { color: palette.outline },
               ]}
             >
-              ADVERTISEMENT
+              SUPPORT CURATOR
             </Text>
             <Text
               style={[
@@ -75,7 +77,7 @@ function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
                 { color: palette.onSurface },
               ]}
             >
-              {adVariant.title}
+              {supportVariant.title}
             </Text>
             <Text
               style={[
@@ -83,10 +85,11 @@ function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
                 { color: palette.onSurfaceVariant },
               ]}
             >
-              {adVariant.description}
+              {supportVariant.description}
             </Text>
           </View>
           <Pressable
+            onPress={() => router.push("/(app)/donate")}
             style={[
               styles.ctaButton,
               { backgroundColor: palette.inverseSurface },
@@ -98,7 +101,7 @@ function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
                 { color: palette.inverseOnSurface },
               ]}
             >
-              LEARN MORE
+              UPGRADE
             </Text>
           </Pressable>
           <Pressable

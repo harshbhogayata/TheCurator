@@ -104,7 +104,6 @@ export default function TabsLayout() {
       <Tabs.Screen name="explore" options={{ title: "Explore" }} />
       <Tabs.Screen name="search" options={{ title: "Search" }} />
       <Tabs.Screen name="saved" options={{ title: "Saved" }} />
-      <Tabs.Screen name="settings" options={{ href: null }} />
     </Tabs>
   );
 }

@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import type { TextSize, LineHeight } from "../lib/types";
+import { useAuth } from "./auth-provider";
 
 export type { TextSize as FontSize, LineHeight };
 
@@ -22,6 +23,7 @@ interface ReadingPreferencesContextValue {
   preferences: ReadingPreferences;
   setFontSize: (size: TextSize) => void;
   setLineHeight: (height: LineHeight) => void;
+  hydrateFontSize: (size: TextSize | null | undefined) => void;
   fontSizeValue: number;
   lineHeightValue: number;
 }
@@ -46,10 +48,23 @@ const DEFAULT_PREFERENCES: ReadingPreferences = {
   lineHeight: "comfortable",
 };
 
+interface StoredReadingPreferences {
+  lineHeight?: LineHeight;
+  /** @deprecated v2 stored fontSize locally; account session is now source of truth */
+  fontSize?: TextSize;
+}
+
+const TEXT_SIZE_VALUES = new Set<TextSize>(["compact", "comfortable", "large"]);
+
+function isTextSize(value: unknown): value is TextSize {
+  return typeof value === "string" && TEXT_SIZE_VALUES.has(value as TextSize);
+}
+
 const ReadingPreferencesContext =
   createContext<ReadingPreferencesContextValue | null>(null);
 
 export function ReadingPreferencesProvider({ children }: PropsWithChildren) {
+  const { session, status } = useAuth();
   const [preferences, setPreferences] =
     useState<ReadingPreferences>(DEFAULT_PREFERENCES);
 
@@ -58,7 +73,11 @@ export function ReadingPreferencesProvider({ children }: PropsWithChildren) {
     AsyncStorage.getItem(STORAGE_KEY).then((value) => {
       if (!cancelled && value) {
         try {
-          setPreferences({ ...DEFAULT_PREFERENCES, ...JSON.parse(value) });
+          const stored = JSON.parse(value) as StoredReadingPreferences;
+          setPreferences((prev) => ({
+            ...prev,
+            lineHeight: stored.lineHeight ?? prev.lineHeight,
+          }));
         } catch {
           // ignore corrupt data
         }
@@ -69,30 +88,55 @@ export function ReadingPreferencesProvider({ children }: PropsWithChildren) {
     };
   }, []);
 
-  const persist = useCallback((prefs: ReadingPreferences) => {
-    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(prefs));
+  const persistLineHeight = useCallback((lineHeight: LineHeight) => {
+    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify({ lineHeight }));
   }, []);
+
+  const hydrateFontSize = useCallback(
+    (size: TextSize | null | undefined) => {
+      if (!isTextSize(size)) {
+        return;
+      }
+
+      setPreferences((prev) => {
+        if (prev.fontSize === size) {
+          return prev;
+        }
+
+        return { ...prev, fontSize: size };
+      });
+    },
+    [],
+  );
+
+  useEffect(() => {
+    if (status !== "signed-in") {
+      return;
+    }
+
+    hydrateFontSize(session?.preferences.textSize);
+  }, [hydrateFontSize, session?.preferences.textSize, status]);
 
   const setFontSize = useCallback(
     (size: TextSize) => {
-      setPreferences((prev) => {
-        const next = { ...prev, fontSize: size };
-        persist(next);
-        return next;
-      });
+      hydrateFontSize(size);
     },
-    [persist],
+    [hydrateFontSize],
   );
 
   const setLineHeight = useCallback(
     (height: LineHeight) => {
       setPreferences((prev) => {
+        if (prev.lineHeight === height) {
+          return prev;
+        }
+
         const next = { ...prev, lineHeight: height };
-        persist(next);
+        persistLineHeight(height);
         return next;
       });
     },
-    [persist],
+    [persistLineHeight],
   );
 
   const fontSizeValue = FONT_SIZE_MAP[preferences.fontSize];
@@ -103,10 +147,18 @@ export function ReadingPreferencesProvider({ children }: PropsWithChildren) {
       preferences,
       setFontSize,
       setLineHeight,
+      hydrateFontSize,
       fontSizeValue,
       lineHeightValue,
     }),
-    [preferences, setFontSize, setLineHeight, fontSizeValue, lineHeightValue],
+    [
+      preferences,
+      setFontSize,
+      setLineHeight,
+      hydrateFontSize,
+      fontSizeValue,
+      lineHeightValue,
+    ],
   );
 
   return (

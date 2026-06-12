@@ -1,0 +1,17 @@
+{
+  "name": "The Curator",
+  "short_name": "Curator",
+  "description": "A calmer way to read the news. Briefings and source-backed articles, read or heard.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#fbf9f3",
+  "theme_color": "#fbf9f3",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

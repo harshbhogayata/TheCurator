@@ -1,6 +1,13 @@
 import type { Article } from "../data/articles";
 import type { BriefItem } from "../data/briefs";
-import type { Collection, SubscriptionTier, UserPreferences } from "../lib/types";
+import {
+  filterMockArticles,
+  findMockArticle,
+  mockBriefs,
+  mockCategories,
+} from "../data/mock-content";
+import type { Collection, SessionPayload, SubscriptionTier, UserPreferences } from "../lib/types";
+import { mockBackendEnabled } from "../lib/dev-flags";
 import { apiRequest } from "./api-client";
 import * as crypto from "expo-crypto";
 
@@ -77,8 +84,13 @@ interface PrivacyExportListResponse {
 export interface EntitlementPayload {
   tier: SubscriptionTier;
   effectiveTier: SubscriptionTier;
-  qa_override_enabled: boolean;
-  qa_override_tier: "" | SubscriptionTier;
+  qaOverrideEnabled: boolean;
+  qaOverrideTier: "" | SubscriptionTier;
+}
+
+export interface ArticleAudioPayload {
+  audioUrl: string;
+  durationSec: number | null;
 }
 
 function createIdempotencyKey(): string {
@@ -113,17 +125,79 @@ function toQueryString(filters?: Record<string, unknown>): string {
 }
 
 export async function fetchArticles(filters?: Record<string, unknown>): Promise<Article[]> {
+  if (mockBackendEnabled) {
+    return filterMockArticles(filters);
+  }
+
   const payload = await apiRequest<CursorListResponse<Article> | Article[]>(
     `${API_PREFIX}/articles${toQueryString({ limit: 50, ...filters })}`,
   );
   return Array.isArray(payload) ? payload : payload.items;
 }
 
+async function fetchArticlePage(filters?: Record<string, unknown>): Promise<CursorListResponse<Article>> {
+  if (mockBackendEnabled) {
+    return { items: filterMockArticles(filters), nextCursor: null };
+  }
+
+  const payload = await apiRequest<CursorListResponse<Article> | Article[]>(
+    `${API_PREFIX}/articles${toQueryString({ limit: 50, ...filters })}`,
+  );
+  return Array.isArray(payload) ? { items: payload, nextCursor: null } : payload;
+}
+
+export async function fetchAllArticles(filters?: Record<string, unknown>): Promise<Article[]> {
+  const allItems: Article[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const page = await fetchArticlePage({ ...filters, cursor: cursor ?? undefined });
+    allItems.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+
+  return allItems;
+}
+
+export async function fetchArticlesByIds(articleIds: string[]): Promise<Article[]> {
+  if (articleIds.length === 0) {
+    return [];
+  }
+
+  const uniqueIds = Array.from(new Set(articleIds));
+  const chunks: string[][] = [];
+  for (let index = 0; index < uniqueIds.length; index += 50) {
+    chunks.push(uniqueIds.slice(index, index + 50));
+  }
+
+  const pages = await Promise.all(
+    chunks.map((chunk) => fetchArticlePage({ ids: chunk.join(","), limit: chunk.length })),
+  );
+  const articlesById = new Map(pages.flatMap((page) => page.items).map((article) => [article.id, article]));
+  return uniqueIds.map((id) => articlesById.get(id)).filter((article): article is Article => Boolean(article));
+}
+
 export async function fetchArticle(articleId: string): Promise<Article> {
+  if (mockBackendEnabled) {
+    const article = findMockArticle(articleId);
+    if (!article) {
+      throw new Error("Article not found.");
+    }
+    return article;
+  }
+
   return apiRequest<Article>(`${API_PREFIX}/articles/${articleId}`);
 }
 
+export async function fetchArticleAudio(articleId: string): Promise<ArticleAudioPayload> {
+  return apiRequest<ArticleAudioPayload>(`${API_PREFIX}/articles/${articleId}/audio`);
+}
+
 export async function fetchBriefs(): Promise<BriefItem[]> {
+  if (mockBackendEnabled) {
+    return mockBriefs;
+  }
+
   const payload = await apiRequest<CursorListResponse<BriefItem> | BriefItem[]>(
     `${API_PREFIX}/briefs${toQueryString({ limit: 50 })}`,
   );
@@ -152,7 +226,7 @@ export async function unsaveArticleById(articleId: string): Promise<string[]> {
 }
 
 export async function clearSavedArticlesRemote(): Promise<string[]> {
-  const payload = await apiRequest<SavedArticleIdsResponse>(`${API_PREFIX}/saves`, {
+  const payload = await apiRequest<SavedArticleIdsResponse>(`${API_PREFIX}/saves?clearAll=true`, {
     method: "DELETE",
   });
   return payload.articleIds;
@@ -231,6 +305,10 @@ export async function recordReadingEvent(input: {
 }
 
 export async function fetchCategories(): Promise<CategoryPayload[]> {
+  if (mockBackendEnabled) {
+    return mockCategories;
+  }
+
   const payload = await apiRequest<CategoryListResponse>(`${API_PREFIX}/categories`);
   return payload.items;
 }
@@ -243,6 +321,16 @@ export async function updatePreferences(
   input: Partial<UserPreferences>,
 ): Promise<UserPreferences> {
   return apiRequest<UserPreferences>(`${API_PREFIX}/preferences`, {
+    method: "PATCH",
+    body: input,
+  });
+}
+
+export async function updateAccount(input: {
+  displayName?: string;
+  avatarUrl?: string;
+}): Promise<SessionPayload> {
+  return apiRequest<SessionPayload>(`${API_PREFIX}/account`, {
     method: "PATCH",
     body: input,
   });
@@ -298,7 +386,7 @@ export async function fetchEntitlement(): Promise<EntitlementPayload> {
 }
 
 export async function deleteAccountRemote(): Promise<void> {
-  await apiRequest<void>("/api/mobile/account", {
+  await apiRequest<void>(`${API_PREFIX}/account`, {
     method: "DELETE",
   });
 }

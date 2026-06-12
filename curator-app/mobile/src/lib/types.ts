@@ -28,6 +28,7 @@ export interface AppUser {
   email: string;
   displayName: string | null;
   avatarUrl: string | null;
+  firebaseUid: string | null;
   memberSince: string;
 }
 
@@ -57,14 +58,9 @@ export interface SessionPayload {
 
 export const categoryOptions: CategoryOption[] = [
   {
-    key: "world",
-    label: "World",
-    description: "Global context, diplomacy, and markets that reshape the day.",
-  },
-  {
-    key: "business",
-    label: "Business",
-    description: "Leadership moves, earnings, and intelligent company analysis.",
+    key: "economy",
+    label: "Economy",
+    description: "Global context, business, and markets that reshape the day.",
   },
   {
     key: "technology",
@@ -82,24 +78,19 @@ export const categoryOptions: CategoryOption[] = [
     description: "Film, books, creators, and the ideas shaping taste.",
   },
   {
-    key: "design",
-    label: "Design",
-    description: "Architecture, product craft, systems thinking, and style.",
+    key: "health",
+    label: "Health",
+    description: "Medicine, wellness, longevity, and biotechnology developments.",
+  },
+  {
+    key: "politics",
+    label: "Politics",
+    description: "Government decisions, public institutions, and civic impact.",
   },
   {
     key: "climate",
     label: "Climate",
     description: "Energy, sustainability, resilience, and environmental change.",
-  },
-  {
-    key: "policy",
-    label: "Policy",
-    description: "Government decisions, public institutions, and civic impact.",
-  },
-  {
-    key: "sport",
-    label: "Sport",
-    description: "High-signal stories around performance, culture, and competition.",
   },
 ];
 
@@ -124,15 +115,13 @@ export const onboardingStepOrder: OnboardingStep[] = [
 
 // Article types
 export type ArticleCategory =
-  | "world"
-  | "business"
+  | "economy"
   | "technology"
   | "science"
   | "culture"
-  | "design"
-  | "climate"
-  | "policy"
-  | "sport";
+  | "health"
+  | "politics"
+  | "climate";
 
 // Collection types
 export interface Collection {

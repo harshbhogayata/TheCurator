@@ -1,11 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Check, Info } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+
+const REGION_STORAGE_KEY = "@curator/locale-region";
 
 const regions = [
   { code: "en-US", name: "United States", language: "English (US)", flag: "\uD83C\uDDFA\uD83C\uDDF8" },
@@ -18,8 +21,17 @@ export default function LanguageRegionScreen() {
   const { showToast } = useToast();
   const [selectedRegion, setSelectedRegion] = useState("en-US");
 
+  useEffect(() => {
+    void AsyncStorage.getItem(REGION_STORAGE_KEY).then((stored) => {
+      if (stored && regions.some((region) => region.code === stored)) {
+        setSelectedRegion(stored);
+      }
+    });
+  }, []);
+
   const handleSelect = (code: string) => {
     setSelectedRegion(code);
+    void AsyncStorage.setItem(REGION_STORAGE_KEY, code);
     const region = regions.find((r) => r.code === code);
     showToast("success", `Region set to ${region?.name}`);
   };
@@ -59,17 +71,17 @@ export default function LanguageRegionScreen() {
                   borderRadius: 24,
                   borderWidth: 2,
                   borderColor: isSelected ? palette.primary : palette.outlineVariant + "26",
-                  padding: 18,
+                  padding: 20,
                   flexDirection: "row",
                   alignItems: "center",
-                  gap: 14,
+                  gap: 16,
                 }}
               >
-                <Text style={{ fontSize: 36 }}>{region.flag}</Text>
+                <Text style={{ fontSize: 32 }}>{region.flag}</Text>
                 <View style={{ flex: 1 }}>
                   <Text
                     style={{
-                      fontFamily: "Manrope_500Medium",
+                      fontFamily: "Manrope_600SemiBold",
                       fontSize: 16,
                       color: palette.onSurface,
                       marginBottom: 2,
@@ -87,7 +99,7 @@ export default function LanguageRegionScreen() {
                     {region.language}
                   </Text>
                 </View>
-                {isSelected && (
+                {isSelected ? (
                   <View
                     style={{
                       width: 28,
@@ -98,46 +110,36 @@ export default function LanguageRegionScreen() {
                       justifyContent: "center",
                     }}
                   >
-                    <Check size={16} color={palette.primaryForeground} />
+                    <Check size={16} color={palette.primaryForeground} strokeWidth={3} />
                   </View>
-                )}
+                ) : null}
               </Pressable>
             );
           })}
         </View>
 
-        {/* Info Box */}
         <View
           style={{
-            backgroundColor: palette.primaryContainer + "50",
+            backgroundColor: palette.primaryContainer + "80",
             borderRadius: 24,
             borderWidth: 1,
             borderColor: palette.outlineVariant + "26",
             padding: 20,
+            flexDirection: "row",
+            gap: 12,
           }}
         >
-          <View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 8 }}>
-            <Info size={18} color={palette.onPrimaryContainer} />
-            <Text
-              style={{
-                fontFamily: "Manrope_600SemiBold",
-                fontSize: 15,
-                color: palette.onPrimaryContainer,
-              }}
-            >
-              About Regional Settings
-            </Text>
-          </View>
+          <Info size={20} color={palette.onPrimaryContainer} style={{ marginTop: 2 }} />
           <Text
             style={{
+              flex: 1,
               fontFamily: "Manrope_400Regular",
-              fontSize: 14,
+              fontSize: 13,
               color: palette.onSurfaceVariant,
-              lineHeight: 20,
+              lineHeight: 19,
             }}
           >
-            Your region preference helps customize date formats, spelling conventions (US vs UK English), and content
-            relevance. All articles are available in English across all regions.
+            Region preference is saved on this device. Content localization will expand in a future update.
           </Text>
         </View>
       </ScrollView>

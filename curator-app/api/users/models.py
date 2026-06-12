@@ -22,7 +22,7 @@ class User(UUIDPrimaryKeyModel, AbstractBaseUser, PermissionsMixin):
     email = models.EmailField(unique=True)
     firebase_uid = models.CharField(max_length=128, unique=True, null=True, blank=True)
     display_name = models.CharField(max_length=120, blank=True)
-    avatar_url = models.URLField(blank=True)
+    avatar_url = models.URLField(blank=True, max_length=500)
     email_verified_at = models.DateTimeField(null=True, blank=True)
     status = models.CharField(
         max_length=32,
