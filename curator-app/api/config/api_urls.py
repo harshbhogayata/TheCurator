@@ -5,6 +5,12 @@ app_name = "api"
 
 urlpatterns = [
     path("", RootWelcomeView.as_view(), name="api-root"),
+    # Legacy prefix kept for older deploys and zero-downtime rollouts.
+    path("mobile/", include(("users.urls", "users"), namespace="users-legacy")),
+    path(
+        "mobile/onboarding/",
+        include(("onboarding.urls", "onboarding"), namespace="onboarding-legacy"),
+    ),
     path("mobile/v1/", include(("users.urls", "users"), namespace="users")),
     path(
         "mobile/v1/onboarding/",

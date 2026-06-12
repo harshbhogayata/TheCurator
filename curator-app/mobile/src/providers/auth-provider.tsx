@@ -25,6 +25,7 @@ import { apiRequest } from "../services/api-client";
 import { uploadProfileAvatarImage } from "../services/avatar-upload";
 import { deleteAccountRemote, updateAccount } from "../services/mobile-api";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
+import { AUTH_API_PREFIX } from "../lib/api-routes";
 import { resetQueryCache } from "../lib/query-client";
 import { useTheme } from "./theme-provider";
 import { getAuthErrorMessage } from "../lib/auth-errors";
@@ -161,7 +162,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       const promise = (async () => {
         try {
           const idToken = await activeUser.getIdToken();
-          const payload = await apiRequest<SessionPayload>("/api/mobile/v1/auth/session", {
+          const payload = await apiRequest<SessionPayload>(`${AUTH_API_PREFIX}/auth/session`, {
             method: "POST",
             token: idToken,
           });
@@ -342,7 +343,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   const updateProfileCore = useCallback(
     async (payload: ProfileStepPayload) => {
-      await withToken("/api/mobile/v1/onboarding/profile", "PATCH", payload);
+      await withToken(`${AUTH_API_PREFIX}/onboarding/profile`, "PATCH", payload);
       const auth = getFirebaseAuth();
       if (auth.currentUser) {
         await updateProfile(auth.currentUser, { displayName: payload.displayName.trim() });
@@ -452,7 +453,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/v1/onboarding/categories", "PATCH", payload);
+        await withToken(`${AUTH_API_PREFIX}/onboarding/categories`, "PATCH", payload);
       }),
     [runBusy, withToken],
   );
@@ -480,7 +481,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
         const body = options?.skipNotifications
           ? { ...payload, skipNotifications: true }
           : payload;
-        await withToken("/api/mobile/v1/onboarding/preferences", "PATCH", body);
+        await withToken(`${AUTH_API_PREFIX}/onboarding/preferences`, "PATCH", body);
       }),
     [runBusy, withToken],
   );
@@ -503,7 +504,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           });
           return;
         }
-        await withToken("/api/mobile/v1/onboarding/complete", "POST");
+        await withToken(`${AUTH_API_PREFIX}/onboarding/complete`, "POST");
       }),
     [runBusy, withToken],
   );

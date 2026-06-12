@@ -7,11 +7,12 @@ import {
   mockCategories,
 } from "../data/mock-content";
 import type { Collection, SessionPayload, SubscriptionTier, UserPreferences } from "../lib/types";
+import { AUTH_API_PREFIX, CONTENT_API_PREFIX } from "../lib/api-routes";
 import { mockBackendEnabled } from "../lib/dev-flags";
 import { apiRequest } from "./api-client";
 import * as crypto from "expo-crypto";
 
-const API_PREFIX = "/api/mobile/v1";
+const API_PREFIX = CONTENT_API_PREFIX;
 
 interface AuthedApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
@@ -330,7 +331,7 @@ export async function updateAccount(input: {
   displayName?: string;
   avatarUrl?: string;
 }): Promise<SessionPayload> {
-  return apiRequest<SessionPayload>(`${API_PREFIX}/account`, {
+  return apiRequest<SessionPayload>(`${AUTH_API_PREFIX}/account`, {
     method: "PATCH",
     body: input,
   });
@@ -386,7 +387,7 @@ export async function fetchEntitlement(): Promise<EntitlementPayload> {
 }
 
 export async function deleteAccountRemote(): Promise<void> {
-  await apiRequest<void>(`${API_PREFIX}/account`, {
+  await apiRequest<void>(`${AUTH_API_PREFIX}/account`, {
     method: "DELETE",
   });
 }
