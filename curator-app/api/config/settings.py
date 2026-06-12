@@ -28,6 +28,7 @@ def _get_secret_key():
 SECRET_KEY = _get_secret_key()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
 RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")
+RAILWAY_ENVIRONMENT = env("RAILWAY_ENVIRONMENT", default="")
 API_PUBLIC_BASE_URL_ENV = env("API_PUBLIC_BASE_URL", default="")
 
 ALLOWED_HOSTS = env.list(
@@ -38,6 +39,11 @@ if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 if RAILWAY_PUBLIC_DOMAIN and RAILWAY_PUBLIC_DOMAIN not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
+# Railway healthchecks hit loopback / internal hosts; without these Django returns 400.
+if RAILWAY_PUBLIC_DOMAIN or RAILWAY_ENVIRONMENT:
+    for host in ("127.0.0.1", "localhost", ".up.railway.app", ".railway.internal"):
+        if host not in ALLOWED_HOSTS:
+            ALLOWED_HOSTS.append(host)
 if API_PUBLIC_BASE_URL_ENV:
     api_public_host = urlparse(API_PUBLIC_BASE_URL_ENV).hostname
     if api_public_host and api_public_host not in ALLOWED_HOSTS:

@@ -33,3 +33,9 @@ class HealthViewTests(TestCase):
         self.assertEqual(response.json()["status"], "degraded")
         self.assertEqual(response.json()["database"], "ok")
         self.assertEqual(response.json()["redis"], "error")
+
+    def test_liveness_returns_ok_without_dependencies(self):
+        response = self.client.get("/health/live/", HTTP_HOST="127.0.0.1")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()["status"], "ok")

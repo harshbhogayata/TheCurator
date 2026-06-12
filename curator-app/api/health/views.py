@@ -5,6 +5,16 @@ from django.db.utils import Error as DatabaseError
 from rest_framework import permissions, response, views
 
 
+class LivenessView(views.APIView):
+    """Minimal probe for platform deploy healthchecks (no DB/Redis)."""
+
+    authentication_classes = []
+    permission_classes = [permissions.AllowAny]
+
+    def get(self, request):
+        return response.Response({"status": "ok"})
+
+
 class HealthView(views.APIView):
     authentication_classes = []
     permission_classes = [permissions.AllowAny]
