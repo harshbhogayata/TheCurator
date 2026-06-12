@@ -29,6 +29,7 @@ SECRET_KEY = _get_secret_key()
 RENDER_EXTERNAL_HOSTNAME = env("RENDER_EXTERNAL_HOSTNAME", default="")
 RAILWAY_PUBLIC_DOMAIN = env("RAILWAY_PUBLIC_DOMAIN", default="")
 RAILWAY_ENVIRONMENT = env("RAILWAY_ENVIRONMENT", default="")
+ON_RAILWAY = bool(RAILWAY_PUBLIC_DOMAIN or RAILWAY_ENVIRONMENT)
 API_PUBLIC_BASE_URL_ENV = env("API_PUBLIC_BASE_URL", default="")
 
 ALLOWED_HOSTS = env.list(
@@ -39,9 +40,15 @@ if RENDER_EXTERNAL_HOSTNAME and RENDER_EXTERNAL_HOSTNAME not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RENDER_EXTERNAL_HOSTNAME)
 if RAILWAY_PUBLIC_DOMAIN and RAILWAY_PUBLIC_DOMAIN not in ALLOWED_HOSTS:
     ALLOWED_HOSTS.append(RAILWAY_PUBLIC_DOMAIN)
-# Railway healthchecks hit loopback / internal hosts; without these Django returns 400.
-if RAILWAY_PUBLIC_DOMAIN or RAILWAY_ENVIRONMENT:
-    for host in ("127.0.0.1", "localhost", ".up.railway.app", ".railway.internal"):
+# Railway healthchecks use internal HTTP + healthcheck.railway.app Host header.
+if ON_RAILWAY:
+    for host in (
+        "127.0.0.1",
+        "localhost",
+        "healthcheck.railway.app",
+        ".up.railway.app",
+        ".railway.internal",
+    ):
         if host not in ALLOWED_HOSTS:
             ALLOWED_HOSTS.append(host)
 if API_PUBLIC_BASE_URL_ENV:
@@ -214,7 +221,8 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 128 * 1024
 TRUST_PROXY = env.bool("TRUST_PROXY", default=False)
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https") if TRUST_PROXY else None
 USE_X_FORWARDED_HOST = TRUST_PROXY
-SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=not DEBUG)
+# Railway probes over plain HTTP; SECURE_SSL_REDIRECT would 301 the healthcheck.
+SECURE_SSL_REDIRECT = env.bool("SECURE_SSL_REDIRECT", default=False if ON_RAILWAY else not DEBUG)
 SESSION_COOKIE_SECURE = not DEBUG
 SESSION_COOKIE_HTTPONLY = True
 SESSION_COOKIE_SAMESITE = env("SESSION_COOKIE_SAMESITE", default="Lax")
