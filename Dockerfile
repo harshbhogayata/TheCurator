@@ -9,5 +9,6 @@ COPY curator-app/api/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY curator-app/api/ .
+RUN python manage.py collectstatic --noinput 2>/dev/null || mkdir -p staticfiles
 
-CMD gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}
+CMD sh -c "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:${PORT:-8000}"
