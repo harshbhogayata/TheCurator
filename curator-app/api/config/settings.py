@@ -83,6 +83,8 @@ CORS_ALLOWED_ORIGINS = env.list(
         "http://localhost:19000",
         "http://127.0.0.1:19006",
         "http://localhost:19006",
+        "http://127.0.0.1:5173",
+        "http://localhost:5173",
     ],
 )
 
@@ -295,6 +297,21 @@ STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 STRIPE_TIER_PRICE_MAP = env.json("STRIPE_TIER_PRICE_MAP", default={})
 # Public web app origin used for checkout/portal redirect URLs.
 WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecuratorgroup.org")
+
+_parsed_web_base = urlparse(WEB_BASE_URL)
+if _parsed_web_base.scheme and _parsed_web_base.netloc:
+    _web_origin = f"{_parsed_web_base.scheme}://{_parsed_web_base.netloc}"
+    if _web_origin not in CORS_ALLOWED_ORIGINS:
+        CORS_ALLOWED_ORIGINS.append(_web_origin)
+    if _parsed_web_base.hostname and not _parsed_web_base.hostname.startswith("www."):
+        _www_origin = f"{_parsed_web_base.scheme}://www.{_parsed_web_base.hostname}"
+        if _www_origin not in CORS_ALLOWED_ORIGINS:
+            CORS_ALLOWED_ORIGINS.append(_www_origin)
+    if _web_origin not in CSRF_TRUSTED_ORIGINS:
+        CSRF_TRUSTED_ORIGINS.append(_web_origin)
+    if _parsed_web_base.hostname and not _parsed_web_base.hostname.startswith("www."):
+        if _www_origin not in CSRF_TRUSTED_ORIGINS:
+            CSRF_TRUSTED_ORIGINS.append(_www_origin)
 
 # Web Push (VAPID). Generate keys with: python -m py_vapid (or `npx web-push generate-vapid-keys`).
 WEBPUSH_VAPID_PUBLIC_KEY = env("WEBPUSH_VAPID_PUBLIC_KEY", default="")
