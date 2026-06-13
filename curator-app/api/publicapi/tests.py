@@ -49,6 +49,7 @@ class LaunchNotifyViewTests(TestCase):
     @override_settings(
         LAUNCH_NOTIFY_FORWARD_ENABLED=True,
         LAUNCH_NOTIFY_FORWARD_EMAIL="harsh@thecuratorgroup.org",
+        LAUNCH_NOTIFY_SEND_CONFIRMATION=False,
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     )
     def test_forwards_new_signup_to_founder(self):
@@ -66,6 +67,7 @@ class LaunchNotifyViewTests(TestCase):
     @override_settings(
         LAUNCH_NOTIFY_FORWARD_ENABLED=True,
         LAUNCH_NOTIFY_FORWARD_EMAIL="harsh@thecuratorgroup.org",
+        LAUNCH_NOTIFY_SEND_CONFIRMATION=False,
         EMAIL_BACKEND="django.core.mail.backends.locmem.EmailBackend",
     )
     def test_does_not_forward_duplicate_signup(self):
@@ -80,9 +82,12 @@ class LaunchNotifyViewTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(mail.outbox), 0)
 
-    @override_settings(LAUNCH_NOTIFY_FORWARD_ENABLED=False)
-    @patch("publicapi.launch_notify.send_mail")
-    def test_skips_forward_when_disabled(self, send_mail_mock):
+    @override_settings(
+        LAUNCH_NOTIFY_FORWARD_ENABLED=False,
+        LAUNCH_NOTIFY_SEND_CONFIRMATION=False,
+    )
+    @patch("publicapi.launch_notify.deliver_email")
+    def test_skips_forward_when_disabled(self, deliver_email_mock):
         response = self.client.post(
             "/api/launch-notify",
             {"email": "waitlist@example.com"},
@@ -90,4 +95,4 @@ class LaunchNotifyViewTests(TestCase):
         )
 
         self.assertEqual(response.status_code, 201)
-        send_mail_mock.assert_not_called()
+        deliver_email_mock.assert_not_called()

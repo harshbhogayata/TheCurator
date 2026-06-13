@@ -1,8 +1,8 @@
 import logging
 
 from django.conf import settings
-from django.core.mail import send_mail
 
+from publicapi.email_delivery import deliver_email
 from publicapi.models import LaunchNotifySignup
 
 logger = logging.getLogger(__name__)
@@ -20,6 +20,7 @@ def register_launch_notify_email(*, email: str, source: str = "launch_site") -> 
     )
     if created:
         _forward_launch_notify_signup(signup)
+        _send_launch_confirmation(signup)
     return signup, created
 
 
@@ -40,12 +41,25 @@ def _forward_launch_notify_signup(signup: LaunchNotifySignup) -> None:
     )
 
     try:
-        send_mail(
-            subject=subject,
-            message=message,
-            from_email=settings.DEFAULT_FROM_EMAIL,
-            recipient_list=[recipient],
-            fail_silently=False,
-        )
+        deliver_email(subject=subject, message=message, recipients=[recipient])
     except Exception:
         logger.exception("Failed to forward launch notify signup for %s", signup.email)
+
+
+def _send_launch_confirmation(signup: LaunchNotifySignup) -> None:
+    if not settings.LAUNCH_NOTIFY_SEND_CONFIRMATION:
+        return
+
+    subject = "You're on The Curator launch list"
+    message = (
+        "Thanks for signing up.\n\n"
+        "We'll email you once when The Curator goes live on the App Store, Google Play, "
+        "and Galaxy Store. No spam until then.\n\n"
+        "— The Curator\n"
+        "https://thecuratorgroup.org\n"
+    )
+
+    try:
+        deliver_email(subject=subject, message=message, recipients=[signup.email])
+    except Exception:
+        logger.exception("Failed to send launch confirmation to %s", signup.email)

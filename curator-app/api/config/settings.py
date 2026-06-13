@@ -385,8 +385,11 @@ EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
 DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@thecuratorgroup.org")
+RESEND_API_KEY = env("RESEND_API_KEY", default="")
+RESEND_FROM_EMAIL = env("RESEND_FROM_EMAIL", default=DEFAULT_FROM_EMAIL)
 LAUNCH_NOTIFY_FORWARD_ENABLED = env.bool("LAUNCH_NOTIFY_FORWARD_ENABLED", default=True)
 LAUNCH_NOTIFY_FORWARD_EMAIL = env("LAUNCH_NOTIFY_FORWARD_EMAIL", default="harsh@thecuratorgroup.org")
+LAUNCH_NOTIFY_SEND_CONFIRMATION = env.bool("LAUNCH_NOTIFY_SEND_CONFIRMATION", default=True)
 
 LOGGING = {
     "version": 1,
