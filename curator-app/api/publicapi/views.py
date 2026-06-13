@@ -8,7 +8,7 @@ Cloudflare) can absorb most traffic.
 from django.core.cache import cache
 from django.db.models import Q
 from django.shortcuts import get_object_or_404
-from rest_framework import response, status, throttling, views
+from rest_framework import response, serializers, status, throttling, views
 
 from common.etag import etag_response
 from common.pagination import CursorPage
@@ -20,6 +20,7 @@ from mobileapi.serializers import (
     BriefSerializer,
     CategorySerializer,
 )
+from publicapi.launch_notify import normalize_launch_notify_email, register_launch_notify_email
 
 PUBLIC_CACHE_CONTROL = "public, max-age=60, s-maxage=300, stale-while-revalidate=600"
 PUBLIC_DETAIL_CACHE_CONTROL = "public, max-age=120, s-maxage=600, stale-while-revalidate=3600"
@@ -28,6 +29,37 @@ CACHE_TTL_SECONDS = 60
 
 class PublicReadThrottle(throttling.AnonRateThrottle):
     scope = "public_reads"
+
+
+class LaunchNotifyThrottle(throttling.AnonRateThrottle):
+    scope = "launch_notify"
+
+
+class LaunchNotifySerializer(serializers.Serializer):
+    email = serializers.EmailField(max_length=254)
+    source = serializers.CharField(max_length=64, required=False, allow_blank=True, default="launch_site")
+
+
+class LaunchNotifyView(views.APIView):
+    """Unauthenticated waitlist signup from the launch / coming-soon site."""
+
+    authentication_classes = []
+    permission_classes = []
+    throttle_classes = [LaunchNotifyThrottle]
+
+    def post(self, request):
+        serializer = LaunchNotifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        email = normalize_launch_notify_email(serializer.validated_data["email"])
+        source = (serializer.validated_data.get("source") or "launch_site").strip()[:64]
+
+        signup, created = register_launch_notify_email(email=email, source=source)
+        payload = {
+            "status": "registered" if created else "already_registered",
+            "email": signup.email,
+        }
+        return response.Response(payload, status=status.HTTP_201_CREATED if created else status.HTTP_200_OK)
 
 
 class PublicApiView(views.APIView):

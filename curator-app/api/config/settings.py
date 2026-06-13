@@ -212,6 +212,7 @@ REST_FRAMEWORK = {
         "search": "30/minute",
         "feedback": "5/hour",
         "public_reads": "240/minute",
+        "launch_notify": "10/hour",
         "webhooks": "120/minute",
     },
 }
@@ -284,6 +285,7 @@ DATA_EXPORT_STORAGE_DIR = env("DATA_EXPORT_STORAGE_DIR", default=str(BASE_DIR / 
 DATA_EXPORT_ASYNC = env.bool("DATA_EXPORT_ASYNC", default=False)
 DATA_EXPORT_EXPIRY_HOURS = env.int("DATA_EXPORT_EXPIRY_HOURS", default=24)
 REVENUECAT_WEBHOOK_SECRET = env("REVENUECAT_WEBHOOK_SECRET", default="")
+REVENUECAT_API_KEY = env("REVENUECAT_API_KEY", default="")
 REVENUECAT_PRODUCT_TIER_MAP = env.json("REVENUECAT_PRODUCT_TIER_MAP", default={})
 
 # Stripe (web checkout). Maps subscription tiers to Stripe Price IDs, e.g.
@@ -292,7 +294,7 @@ STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 STRIPE_TIER_PRICE_MAP = env.json("STRIPE_TIER_PRICE_MAP", default={})
 # Public web app origin used for checkout/portal redirect URLs.
-WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecurator.app")
+WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecuratorgroup.org")
 
 # Web Push (VAPID). Generate keys with: python -m py_vapid (or `npx web-push generate-vapid-keys`).
 WEBPUSH_VAPID_PUBLIC_KEY = env("WEBPUSH_VAPID_PUBLIC_KEY", default="")
@@ -365,7 +367,9 @@ EMAIL_PORT = env.int("EMAIL_PORT", default=587)
 EMAIL_USE_TLS = env.bool("EMAIL_USE_TLS", default=True)
 EMAIL_HOST_USER = env("EMAIL_HOST_USER", default="")
 EMAIL_HOST_PASSWORD = env("EMAIL_HOST_PASSWORD", default="")
-DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@thecurator.app")
+DEFAULT_FROM_EMAIL = env("DEFAULT_FROM_EMAIL", default="noreply@thecuratorgroup.org")
+LAUNCH_NOTIFY_FORWARD_ENABLED = env.bool("LAUNCH_NOTIFY_FORWARD_ENABLED", default=True)
+LAUNCH_NOTIFY_FORWARD_EMAIL = env("LAUNCH_NOTIFY_FORWARD_EMAIL", default="harsh@thecuratorgroup.org")
 
 LOGGING = {
     "version": 1,

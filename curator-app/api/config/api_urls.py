@@ -1,10 +1,12 @@
 from django.urls import include, path
 from health.views import RootWelcomeView
+from publicapi.views import LaunchNotifyView
 
 app_name = "api"
 
 urlpatterns = [
     path("", RootWelcomeView.as_view(), name="api-root"),
+    path("launch-notify", LaunchNotifyView.as_view(), name="launch-notify"),
     # Legacy prefix kept for older deploys and zero-downtime rollouts.
     path("mobile/", include(("users.urls", "users"), namespace="users-legacy")),
     path(
