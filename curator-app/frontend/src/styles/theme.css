@@ -386,6 +386,11 @@
     @apply border-border outline-ring/50;
   }
 
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+
   body {
     @apply bg-background text-foreground;
     font-family: var(--font-body);
@@ -729,4 +734,152 @@
 
 .dark .highlight-pink {
   background-color: rgba(233, 30, 99, 0.2);
+}
+
+/* App shell — structural layout */
+.curator-shell {
+  position: relative;
+  min-height: 100vh;
+  background-color: var(--background);
+  isolation: isolate;
+}
+
+.curator-shell::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  z-index: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(ellipse 90% 60% at 10% -20%, color-mix(in srgb, var(--secondary-container) 55%, transparent), transparent 55%),
+    radial-gradient(ellipse 70% 50% at 95% 0%, color-mix(in srgb, var(--tertiary-container) 45%, transparent), transparent 50%),
+    radial-gradient(ellipse 50% 40% at 50% 100%, color-mix(in srgb, var(--surface-container) 80%, transparent), transparent 60%);
+  opacity: 0.85;
+}
+
+.dark .curator-shell::before {
+  opacity: 0.45;
+}
+
+.curator-shell-main,
+[data-layout="desktop-sidebar"] {
+  position: relative;
+  z-index: 1;
+}
+
+.editorial-card {
+  border-radius: 28px;
+  border: 1px solid color-mix(in srgb, var(--outline-variant) 18%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 88%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--inverse-surface) 4%, transparent),
+    0 12px 40px color-mix(in srgb, var(--inverse-surface) 6%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.search-hero-input {
+  border-radius: 9999px;
+  border: 2px solid color-mix(in srgb, var(--outline-variant) 22%, transparent);
+  background: color-mix(in srgb, var(--surface-container-lowest) 92%, transparent);
+  box-shadow:
+    0 1px 2px color-mix(in srgb, var(--inverse-surface) 4%, transparent),
+    0 8px 24px color-mix(in srgb, var(--inverse-surface) 5%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+.search-hero-input:focus {
+  outline: none;
+  border-color: color-mix(in srgb, var(--primary) 35%, var(--outline-variant));
+  background: var(--surface-container-lowest);
+}
+
+[data-layout="desktop-sidebar"] {
+  position: fixed;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  z-index: 40;
+  display: flex;
+  flex-direction: column;
+  width: var(--curator-sidebar-width, 240px);
+  border-right: 1px solid color-mix(in srgb, var(--outline-variant) 12%, transparent);
+  background: color-mix(in srgb, var(--surface) 94%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+[data-layout="masthead"] {
+  position: fixed;
+  top: 0;
+  right: 0;
+  left: var(--curator-sidebar-width, 240px);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  height: var(--curator-masthead-height, 64px);
+  border-bottom: 1px solid color-mix(in srgb, var(--outline-variant) 12%, transparent);
+  background: color-mix(in srgb, var(--background) 88%, transparent);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+}
+
+[data-layout="masthead"] > div {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  min-width: 0;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 0 1.5rem;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+@media (min-width: 1024px) {
+  [data-layout="masthead"] > div {
+    gap: 1.25rem;
+    padding: 0 2rem;
+  }
+}
+
+[data-layout="app-header"] > div {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  max-width: 680px;
+  margin: 0 auto;
+}
+
+[data-layout="main-column"] {
+  min-width: 0;
+  width: 100%;
+  box-sizing: border-box;
+  overflow-x: clip;
+}
+
+.curator-shell[data-desktop="true"] [data-layout="main-column"] {
+  margin-left: var(--curator-sidebar-width, 240px);
+  width: calc(100% - var(--curator-sidebar-width, 240px));
+  max-width: calc(100% - var(--curator-sidebar-width, 240px));
+}
+
+[data-layout="bottom-nav"] {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 1rem;
+  z-index: 50;
+  display: flex;
+  justify-content: center;
+  padding: 0 1rem;
+}
+
+[data-layout="feed"],
+[data-layout="read"],
+[data-layout="form"] {
+  width: 100%;
+  box-sizing: border-box;
 }

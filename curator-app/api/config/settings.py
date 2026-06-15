@@ -295,6 +295,26 @@ REVENUECAT_PRODUCT_TIER_MAP = env.json("REVENUECAT_PRODUCT_TIER_MAP", default={}
 STRIPE_SECRET_KEY = env("STRIPE_SECRET_KEY", default="")
 STRIPE_WEBHOOK_SECRET = env("STRIPE_WEBHOOK_SECRET", default="")
 STRIPE_TIER_PRICE_MAP = env.json("STRIPE_TIER_PRICE_MAP", default={})
+
+# Razorpay International (web checkout). Prefer over Stripe when configured.
+# WEB_BILLING_PROVIDER: auto | razorpay | stripe
+WEB_BILLING_PROVIDER = env("WEB_BILLING_PROVIDER", default="auto")
+RAZORPAY_KEY_ID = env("RAZORPAY_KEY_ID", default="")
+RAZORPAY_KEY_SECRET = env("RAZORPAY_KEY_SECRET", default="")
+RAZORPAY_WEBHOOK_SECRET = env("RAZORPAY_WEBHOOK_SECRET", default="")
+# Map tiers to Razorpay Plan IDs (create in dashboard → Subscriptions → Plans).
+RAZORPAY_TIER_PLAN_MAP = env.json("RAZORPAY_TIER_PLAN_MAP", default={})
+# Standard Checkout order amounts per tier (paise for INR).
+RAZORPAY_TIER_AMOUNT_MAP = env.json(
+    "RAZORPAY_TIER_AMOUNT_MAP",
+    default={"basic": 49900, "premium": 149900, "lifetime": 2499900},
+)
+# Lifetime one-time order amount in smallest currency unit (fallback if not in tier map).
+RAZORPAY_LIFETIME_AMOUNT = env.int("RAZORPAY_LIFETIME_AMOUNT", default=2499900)
+RAZORPAY_CURRENCY = env("RAZORPAY_CURRENCY", default="INR")
+# Billing cycles for subscription checkout (Razorpay requires total_count).
+RAZORPAY_SUBSCRIPTION_TOTAL_COUNT = env.int("RAZORPAY_SUBSCRIPTION_TOTAL_COUNT", default=120)
+
 # Public web app origin used for checkout/portal redirect URLs.
 WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecuratorgroup.org")
 
@@ -318,12 +338,17 @@ WEBPUSH_VAPID_PUBLIC_KEY = env("WEBPUSH_VAPID_PUBLIC_KEY", default="")
 WEBPUSH_VAPID_PRIVATE_KEY = env("WEBPUSH_VAPID_PRIVATE_KEY", default="")
 WEBPUSH_VAPID_CLAIMS_EMAIL = env("WEBPUSH_VAPID_CLAIMS_EMAIL", default="")
 
-# Article narration (OpenAI TTS) + media storage (S3-compatible, e.g. Cloudflare R2).
-# Used only by the `generate_article_audio` management command; the app never
-# needs these at runtime because audio is served from AUDIO_PUBLIC_BASE_URL.
+# Article narration (TTS) + media storage (local disk or S3-compatible, e.g. R2).
+# Default provider is Edge neural TTS (free). Set TTS_PROVIDER=openai when using OpenAI.
+TTS_PROVIDER = env("TTS_PROVIDER", default="auto")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_TTS_MODEL = env("OPENAI_TTS_MODEL", default="gpt-4o-mini-tts")
 OPENAI_TTS_VOICE = env("OPENAI_TTS_VOICE", default="alloy")
+EDGE_TTS_VOICE = env("EDGE_TTS_VOICE", default="en-US-JennyNeural")
+# auto | s3 | local — local writes mp3 files under AUDIO_LOCAL_ROOT (good for Railway dev).
+AUDIO_STORAGE_BACKEND = env("AUDIO_STORAGE_BACKEND", default="auto")
+AUDIO_LOCAL_ROOT = BASE_DIR / "media" / "audio"
+AUDIO_LOCAL_URL_PREFIX = env("AUDIO_LOCAL_URL_PREFIX", default="/api/mobile/v1/media/audio")
 
 # Content pipeline (RSS/API ingestion + LLM rewriting + editorial review).
 OPENAI_CHAT_MODEL = env("OPENAI_CHAT_MODEL", default="gpt-4o-mini")

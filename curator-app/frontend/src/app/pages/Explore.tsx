@@ -11,7 +11,7 @@ import { EditorialGrid } from '../../ui/editorial-grid';
 import { useLayout } from '../../providers/layout-provider';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
-import { useArticles, useForYouArticles } from '../../hooks/use-articles';
+import { useArticles } from '../../hooks/use-articles';
 import { useCategories } from '../../hooks/use-categories';
 
 function normalizeCategory(value: string): string {
@@ -30,15 +30,11 @@ export function Explore() {
   const { data: articles = [], isLoading: isArticlesLoading, refetch } = useArticles();
   const { data: apiCategories, isLoading: isCategoriesLoading } = useCategories();
 
-  const [viewMode, setViewMode] = useState<'foryou' | 'today' | 'global'>('today');
-  const { data: forYouArticles = [], isLoading: isForYouLoading } = useForYouArticles(
-    viewMode === 'foryou',
-  );
+  const [viewMode, setViewMode] = useState<'today' | 'global'>('today');
   const [selectedCategory, setSelectedCategory] = useState('all');
   const [refreshing, setRefreshing] = useState(false);
 
-  const isLoading =
-    isArticlesLoading || isCategoriesLoading || (viewMode === 'foryou' && isForYouLoading);
+  const isLoading = isArticlesLoading || isCategoriesLoading;
 
   const categoryOptions = useMemo(() => {
     if (apiCategories && apiCategories.length > 0) {
@@ -63,17 +59,15 @@ export function Explore() {
     ];
   }, [apiCategories, articles]);
 
-  const sourceArticles = viewMode === 'foryou' ? forYouArticles : articles;
-  const topNarratives =
-    viewMode === 'global' ? articles.slice(6, 8) : sourceArticles.slice(0, 2);
+  const topNarratives = viewMode === 'today' ? articles.slice(0, 2) : articles.slice(6, 8);
 
   const filteredExploreArticles = useMemo(() => {
-    let list = sourceArticles.slice(2);
+    let list = articles.slice(2);
     if (selectedCategory !== 'all') {
       list = list.filter((a) => normalizeCategory(a.category) === selectedCategory);
     }
     return list;
-  }, [sourceArticles, selectedCategory]);
+  }, [articles, selectedCategory]);
 
   useEffect(() => {
     if (!isAuthenticated) {
@@ -107,12 +101,12 @@ export function Explore() {
                 <p className="mb-2 hidden text-[10px] font-semibold uppercase tracking-[0.28em] text-outline lg:block">
                   Curated from trusted sources
                 </p>
-                <h2 className="font-[family-name:var(--font-headline)] text-xl italic text-on-surface sm:text-2xl lg:text-4xl">
-                Top Narratives
+                <h2 className="font-[family-name:var(--font-headline)] text-xl italic text-on-surface sm:text-2xl lg:text-3xl">
+                  Top Narratives
                 </h2>
               </div>
               <div className="flex gap-2">
-                {(['foryou', 'today', 'global'] as const).map((mode) => (
+                {(['today', 'global'] as const).map((mode) => (
                   <button
                     key={mode}
                     type="button"
@@ -126,28 +120,24 @@ export function Explore() {
                         : 'border-transparent text-outline hover:bg-surface-container-low'
                     }`}
                   >
-                    {mode === 'foryou' ? 'For You' : mode === 'today' ? 'Today' : 'Global'}
+                    {mode === 'today' ? 'Today' : 'Global'}
                   </button>
                 ))}
               </div>
             </div>
 
-            {!isWebDesktop && (
-              <FeedStack>
-                {topNarratives.map((article, index) => (
-                  <div key={article.id}>
-                    <ArticleCard article={article} variant={index === 0 ? 'featured' : 'default'} />
-                    {index === 0 && !hasAdFree && (
-                      <div className="mt-8">
-                        <AdBanner position="inline" />
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </FeedStack>
-            )}
-
-            {isWebDesktop && !hasAdFree && <AdBanner position="inline" />}
+            <FeedStack>
+              {topNarratives.map((article, index) => (
+                <div key={article.id}>
+                  <ArticleCard article={article} variant={index === 0 ? 'featured' : 'default'} />
+                  {index === 0 && !hasAdFree && (
+                    <div className="mt-8">
+                      <AdBanner position="inline" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </FeedStack>
 
             <div className="overflow-x-auto pb-2 lg:overflow-visible">
               <div className="flex min-w-max gap-2 lg:min-w-0 lg:flex-wrap">
@@ -180,14 +170,14 @@ export function Explore() {
               )}
             </div>
 
-            {isWebDesktop ? (
-              <EditorialGrid topArticles={topNarratives} stories={filteredExploreArticles} />
-            ) : filteredExploreArticles.length === 0 ? (
-              <div className="py-16 text-center">
+            {filteredExploreArticles.length === 0 ? (
+              <div className="rounded-[40px] border border-outline-variant/15 bg-surface-container-lowest/70 py-16 text-center">
                 <SearchIcon className="mx-auto h-12 w-12 text-outline-variant" />
                 <h3 className="mt-4 text-xl text-on-surface">No narratives found</h3>
                 <p className="mt-2 text-on-surface-variant">Try adjusting your filters.</p>
               </div>
+            ) : isWebDesktop ? (
+              <EditorialGrid stories={filteredExploreArticles} />
             ) : (
               <FeedStack>
                 {filteredExploreArticles.map((article) => (

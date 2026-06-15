@@ -14,23 +14,21 @@ import "./styles/index.css";
 const THEME_BOOTSTRAP = `
 (function () {
   try {
-    var theme = localStorage.getItem("curator_theme_preference") || localStorage.getItem("curator-theme") || "system";
+    var theme = localStorage.getItem("curator_theme") || localStorage.getItem("curator_theme_preference") || localStorage.getItem("curator-theme") || "system";
     var dark = theme === "dark" || (theme === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
     document.documentElement.classList.toggle("dark", dark);
   } catch (e) {}
 })();
 `;
 
-const SERVICE_WORKER_REFRESH = `
+const SERVICE_WORKER_CLEANUP = `
 (function () {
+  var host = location.hostname;
+  if (host !== "localhost" && host !== "127.0.0.1") return;
   if (!("serviceWorker" in navigator)) return;
-  window.addEventListener("load", function () {
-    navigator.serviceWorker.getRegistrations().then(function (registrations) {
-      registrations.forEach(function (registration) {
-        registration.update();
-      });
-    }).catch(function () {});
-  });
+  navigator.serviceWorker.getRegistrations().then(function (regs) {
+    regs.forEach(function (r) { r.unregister(); });
+  }).catch(function () {});
 })();
 `;
 
@@ -46,7 +44,7 @@ export function Layout({ children }: { children: ReactNode }) {
         <Meta />
         <Links />
         <script dangerouslySetInnerHTML={{ __html: THEME_BOOTSTRAP }} />
-        <script dangerouslySetInnerHTML={{ __html: SERVICE_WORKER_REFRESH }} />
+        <script dangerouslySetInnerHTML={{ __html: SERVICE_WORKER_CLEANUP }} />
       </head>
       <body>
         {children}

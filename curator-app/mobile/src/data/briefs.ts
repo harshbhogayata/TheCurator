@@ -10,6 +10,7 @@ export interface BriefItem {
   imageUrl: string;
   imageAttribution?: string;
   audioUrl: string;
+  hasAudioAvailable?: boolean;
   category: string;
   insights: number;
   isBreaking: boolean;

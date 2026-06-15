@@ -1,9 +1,11 @@
 import { Play, Pause, SkipForward, SkipBack, X, Gauge } from 'lucide-react';
 import { useAudio } from '../context/AudioContext';
 import { useState } from 'react';
+import { useLayout } from '../../providers/layout-provider';
 
 export function AudioMiniPlayer() {
   const { audioState, pauseBrief, resumeBrief, skipForward, skipBackward, setSpeed, stopBrief } = useAudio();
+  const { isWebDesktop, sidebarWidth } = useLayout();
   const [showSpeedMenu, setShowSpeedMenu] = useState(false);
   
   if (!audioState.currentBriefId) return null;
@@ -21,7 +23,10 @@ export function AudioMiniPlayer() {
   const speeds = [0.5, 0.75, 1.0, 1.25, 1.5, 2.0];
   
   return (
-    <div className="fixed bottom-24 left-0 right-0 z-40 px-4 animate-slide-up lg:bottom-6 lg:left-[220px]">
+    <div
+      className="fixed bottom-24 left-0 right-0 z-40 animate-slide-up px-4 lg:bottom-6"
+      style={isWebDesktop ? { left: sidebarWidth } : undefined}
+    >
       <div 
         className="mx-auto max-w-2xl overflow-hidden rounded-full border border-outline-variant/25 bg-surface-container-lowest/95 shadow-2xl backdrop-blur-2xl"
       >

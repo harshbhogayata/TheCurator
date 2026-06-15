@@ -58,7 +58,7 @@ function ArticleCardInner({
   const reduceMotion = useReduceMotion();
   const isSaved = isArticleSaved(article.id);
   const imageUrl = getImageUrl(article);
-  const hasAudio = Boolean(article.audioUrl || article.audioDurationSec);
+  const hasAudio = Boolean(article.hasAudioAvailable || article.audioUrl || article.audioDurationSec);
 
   const pressAnimationStyle = useAnimatedStyle(() => ({
     transform: [{ scale: scale.value }],

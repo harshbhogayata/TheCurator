@@ -61,14 +61,13 @@ interface AuthContextType {
   signUp: (name: string, email: string, password: string) => Promise<AuthSessionResponse>;
   exchangeEntraSession: (idToken: string, providerHint: IdentityProvider) => Promise<AuthSessionResponse>;
   linkIdentity: (idToken: string, providerHint: IdentityProvider) => Promise<OnboardingState>;
-  saveOnboarding: (payload: {
-    currentStep?: number;
-    selectedCategories?: string[];
-    themePreference?: ThemePreference;
-    notificationPreference?: NotificationPreference;
-    autoSaveEnabled?: boolean;
-  }) => Promise<OnboardingState>;
-  completeOnboarding: () => Promise<OnboardingState>;
+  updateOnboardingProfile: (payload: { displayName: string }) => Promise<void>;
+  updateOnboardingCategories: (payload: { categories: string[] }) => Promise<void>;
+  updateOnboardingPreferences: (
+    preferences: UserPreferences,
+    options?: { skipNotifications?: boolean },
+  ) => Promise<void>;
+  completeOnboarding: () => Promise<void>;
   requestPasswordReset: (email: string) => Promise<{ previewUrl?: string }>;
   resetPassword: (token: string, password: string) => Promise<AuthSessionResponse>;
   signOut: () => void;
@@ -77,6 +76,30 @@ interface AuthContextType {
 }
 
 const MOCK_BACKEND = isMockBackend;
+const MOCK_SESSION_KEY = "curator_mock_session";
+
+function loadMockSession(): SessionPayload | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = sessionStorage.getItem(MOCK_SESSION_KEY);
+    return raw ? (JSON.parse(raw) as SessionPayload) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveMockSession(payload: SessionPayload | null) {
+  if (typeof window === "undefined") return;
+  try {
+    if (payload) {
+      sessionStorage.setItem(MOCK_SESSION_KEY, JSON.stringify(payload));
+    } else {
+      sessionStorage.removeItem(MOCK_SESSION_KEY);
+    }
+  } catch {
+    // ignore quota errors
+  }
+}
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -152,10 +175,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<SessionPayload | null>(null);
   const activeExchangeRef = useRef<ActiveExchange | null>(null);
 
-  const user = session ? mapSessionToAuthUser(session) : null;
-  const onboarding = session ? mapSessionToOnboarding(session) : null;
+  const user = useMemo(
+    () => (session ? mapSessionToAuthUser(session) : null),
+    [session],
+  );
+  const onboarding = useMemo(
+    () => (session ? mapSessionToOnboarding(session) : null),
+    [session],
+  );
   const preferences = session?.preferences ?? null;
-  const identities = session ? mapSessionToIdentities(session) : [];
+  const identities = useMemo(
+    () => (session ? mapSessionToIdentities(session) : []),
+    [session],
+  );
   const isAuthenticated = authStatus === "authenticated" && user !== null;
   const isLoading = authStatus === "loading";
 
@@ -170,6 +202,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(payload);
       setAuthStatus("authenticated");
       setTheme(payload.preferences.themePreference);
+      if (MOCK_BACKEND) {
+        saveMockSession(payload);
+      }
     },
     [setTheme],
   );
@@ -232,8 +267,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   );
 
   useEffect(() => {
-    if (MOCK_BACKEND || isDevBypassAuth) {
+    if (isDevBypassAuth) {
       applySession(buildMockSession());
+      return;
+    }
+
+    if (MOCK_BACKEND) {
+      const restored = loadMockSession();
+      if (restored) {
+        applySession(restored);
+      } else {
+        setSession(null);
+        setAuthStatus("unauthenticated");
+      }
       return;
     }
 
@@ -305,7 +351,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           memberSince: new Date().toISOString(),
         },
         onboarding: {
-          currentStep: "categories",
+          currentStep: "account",
           isCompleted: false,
           completedAt: null,
           selectedCategories: [],
@@ -337,79 +383,88 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     throw new Error("External identity providers are not configured for the web app yet.");
   };
 
-  const saveOnboarding = async (payload: {
-    currentStep?: number;
-    selectedCategories?: string[];
-    themePreference?: ThemePreference;
-    notificationPreference?: NotificationPreference;
-    autoSaveEnabled?: boolean;
-  }) => {
+  const updateOnboardingProfile = async (payload: { displayName: string }) => {
     if (MOCK_BACKEND && session) {
-      const next = {
+      applySession({
+        ...session,
+        user: { ...session.user, displayName: payload.displayName.trim() || null },
+        onboarding: {
+          ...session.onboarding,
+          currentStep:
+            session.onboarding.isCompleted || session.onboarding.currentStep === "complete"
+              ? "complete"
+              : "categories",
+        },
+      });
+      return;
+    }
+
+    await withToken("/api/mobile/v1/onboarding/profile", "PATCH", payload);
+    const auth = getFirebaseAuth();
+    if (auth.currentUser) {
+      await updateProfile(auth.currentUser, { displayName: payload.displayName.trim() });
+    }
+  };
+
+  const updateOnboardingCategories = async (payload: { categories: string[] }) => {
+    if (MOCK_BACKEND && session) {
+      applySession({
         ...session,
         onboarding: {
           ...session.onboarding,
-          selectedCategories: payload.selectedCategories ?? session.onboarding.selectedCategories,
-          currentStep: "appearance" as const,
+          currentStep:
+            session.onboarding.isCompleted || session.onboarding.currentStep === "complete"
+              ? "complete"
+              : "appearance",
+          selectedCategories: payload.categories,
         },
-        preferences: {
-          ...session.preferences,
-          themePreference: payload.themePreference ?? session.preferences.themePreference,
-          notificationFrequency:
-            payload.notificationPreference ?? session.preferences.notificationFrequency,
-          autoSaveEnabled: payload.autoSaveEnabled ?? session.preferences.autoSaveEnabled,
-        },
-      };
-      applySession(next);
-      return mapSessionToOnboarding(next);
-    }
-
-    let latestSession = session;
-
-    if (payload.selectedCategories) {
-      latestSession = await withToken("/api/mobile/v1/onboarding/categories", "PATCH", {
-        categories: payload.selectedCategories,
       });
+      return;
     }
 
-    const preferences: Partial<UserPreferences> = {};
-    if (payload.themePreference) preferences.themePreference = payload.themePreference;
-    if (payload.notificationPreference) {
-      preferences.notificationFrequency = payload.notificationPreference;
-    }
-    if (payload.autoSaveEnabled !== undefined) {
-      preferences.autoSaveEnabled = payload.autoSaveEnabled;
+    await withToken("/api/mobile/v1/onboarding/categories", "PATCH", payload);
+  };
+
+  const updateOnboardingPreferences = async (
+    nextPreferences: UserPreferences,
+    options?: { skipNotifications?: boolean },
+  ) => {
+    if (MOCK_BACKEND && session) {
+      const nextStep =
+        session.onboarding.currentStep === "appearance"
+          ? "notifications"
+          : session.onboarding.currentStep === "notifications"
+            ? "reading"
+            : session.onboarding.currentStep;
+      applySession({
+        ...session,
+        preferences: nextPreferences,
+        onboarding: { ...session.onboarding, currentStep: nextStep },
+      });
+      return;
     }
 
-    if (Object.keys(preferences).length > 0) {
-      latestSession = await withToken(
-        "/api/mobile/v1/onboarding/preferences",
-        "PATCH",
-        preferences,
-      );
-    }
-
-    if (!latestSession) throw new Error("Session not available");
-    return mapSessionToOnboarding(latestSession);
+    const body = options?.skipNotifications
+      ? { ...nextPreferences, skipNotifications: true }
+      : nextPreferences;
+    await withToken("/api/mobile/v1/onboarding/preferences", "PATCH", body);
   };
 
   const completeOnboarding = async () => {
     if (MOCK_BACKEND && session) {
-      const next = {
+      applySession({
         ...session,
         onboarding: {
           ...session.onboarding,
-          currentStep: "complete" as const,
+          currentStep: "complete",
           isCompleted: true,
           completedAt: new Date().toISOString(),
         },
-      };
-      applySession(next);
-      return mapSessionToOnboarding(next);
+      });
+      return;
     }
 
-    const updated = await withToken("/api/mobile/v1/onboarding/complete", "POST");
-    return mapSessionToOnboarding(updated);
+    await withToken("/api/mobile/v1/onboarding/complete", "POST");
   };
 
   const requestPasswordReset = async (email: string) => {
@@ -432,6 +487,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const signOut = () => {
     resetQueryCache();
     if (MOCK_BACKEND) {
+      saveMockSession(null);
       setSession(null);
       setAuthStatus("unauthenticated");
       return;
@@ -477,7 +533,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       signUp,
       exchangeEntraSession,
       linkIdentity,
-      saveOnboarding,
+      updateOnboardingProfile,
+      updateOnboardingCategories,
+      updateOnboardingPreferences,
       completeOnboarding,
       requestPasswordReset,
       resetPassword,

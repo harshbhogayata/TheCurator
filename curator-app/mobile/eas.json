@@ -10,9 +10,24 @@
       "environment": "development",
       "env": {
         "APP_ENV": "development",
+        "EXPO_PUBLIC_API_URL": "https://thecurator-production-1b47.up.railway.app",
+        "EXPO_PUBLIC_SITE_URL": "https://thecuratorgroup.org",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "584dd577-0bcb-4201-bb11-6f81bc75cc00",
+        "EXPO_PUBLIC_BILLING_PROVIDER": "razorpay",
+        "EXPO_PUBLIC_RAZORPAY_KEY_ID": "rzp_test_T1xtHL7bVZnImI",
         "EXPO_PUBLIC_MOCK_BACKEND": "false",
         "EXPO_PUBLIC_MOCK_PREMIUM": "false",
-        "EXPO_PUBLIC_DEV_BYPASS_AUTH": "false"
+        "EXPO_PUBLIC_DEV_BYPASS_AUTH": "false",
+        "EXPO_PUBLIC_APP_BUNDLE_ID": "com.curator.mobile",
+        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.curator.mobile",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyA3IuPRXDP0pQCFIVLAT9IyOLnTyP5Xetc",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "thecuratorin.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "thecuratorin",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "thecuratorin.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "558391728349",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:558391728349:web:c074c33fd517dd5b46a334",
+        "EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID": "com.curator.mobile",
+        "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE": "com.curator.mobile"
       }
     },
     "preview": {
@@ -23,7 +38,25 @@
         "buildType": "apk"
       },
       "env": {
-        "APP_ENV": "preview"
+        "APP_ENV": "preview",
+        "EXPO_PUBLIC_API_URL": "https://thecurator-production-1b47.up.railway.app",
+        "EXPO_PUBLIC_SITE_URL": "https://thecuratorgroup.org",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "584dd577-0bcb-4201-bb11-6f81bc75cc00",
+        "EXPO_PUBLIC_BILLING_PROVIDER": "razorpay",
+        "EXPO_PUBLIC_RAZORPAY_KEY_ID": "rzp_test_T1xtHL7bVZnImI",
+        "EXPO_PUBLIC_MOCK_BACKEND": "false",
+        "EXPO_PUBLIC_MOCK_PREMIUM": "false",
+        "EXPO_PUBLIC_DEV_BYPASS_AUTH": "false",
+        "EXPO_PUBLIC_APP_BUNDLE_ID": "com.curator.mobile",
+        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.curator.mobile",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyA3IuPRXDP0pQCFIVLAT9IyOLnTyP5Xetc",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "thecuratorin.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "thecuratorin",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "thecuratorin.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "558391728349",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:558391728349:web:c074c33fd517dd5b46a334",
+        "EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID": "com.curator.mobile",
+        "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE": "com.curator.mobile"
       }
     },
     "production": {
@@ -31,7 +64,25 @@
       "channel": "production",
       "environment": "production",
       "env": {
-        "APP_ENV": "production"
+        "APP_ENV": "production",
+        "EXPO_PUBLIC_API_URL": "https://thecurator-production-1b47.up.railway.app",
+        "EXPO_PUBLIC_SITE_URL": "https://thecuratorgroup.org",
+        "EXPO_PUBLIC_EAS_PROJECT_ID": "584dd577-0bcb-4201-bb11-6f81bc75cc00",
+        "EXPO_PUBLIC_BILLING_PROVIDER": "razorpay",
+        "EXPO_PUBLIC_RAZORPAY_KEY_ID": "rzp_test_T1xtHL7bVZnImI",
+        "EXPO_PUBLIC_MOCK_BACKEND": "false",
+        "EXPO_PUBLIC_MOCK_PREMIUM": "false",
+        "EXPO_PUBLIC_DEV_BYPASS_AUTH": "false",
+        "EXPO_PUBLIC_APP_BUNDLE_ID": "com.curator.mobile",
+        "EXPO_PUBLIC_ANDROID_PACKAGE": "com.curator.mobile",
+        "EXPO_PUBLIC_FIREBASE_API_KEY": "AIzaSyA3IuPRXDP0pQCFIVLAT9IyOLnTyP5Xetc",
+        "EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN": "thecuratorin.firebaseapp.com",
+        "EXPO_PUBLIC_FIREBASE_PROJECT_ID": "thecuratorin",
+        "EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET": "thecuratorin.firebasestorage.app",
+        "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "558391728349",
+        "EXPO_PUBLIC_FIREBASE_APP_ID": "1:558391728349:web:c074c33fd517dd5b46a334",
+        "EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID": "com.curator.mobile",
+        "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE": "com.curator.mobile"
       }
     }
   },

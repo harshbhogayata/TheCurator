@@ -3,16 +3,35 @@ import type { BriefItem } from "../data/briefs";
 import {
   filterMockArticles,
   findMockArticle,
+  findMockBrief,
   mockBriefs,
   mockCategories,
+  mockNarrationForArticle,
+  mockNarrationForBrief,
 } from "../data/mock-content";
 import type { Collection, SessionPayload, SubscriptionTier, UserPreferences } from "../lib/types";
 import { AUTH_API_PREFIX, CONTENT_API_PREFIX } from "../lib/api-routes";
 import { mockBackendEnabled } from "../lib/dev-flags";
-import { apiRequest } from "./api-client";
+import { apiClient, apiRequest } from "./api-client";
 import * as crypto from "expo-crypto";
 
 const API_PREFIX = CONTENT_API_PREFIX;
+
+function resolvePlayableAudioUrl(audioUrl: string): string {
+  const trimmed = audioUrl.trim();
+  if (!trimmed || /^https?:\/\//i.test(trimmed)) {
+    return trimmed;
+  }
+  const base = (apiClient.defaults.baseURL ?? "").replace(/\/$/, "");
+  return trimmed.startsWith("/") ? `${base}${trimmed}` : `${base}/${trimmed}`;
+}
+
+function normalizeAudioPayload(payload: ArticleAudioPayload): ArticleAudioPayload {
+  return {
+    ...payload,
+    audioUrl: resolvePlayableAudioUrl(payload.audioUrl ?? ""),
+  };
+}
 
 interface AuthedApiRequestOptions extends Omit<RequestInit, "body"> {
   body?: unknown;
@@ -92,6 +111,7 @@ export interface EntitlementPayload {
 export interface ArticleAudioPayload {
   audioUrl: string;
   durationSec: number | null;
+  narrationText?: string;
 }
 
 function createIdempotencyKey(): string {
@@ -191,7 +211,39 @@ export async function fetchArticle(articleId: string): Promise<Article> {
 }
 
 export async function fetchArticleAudio(articleId: string): Promise<ArticleAudioPayload> {
-  return apiRequest<ArticleAudioPayload>(`${API_PREFIX}/articles/${articleId}/audio`);
+  if (mockBackendEnabled) {
+    const article = findMockArticle(articleId);
+    if (!article) {
+      throw new Error("Article not found.");
+    }
+    return {
+      audioUrl: article.audioUrl ?? "",
+      durationSec: article.audioDurationSec ?? null,
+      narrationText: mockNarrationForArticle(article),
+    };
+  }
+
+  return normalizeAudioPayload(
+    await apiRequest<ArticleAudioPayload>(`${API_PREFIX}/articles/${articleId}/audio`),
+  );
+}
+
+export async function fetchBriefAudio(briefId: string): Promise<ArticleAudioPayload> {
+  if (mockBackendEnabled) {
+    const brief = findMockBrief(briefId);
+    if (!brief) {
+      throw new Error("Brief not found.");
+    }
+    return {
+      audioUrl: brief.audioUrl ?? "",
+      durationSec: brief.durationMs ? Math.round(brief.durationMs / 1000) : null,
+      narrationText: mockNarrationForBrief(brief),
+    };
+  }
+
+  return normalizeAudioPayload(
+    await apiRequest<ArticleAudioPayload>(`${API_PREFIX}/briefs/${briefId}/audio`),
+  );
 }
 
 export async function fetchBriefs(): Promise<BriefItem[]> {

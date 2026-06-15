@@ -1,0 +1,108 @@
+import Constants from "expo-constants";
+import * as WebBrowser from "expo-web-browser";
+import { Platform } from "react-native";
+
+import type { CheckoutPayload, RazorpaySuccessResponse } from "./billing-api";
+
+const RAZORPAY_KEY_ID = process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID ?? "";
+
+type NativeRazorpayModule = {
+  open: (options: Record<string, unknown>) => Promise<RazorpaySuccessResponse>;
+};
+
+function resolveNativeRazorpay(): NativeRazorpayModule | null {
+  // Android preview/production builds use web checkout: react-native-razorpay is
+  // unmaintained and unreliable with React Native New Architecture (required by Reanimated v4).
+  if (Platform.OS !== "ios") {
+    return null;
+  }
+
+  try {
+    const RazorpayCheckout = require("react-native-razorpay").default;
+    return RazorpayCheckout as NativeRazorpayModule;
+  } catch {
+    return null;
+  }
+}
+
+function resolveKeyId(serverKeyId: string): string {
+  return RAZORPAY_KEY_ID || serverKeyId;
+}
+
+function buildNativeOptions(
+  checkout: CheckoutPayload & { provider: "razorpay" },
+): Record<string, unknown> {
+  const options: Record<string, unknown> = {
+    key: resolveKeyId(checkout.keyId),
+    name: checkout.name,
+    description: checkout.description,
+    prefill: checkout.prefill ?? {},
+    theme: { color: "#31332b" },
+  };
+
+  if (checkout.mode === "subscription" && checkout.subscriptionId) {
+    options.subscription_id = checkout.subscriptionId;
+  } else {
+    options.order_id = checkout.orderId;
+    options.amount = checkout.amount;
+    options.currency = checkout.currency;
+  }
+
+  return options;
+}
+
+export async function openRazorpayCheckout(
+  checkout: CheckoutPayload & { provider: "razorpay" },
+): Promise<RazorpaySuccessResponse> {
+  const native = resolveNativeRazorpay();
+  if (!native) {
+    throw new Error(
+      Constants.appOwnership === "expo"
+        ? "Razorpay native checkout requires a development build. Use web checkout or install a dev build."
+        : Platform.OS === "android"
+          ? "Razorpay native checkout is disabled on Android. Use web checkout."
+          : "Razorpay checkout is unavailable on this device.",
+    );
+  }
+
+  try {
+    return await native.open(buildNativeOptions(checkout));
+  } catch (error: unknown) {
+    const code = (error as { code?: number })?.code;
+    if (code === 0 || code === 2) {
+      throw new Error("Payment cancelled");
+    }
+    const description = (error as { description?: string })?.description;
+    throw new Error(description ?? "Payment failed");
+  }
+}
+
+export async function openStandardRazorpayOrderCheckout(input: {
+  keyId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  name?: string;
+  description?: string;
+  prefill?: { email?: string; name?: string };
+}): Promise<RazorpaySuccessResponse> {
+  return openRazorpayCheckout({
+    provider: "razorpay",
+    mode: "order",
+    keyId: input.keyId,
+    tier: "",
+    orderId: input.orderId,
+    amount: input.amount,
+    currency: input.currency,
+    name: input.name ?? "The Curator",
+    description: input.description ?? "Membership",
+    prefill: input.prefill,
+    callbackUrl: "",
+  });
+}
+
+/** Expo Go fallback — complete payment on the web app, then refresh entitlement. */
+export async function openWebDonateCheckout(plan: string): Promise<void> {
+  const siteUrl = (process.env.EXPO_PUBLIC_SITE_URL ?? "http://localhost:5173").replace(/\/$/, "");
+  await WebBrowser.openBrowserAsync(`${siteUrl}/donate?plan=${encodeURIComponent(plan)}`);
+}

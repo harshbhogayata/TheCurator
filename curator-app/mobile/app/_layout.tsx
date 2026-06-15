@@ -20,8 +20,13 @@ import { GestureHandlerRootView } from "react-native-gesture-handler";
 import * as Sentry from "@sentry/react-native";
 
 import { AppProviders } from "../src/providers/app-providers";
+import { useAuth } from "../src/providers/auth-provider";
 import { useTheme } from "../src/providers/theme-provider";
+import { BrandSplash } from "../src/ui/brand-splash";
 import { ToastDisplay } from "../src/ui/toast";
+
+const SPLASH_STARTED_AT = Date.now();
+const MIN_SPLASH_MS = 1500;
 
 const sentryDsn = process.env.EXPO_PUBLIC_SENTRY_DSN;
 const sentryEnabled = Boolean(sentryDsn);
@@ -43,12 +48,20 @@ SplashScreen.preventAutoHideAsync();
 
 function RootNavigator() {
   const { resolvedTheme, palette, isThemeLoaded } = useTheme();
+  const { status } = useAuth();
 
   useEffect(() => {
-    if (isThemeLoaded) {
-      SplashScreen.hideAsync();
+    if (!isThemeLoaded || status === "loading") {
+      return;
     }
-  }, [isThemeLoaded]);
+
+    const remaining = Math.max(0, MIN_SPLASH_MS - (Date.now() - SPLASH_STARTED_AT));
+    const timer = setTimeout(() => {
+      void SplashScreen.hideAsync();
+    }, remaining);
+
+    return () => clearTimeout(timer);
+  }, [isThemeLoaded, status]);
 
   return (
     <>
@@ -99,7 +112,7 @@ function RootLayout() {
   }, [ref]);
 
   if (!fontsLoaded) {
-    return null;
+    return <BrandSplash />;
   }
 
   return (

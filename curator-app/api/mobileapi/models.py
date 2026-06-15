@@ -118,6 +118,7 @@ class Brief(UUIDPrimaryKeyModel):
     image_url = models.URLField(blank=True)
     image_attribution = models.CharField(max_length=255, blank=True)
     audio_url = models.URLField(blank=True)
+    audio_duration_sec = models.PositiveIntegerField(null=True, blank=True)
     insights = models.PositiveSmallIntegerField(default=0)
     is_breaking = models.BooleanField(default=False)
     rank = models.PositiveIntegerField(default=0)
@@ -246,6 +247,8 @@ class UserEntitlement(UUIDPrimaryKeyModel):
     revenuecat_customer_id = models.CharField(max_length=128, blank=True)
     stripe_customer_id = models.CharField(max_length=128, blank=True, db_index=True)
     stripe_subscription_id = models.CharField(max_length=128, blank=True)
+    razorpay_subscription_id = models.CharField(max_length=128, blank=True, db_index=True)
+    razorpay_payment_id = models.CharField(max_length=128, blank=True)
     expires_at = models.DateTimeField(null=True, blank=True)
     will_renew = models.BooleanField(default=False)
 

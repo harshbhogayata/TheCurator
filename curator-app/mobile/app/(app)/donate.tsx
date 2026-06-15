@@ -15,6 +15,7 @@ import {
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { useSubscription, type SubscriptionTier } from "../../src/providers/subscription-provider";
+import { usesRazorpayBilling } from "../../src/lib/billing-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
@@ -47,7 +48,7 @@ const plans: Plan[] = [
   {
     id: "basic",
     name: "Basic",
-    price: 5,
+    price: 499,
     period: "/mo",
     description: "Essential features for casual readers",
     benefits: [
@@ -60,7 +61,7 @@ const plans: Plan[] = [
   {
     id: "premium",
     name: "Premium",
-    price: 15,
+    price: 1499,
     period: "/mo",
     description: "Complete access for serious readers",
     benefits: [
@@ -75,7 +76,7 @@ const plans: Plan[] = [
   {
     id: "lifetime",
     name: "Lifetime",
-    price: 299,
+    price: 24999,
     period: "",
     description: "One-time payment, lifetime access",
     benefits: [
@@ -131,7 +132,8 @@ function findPackageForPlan(packages: PurchasesPackage[], planId: Plan["id"]): P
 
 export default function DonateScreen() {
   const { palette } = useTheme();
-  const { tier, setTier, packages, purchasePackage, isPurchasing } = useSubscription();
+  const { tier, setTier, packages, purchasePackage, purchaseTier, isPurchasing } = useSubscription();
+  const razorpayBilling = usesRazorpayBilling();
   const { showToast } = useToast();
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
@@ -140,7 +142,7 @@ export default function DonateScreen() {
 
   const handleSubscribe = async () => {
     const isExpoGo = Constants.appOwnership === "expo";
-    if (MOCK_BACKEND || isExpoGo) {
+    if (MOCK_BACKEND || (isExpoGo && !razorpayBilling)) {
       setTier(selectedPlan);
       const msg = selectedPlan === "free"
         ? "Switched to Free plan."
@@ -153,6 +155,20 @@ export default function DonateScreen() {
     if (selectedPlan === "free") {
        showToast("info", "You are already on the free plan.");
        return;
+    }
+
+    if (razorpayBilling) {
+      try {
+        const success = await purchaseTier(selectedPlan);
+        if (success) {
+          showToast("success", `You're now a ${selectedPlan} member! Thank you for your support.`);
+          router.back();
+        }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Payment failed.";
+        showToast("error", message);
+      }
+      return;
     }
 
     const pkg = selectedPackage;
@@ -252,7 +268,13 @@ export default function DonateScreen() {
             const isSelected = selectedPlan === plan.id;
             const isCurrent = tier === plan.id;
             const storePackage = findPackageForPlan(packages, plan.id);
-            const priceLabel = storePackage?.product.priceString ?? `$${plan.price}${plan.period || " one-time"}`;
+            const priceLabel = razorpayBilling
+              ? plan.id === "free"
+                ? "₹0"
+                : plan.id === "lifetime"
+                  ? `₹${plan.price.toLocaleString("en-IN")} one-time`
+                  : `₹${plan.price.toLocaleString("en-IN")}${plan.period}`
+              : storePackage?.product.priceString ?? `$${plan.price}${plan.period || " one-time"}`;
 
             return (
               <Pressable
@@ -363,7 +385,7 @@ export default function DonateScreen() {
                       color: palette.onSurface,
                     }}
                   >
-                    {plan.id === "free" ? "$0" : priceLabel.replace(plan.period, "")}
+                    {plan.id === "free" ? (razorpayBilling ? "₹0" : "$0") : priceLabel.replace(plan.period, "")}
                   </Text>
                   {plan.id !== "free" && storePackage?.product.priceString ? null : plan.period ? (
                     <Text
@@ -477,7 +499,11 @@ export default function DonateScreen() {
               >
                 {selectedPlanData.price === 0
                   ? "Always free"
-                  : selectedPackage?.product.priceString ?? `$${selectedPlanData.price}${selectedPlanData.period || " one-time"}`}
+                  : razorpayBilling
+                    ? selectedPlanData.id === "lifetime"
+                      ? `₹${selectedPlanData.price.toLocaleString("en-IN")} one-time`
+                      : `₹${selectedPlanData.price.toLocaleString("en-IN")}${selectedPlanData.period}`
+                    : selectedPackage?.product.priceString ?? `$${selectedPlanData.price}${selectedPlanData.period || " one-time"}`}
               </Text>
             </View>
 

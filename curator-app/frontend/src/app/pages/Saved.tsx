@@ -195,7 +195,7 @@ export function Saved() {
                     <Trash2 className="h-4 w-4" />
                   </button>
                 </div>
-                <ArticleCard article={article} />
+                <ArticleCard article={article} variant="compact" />
               </div>
             ))}
           </FeedStack>

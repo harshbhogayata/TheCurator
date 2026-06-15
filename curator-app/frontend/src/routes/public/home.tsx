@@ -1,22 +1,24 @@
-import { PUBLIC_CACHE_CONTROL, SITE_URL } from "../../lib/site";
-import { StoreLanding } from "../../store-site/pages/StoreLanding";
+import { redirect } from "react-router";
 
-export function headers() {
-  return { "Cache-Control": PUBLIC_CACHE_CONTROL };
-}
+import { SITE_URL } from "../../lib/site";
 
 export function meta() {
   return [
-    { title: "The Curator - Coming soon on iOS and Android" },
+    { title: "The Curator — daily news briefings you can read or hear" },
     {
       name: "description",
       content:
-        "A calmer way to read the news. Daily briefings and source-backed articles you can read or hear, launching on the App Store and Google Play.",
+        "A calmer way to read the news. Daily briefings and source-backed articles with AI narration, saves, and collections.",
     },
     { tagName: "link", rel: "canonical", href: `${SITE_URL}/` },
   ];
 }
 
+/** Root URL opens the web app — not a marketing / coming-soon page. */
+export function loader() {
+  return redirect("/welcome");
+}
+
 export default function HomePage() {
-  return <StoreLanding />;
+  return null;
 }

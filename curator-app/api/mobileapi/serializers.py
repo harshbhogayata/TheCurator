@@ -41,7 +41,8 @@ class ArticleSerializer(serializers.ModelSerializer):
     imageSourceUrl = serializers.CharField(source="image_source_url", allow_blank=True)
     imageAttribution = serializers.CharField(source="image_attribution", allow_blank=True)
     audioUrl = serializers.SerializerMethodField()
-    audioDurationSec = serializers.IntegerField(source="audio_duration_sec", allow_null=True)
+    audioDurationSec = serializers.SerializerMethodField()
+    hasAudioAvailable = serializers.SerializerMethodField()
     relatedArticleIds = serializers.SerializerMethodField()
     sourceLinks = serializers.JSONField(source="source_links", read_only=True)
     topics = serializers.JSONField(read_only=True)
@@ -69,6 +70,7 @@ class ArticleSerializer(serializers.ModelSerializer):
             "content",
             "audioUrl",
             "audioDurationSec",
+            "hasAudioAvailable",
             "relatedArticleIds",
         )
 
@@ -83,6 +85,16 @@ class ArticleSerializer(serializers.ModelSerializer):
 
     def get_audioUrl(self, obj):
         return ""
+
+    def get_audioDurationSec(self, obj):
+        if not obj.audio_url:
+            return None
+        return obj.audio_duration_sec
+
+    def get_hasAudioAvailable(self, obj):
+        if obj.audio_url:
+            return True
+        return bool((obj.content or obj.excerpt or "").strip())
 
     def get_relatedArticleIds(self, obj):
         # Prefer related articles precomputed from embeddings at publish time.
@@ -127,7 +139,8 @@ class BriefSerializer(serializers.ModelSerializer):
     publishedAt = serializers.SerializerMethodField()
     imageUrl = serializers.CharField(source="image_url", allow_blank=True)
     imageAttribution = serializers.CharField(source="image_attribution", allow_blank=True)
-    audioUrl = serializers.CharField(source="audio_url", allow_blank=True)
+    audioUrl = serializers.SerializerMethodField()
+    hasAudioAvailable = serializers.SerializerMethodField()
     isBreaking = serializers.BooleanField(source="is_breaking")
 
     class Meta:
@@ -144,15 +157,26 @@ class BriefSerializer(serializers.ModelSerializer):
             "imageUrl",
             "imageAttribution",
             "audioUrl",
+            "hasAudioAvailable",
             "category",
             "insights",
             "isBreaking",
         )
 
+    def get_audioUrl(self, obj):
+        return ""
+
+    def get_hasAudioAvailable(self, obj):
+        if obj.audio_url:
+            return True
+        return bool((obj.summary or "").strip())
+
     def get_duration(self, obj):
         return f"{obj.duration_minutes} min"
 
     def get_durationMs(self, obj):
+        if obj.audio_duration_sec:
+            return obj.audio_duration_sec * 1000
         return obj.duration_minutes * 60 * 1000
 
     def get_publishedDate(self, obj):

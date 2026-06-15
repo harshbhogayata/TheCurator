@@ -4,7 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
+import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
 import {
   ChevronRight,
   CreditCard,
@@ -44,17 +44,13 @@ export default function ProfileScreen() {
   
   const handlePickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await updateProfileAvatar(result.assets[0].uri);
-        showToast("success", "Profile picture updated");
+      const uri = await pickProfileImageUri();
+      if (!uri) {
+        return;
       }
+
+      await updateProfileAvatar(uri);
+      showToast("success", "Profile picture updated");
     } catch (error) {
       console.error("Image pick error", error);
       showToast("error", "Failed to update profile picture");

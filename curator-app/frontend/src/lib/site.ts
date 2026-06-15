@@ -6,7 +6,7 @@ const fromProcess =
 export const SITE_URL = (
   fromProcess ||
   import.meta.env.VITE_SITE_URL ||
-  "https://thecurator.app"
+  "https://thecuratorgroup.org"
 ).replace(/\/$/, "");
 
 /** Edge/CDN cache policy for anonymous public pages (SSR list pages). */

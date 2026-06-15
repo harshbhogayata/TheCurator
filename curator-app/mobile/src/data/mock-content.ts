@@ -1,8 +1,6 @@
 import type { Article } from "./articles";
 import type { BriefItem } from "./briefs";
 
-const SAMPLE_AUDIO = "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3";
-
 const seedArticles: Article[] = [
   {
     id: "mock-1",
@@ -18,8 +16,9 @@ const seedArticles: Article[] = [
     sources: ["NY", "FT", "WS", "EC"],
     author: "The Curator Editorial Team",
     publishedDate: "March 23, 2026",
-    content: "As global markets recalibrate, emerging economies face selective volatility across sectors and regions.",
-    audioUrl: SAMPLE_AUDIO,
+    content:
+      "As global markets recalibrate, emerging economies face selective volatility across sectors and regions. Currency pressures are uneven, and institutional flows are rotating faster than many policymakers expected.",
+    hasAudioAvailable: true,
     audioDurationSec: 372,
   },
   {
@@ -36,8 +35,9 @@ const seedArticles: Article[] = [
     sources: ["TC", "VG", "WI"],
     author: "The Curator Science Desk",
     publishedDate: "March 22, 2026",
-    content: "Biological computing is moving from speculative labs toward practical prototypes with major density gains.",
-    audioUrl: SAMPLE_AUDIO,
+    content:
+      "Biological computing is moving from speculative labs toward practical prototypes with major density gains. Researchers are testing organic substrates that can store and process information at room temperature.",
+    hasAudioAvailable: true,
     audioDurationSec: 720,
   },
   {
@@ -54,8 +54,9 @@ const seedArticles: Article[] = [
     sources: ["UN", "FT", "EC"],
     author: "The Curator International Desk",
     publishedDate: "March 21, 2026",
-    content: "Carbon border policy is now a first-order trade variable reshaping diplomatic strategy.",
-    audioUrl: SAMPLE_AUDIO,
+    content:
+      "Carbon border policy is now a first-order trade variable reshaping diplomatic strategy. Governments are negotiating how emissions costs should be shared across supply chains.",
+    hasAudioAvailable: true,
     audioDurationSec: 480,
   },
   {
@@ -72,8 +73,9 @@ const seedArticles: Article[] = [
     sources: ["GR", "SA", "FT"],
     author: "The Curator Culture Desk",
     publishedDate: "March 20, 2026",
-    content: "Regional cuisine is re-emerging as a marker of identity in an era of globalized food systems.",
-    audioUrl: SAMPLE_AUDIO,
+    content:
+      "Regional cuisine is re-emerging as a marker of identity in an era of globalized food systems. Communities are rebuilding local supply chains around heritage ingredients.",
+    hasAudioAvailable: true,
     audioDurationSec: 420,
   },
   {
@@ -90,8 +92,9 @@ const seedArticles: Article[] = [
     sources: ["LN", "NM", "SC"],
     author: "The Curator Health Desk",
     publishedDate: "March 19, 2026",
-    content: "New cohort studies are challenging assumptions about diet, exercise, and healthy aging.",
-    audioUrl: SAMPLE_AUDIO,
+    content:
+      "New cohort studies are challenging assumptions about diet, exercise, and healthy aging. The strongest signals are coming from long-running population studies rather than short trials.",
+    hasAudioAvailable: true,
     audioDurationSec: 540,
   },
   {
@@ -108,8 +111,9 @@ const seedArticles: Article[] = [
     sources: ["PT", "EC", "WI"],
     author: "The Curator Politics Desk",
     publishedDate: "March 18, 2026",
-    content: "Digital democracy pilots are showing higher engagement but uneven access across communities.",
-    audioUrl: SAMPLE_AUDIO,
+    content:
+      "Digital democracy pilots are showing higher engagement but uneven access across communities. Participation rose in several cities, yet turnout gaps widened where connectivity lagged.",
+    hasAudioAvailable: true,
     audioDurationSec: 600,
   },
 ];
@@ -128,7 +132,8 @@ export const mockBriefs: BriefItem[] = [
     publishedDate: "March 23, 2026",
     imageUrl:
       "https://images.unsplash.com/photo-1504711434969-e33886168f5c?auto=format&fit=crop&w=800&q=80",
-    audioUrl: SAMPLE_AUDIO,
+    audioUrl: "",
+    hasAudioAvailable: true,
     category: "Economy",
     insights: 12,
     isBreaking: true,
@@ -144,7 +149,8 @@ export const mockBriefs: BriefItem[] = [
     publishedDate: "March 22, 2026",
     imageUrl:
       "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=800&q=80",
-    audioUrl: SAMPLE_AUDIO,
+    audioUrl: "",
+    hasAudioAvailable: true,
     category: "Technology",
     insights: 10,
     isBreaking: false,
@@ -160,7 +166,8 @@ export const mockBriefs: BriefItem[] = [
     publishedDate: "March 21, 2026",
     imageUrl:
       "https://images.unsplash.com/photo-1470071459604-3b5ec3a7fe05?auto=format&fit=crop&w=800&q=80",
-    audioUrl: SAMPLE_AUDIO,
+    audioUrl: "",
+    hasAudioAvailable: true,
     category: "Climate",
     insights: 9,
     isBreaking: false,
@@ -179,6 +186,10 @@ export const mockCategories = [
 
 export function findMockArticle(id: string): Article | null {
   return mockArticles.find((article) => article.id === id) ?? null;
+}
+
+export function findMockBrief(id: string): BriefItem | null {
+  return mockBriefs.find((brief) => brief.id === id) ?? null;
 }
 
 export function filterMockArticles(filters?: Record<string, unknown>): Article[] {
@@ -214,4 +225,12 @@ export function filterMockArticles(filters?: Record<string, unknown>): Article[]
   }
 
   return items;
+}
+
+export function mockNarrationForArticle(article: Article): string {
+  return `${article.title}. ${article.excerpt} ${article.content}`.trim();
+}
+
+export function mockNarrationForBrief(brief: BriefItem): string {
+  return `${brief.title}. ${brief.summary}`.trim();
 }

@@ -17,5 +17,6 @@ export interface Article {
   content?: string;
   audioUrl?: string;
   audioDurationSec?: number | null;
+  hasAudioAvailable?: boolean;
   relatedArticleIds?: string[];
 }

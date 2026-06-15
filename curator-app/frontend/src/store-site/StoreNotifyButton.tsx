@@ -2,8 +2,9 @@ import { useEffect, useId, useRef, useState } from 'react';
 import { Bell, Check, Mail, Sparkles, X } from 'lucide-react';
 
 import { useToast } from '../app/components/Toast';
+import { registerLaunchNotify } from '../lib/launch-notify';
 import { launchAlertChipStyle } from './accent';
-import { LP, SHAPE_ITEM, STORE_CONTACT } from './tokens';
+import { LP, SHAPE_ITEM, STORE_CONTACT, STORE_PLATFORMS } from './tokens';
 
 const STORAGE_KEY = 'curator.launchNotify.email';
 const NOTIFY_EVENT = 'curator:launch-notify';
@@ -19,6 +20,7 @@ function NotifyPanel({
   onSubmit,
   onClose,
   compact,
+  submitting = false,
 }: {
   inputId: string;
   email: string;
@@ -26,6 +28,7 @@ function NotifyPanel({
   onSubmit: (event: React.FormEvent) => void;
   onClose: () => void;
   compact?: boolean;
+  submitting?: boolean;
 }) {
   return (
     <>
@@ -81,9 +84,10 @@ function NotifyPanel({
         </div>
         <button
           type="submit"
-          className="flex w-full items-center justify-center gap-2 rounded-full bg-[#f5f4ec] py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#0e0e0b] transition-colors hover:bg-white"
+          disabled={submitting}
+          className="flex w-full items-center justify-center gap-2 rounded-full bg-[#f5f4ec] py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] text-[#0e0e0b] transition-colors hover:bg-white disabled:opacity-60"
         >
-          <Bell className="h-3.5 w-3.5" /> Join the launch list
+          <Bell className="h-3.5 w-3.5" /> {submitting ? 'Saving…' : 'Join the launch list'}
         </button>
       </form>
     </>
@@ -94,6 +98,7 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
   const [open, setOpen] = useState(false);
   const [email, setEmail] = useState('');
   const [savedEmail, setSavedEmail] = useState<string | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
   const inputId = useId();
@@ -135,7 +140,7 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
     };
   }, [open, isCta]);
 
-  const handleSubmit = (event: React.FormEvent) => {
+  const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     const trimmed = email.trim();
 
@@ -144,18 +149,26 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
       return;
     }
 
-    localStorage.setItem(STORAGE_KEY, trimmed);
-    window.dispatchEvent(new CustomEvent(NOTIFY_EVENT, { detail: trimmed }));
-    setSavedEmail(trimmed);
-    setOpen(false);
-    setEmail('');
+    setSubmitting(true);
+    try {
+      const result = await registerLaunchNotify(trimmed);
+      localStorage.setItem(STORAGE_KEY, result.email);
+      window.dispatchEvent(new CustomEvent(NOTIFY_EVENT, { detail: result.email }));
+      setSavedEmail(result.email);
+      setOpen(false);
+      setEmail('');
 
-    notify({
-      type: 'success',
-      title: "You're on the list",
-      message: `We'll email ${trimmed} when The Curator hits the App Store and Google Play.`,
-      duration: 6500,
-    });
+      notify({
+        type: 'success',
+        title: "You're on the list",
+        message: `We'll email ${result.email} ${STORE_PLATFORMS.notify}.`,
+        duration: 6500,
+      });
+    } catch (err) {
+      error(err instanceof Error ? err.message : 'Could not save your email. Try again or contact support.');
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const handleClick = () => {
@@ -187,6 +200,7 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
           onSubmit={handleSubmit}
           onClose={() => setOpen(false)}
           compact
+          submitting={submitting}
         />
       </div>
     );
@@ -201,7 +215,7 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
         className={
           isCta
             ? 'inline-flex w-full items-center justify-center gap-2 rounded-full bg-[#f5f4ec] px-6 py-3.5 text-[13px] font-bold uppercase tracking-[0.14em] text-[#0e0e0b] transition-colors hover:bg-white'
-            : 'inline-flex items-center gap-2 rounded-full px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.16em] shadow-[0_8px_24px_-10px_rgba(14,14,11,0.55)] transition-transform hover:scale-[1.02] active:scale-[0.98] md:px-5 md:py-3 md:text-[11px] md:tracking-[0.18em]'
+            : 'ml-1 inline-flex shrink-0 items-center gap-1.5 rounded-full px-3 py-2 text-[9px] font-bold uppercase tracking-[0.12em] shadow-[0_8px_24px_-10px_rgba(14,14,11,0.55)] transition-transform hover:scale-[1.02] active:scale-[0.98] sm:gap-2 sm:px-3.5 sm:py-2.5 sm:text-[10px] sm:tracking-[0.14em] md:px-4 md:py-2.5 md:text-[11px]'
         }
         style={isCta ? undefined : { backgroundColor: LP.onSurface, color: LP.bg }}
         aria-expanded={open}
@@ -219,8 +233,13 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
           </>
         ) : (
           <>
-            {isCta ? <Mail className="h-4 w-4" /> : <Bell className="h-3.5 w-3.5" strokeWidth={2.5} />}
-            {isCta ? 'Notify me at launch' : 'Notify me'}
+            {isCta ? <Mail className="h-4 w-4" /> : <Bell className="h-3 w-3 shrink-0 sm:h-3.5 sm:w-3.5" strokeWidth={2.5} />}
+            {isCta ? 'Notify me at launch' : (
+              <>
+                <span className="hidden md:inline">Notify me</span>
+                <span className="md:hidden">Notify</span>
+              </>
+            )}
           </>
         )}
       </button>
@@ -268,7 +287,7 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
           </div>
 
           <p className="mb-3 text-[12px] leading-relaxed" style={{ color: `${LP.onSurface}A6` }}>
-            One email when The Curator goes live on the App Store and Google Play. No spam.
+            One email when The Curator goes live on {STORE_PLATFORMS.label}. No spam.
           </p>
 
           <form onSubmit={handleSubmit} className="space-y-2.5">
@@ -291,10 +310,11 @@ export function StoreNotifyButton({ variant = 'header' }: StoreNotifyButtonProps
             </div>
             <button
               type="submit"
-              className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] transition-opacity hover:opacity-90"
+              disabled={submitting}
+              className="flex w-full items-center justify-center gap-2 rounded-full py-2.5 text-[11px] font-bold uppercase tracking-[0.16em] transition-opacity hover:opacity-90 disabled:opacity-60"
               style={{ backgroundColor: LP.onSurface, color: LP.bg }}
             >
-              <Bell className="h-3.5 w-3.5" /> Join the launch list
+              <Bell className="h-3.5 w-3.5" /> {submitting ? 'Saving…' : 'Join the launch list'}
             </button>
           </form>
 

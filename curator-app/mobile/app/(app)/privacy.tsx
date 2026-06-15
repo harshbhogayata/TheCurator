@@ -2,6 +2,7 @@ import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 import { useTheme } from "../../src/providers/theme-provider";
+import { PRIVACY_EMAIL } from "../../src/constants/site";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
 
 const sections = [
@@ -52,7 +53,7 @@ const sections = [
   },
   {
     title: "Contact Us",
-    text: "If you have questions about this Privacy Policy or your data, please contact us at privacy@thecurator.com",
+    text: `If you have questions about this Privacy Policy or your data, please contact us at ${PRIVACY_EMAIL}`,
   },
 ];
 

@@ -65,6 +65,7 @@ class MobileApiContractTests(TestCase):
         self.assertEqual(matching_item["imageUrl"], self.article.image_url)
         self.assertEqual(matching_item["audioUrl"], "")
         self.assertEqual(matching_item["audioDurationSec"], self.article.audio_duration_sec)
+        self.assertTrue(matching_item["hasAudioAvailable"])
         self.assertNotIn("content", matching_item)
 
     def test_collection_list_includes_legacy_and_contract_keys(self):
@@ -207,21 +208,52 @@ class MobileApiContractTests(TestCase):
         self.assertEqual(response.data["code"], "validation_error")
         self.assertIn("q", response.data["fields"])
 
-    def test_audio_endpoint_requires_paid_tier(self):
+    def test_audio_endpoint_requires_premium_tier(self):
+        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.BASIC)
+
         response = self.client.get(f"/api/mobile/v1/articles/{self.article.id}/audio")
 
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.data["code"], "entitlement_required")
-        self.assertEqual(response.data["requiredTier"], SubscriptionTier.BASIC)
+        self.assertEqual(response.data["requiredTier"], SubscriptionTier.PREMIUM)
 
-    def test_audio_endpoint_returns_audio_for_basic_tier(self):
-        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.BASIC)
+    def test_audio_endpoint_requires_paid_tier_for_free_users(self):
+        response = self.client.get(f"/api/mobile/v1/articles/{self.article.id}/audio")
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "entitlement_required")
+        self.assertEqual(response.data["requiredTier"], SubscriptionTier.PREMIUM)
+
+    def test_audio_endpoint_returns_device_narration_when_no_hosted_file(self):
+        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.PREMIUM)
+        self.article.audio_url = ""
+        self.article.save(update_fields=["audio_url"])
+
+        response = self.client.get(f"/api/mobile/v1/articles/{self.article.id}/audio")
+
+        self.assertEqual(response.status_code, 200)
+        if response.data["audioUrl"]:
+            self.assertTrue(response.data["audioUrl"].endswith(".mp3"))
+        else:
+            self.assertIn("narrationText", response.data)
+            self.assertIn(self.article.title, response.data["narrationText"])
+
+    def test_audio_endpoint_returns_audio_for_premium_tier(self):
+        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.PREMIUM)
 
         response = self.client.get(f"/api/mobile/v1/articles/{self.article.id}/audio")
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data["audioUrl"], self.article.audio_url)
         self.assertEqual(response.data["durationSec"], self.article.audio_duration_sec)
+
+    def test_audio_endpoint_returns_audio_for_lifetime_tier(self):
+        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.LIFETIME)
+
+        response = self.client.get(f"/api/mobile/v1/articles/{self.article.id}/audio")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data["audioUrl"], self.article.audio_url)
 
     def test_expired_paid_entitlement_does_not_unlock_audio(self):
         UserEntitlement.objects.create(

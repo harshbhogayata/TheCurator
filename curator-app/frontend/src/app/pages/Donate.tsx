@@ -28,7 +28,7 @@ export function Donate() {
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
 
-  // Returning from Stripe checkout (?status=success).
+  // Returning from checkout (?status=success) — Stripe redirect or Razorpay callback URL.
   useEffect(() => {
     const status = searchParams.get('status');
     if (!status) return;
@@ -99,12 +99,17 @@ export function Donate() {
     setCheckoutError(null);
     setIsRedirecting(true);
     try {
-      // Redirects to Stripe checkout in production; resolves locally in dev
-      // mock mode (thank-you screen shows after the ?status=success redirect
-      // in production, or immediately in mock mode).
       await upgradeTier(selectedPlan as 'basic' | 'premium' | 'lifetime');
       if (isMockBackend || isMockPremium) {
         setShowThankYou(true);
+        setTimeout(() => {
+          setShowThankYou(false);
+          navigate('/brief');
+        }, 3000);
+      } else {
+        await queryClient.invalidateQueries({ queryKey: queryKeys.entitlements.all });
+        setShowThankYou(true);
+        setIsRedirecting(false);
         setTimeout(() => {
           setShowThankYou(false);
           navigate('/brief');

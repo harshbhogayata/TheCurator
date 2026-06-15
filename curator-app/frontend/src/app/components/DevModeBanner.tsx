@@ -12,8 +12,11 @@ export function DevModeBanner() {
   ].filter(Boolean);
 
   return (
-    <div className="fixed left-0 right-0 top-0 z-[100] bg-amber-500 px-3 py-1 text-center text-[11px] font-semibold tracking-wide text-amber-950">
-      DEV MODE — {flags.join(" · ")}
+    <div
+      className="fixed bottom-3 left-3 z-[100] rounded-full border border-amber-400/30 bg-amber-500/90 px-3 py-1.5 text-[10px] font-semibold tracking-wide text-amber-950 shadow-lg backdrop-blur-sm"
+      role="status"
+    >
+      DEV · {flags.join(" · ")}
     </div>
   );
 }

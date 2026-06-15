@@ -316,19 +316,72 @@ export async function deactivateDevice(deviceId: string): Promise<void> {
 
 const BILLING_PREFIX = "/api/billing/v1";
 
-export async function createStripeCheckout(
+export type CheckoutPayload =
+  | { provider: "stripe"; url: string }
+  | {
+      provider: "razorpay";
+      mode: "order" | "subscription";
+      keyId: string;
+      tier: string;
+      orderId?: string;
+      subscriptionId?: string;
+      amount?: number;
+      currency?: string;
+      prefill?: { email?: string; name?: string };
+      name: string;
+      description: string;
+      callbackUrl: string;
+    };
+
+export async function createCheckout(
   tier: Exclude<SubscriptionTier, "free">,
-): Promise<{ url: string }> {
-  return apiRequest<{ url: string }>(`${BILLING_PREFIX}/checkout/`, {
+): Promise<CheckoutPayload> {
+  return apiRequest<CheckoutPayload>(`${BILLING_PREFIX}/checkout/`, {
     method: "POST",
     body: { tier },
   });
 }
 
-export async function createStripePortal(): Promise<{ url: string }> {
-  return apiRequest<{ url: string }>(`${BILLING_PREFIX}/portal/`, {
+/** @deprecated Use createCheckout — kept for compatibility */
+export async function createStripeCheckout(
+  tier: Exclude<SubscriptionTier, "free">,
+): Promise<{ url: string }> {
+  const payload = await createCheckout(tier);
+  if (payload.provider !== "stripe") {
+    throw new Error("Stripe checkout is not the active billing provider.");
+  }
+  return { url: payload.url };
+}
+
+export async function verifyRazorpayCheckout(body: {
+  razorpay_payment_id: string;
+  razorpay_order_id?: string;
+  razorpay_subscription_id?: string;
+  razorpay_signature: string;
+}): Promise<{ verified: boolean }> {
+  return apiRequest<{ verified: boolean }>(`${BILLING_PREFIX}/verify/`, {
+    method: "POST",
+    body,
+  });
+}
+
+export type PortalPayload =
+  | { provider: "stripe"; url: string }
+  | { provider: "razorpay"; status: string };
+
+export async function createBillingPortal(): Promise<PortalPayload> {
+  return apiRequest<PortalPayload>(`${BILLING_PREFIX}/portal/`, {
     method: "POST",
   });
+}
+
+/** @deprecated Use createBillingPortal */
+export async function createStripePortal(): Promise<{ url: string }> {
+  const payload = await createBillingPortal();
+  if (payload.provider !== "stripe") {
+    throw new Error("Stripe portal is not the active billing provider.");
+  }
+  return { url: payload.url };
 }
 
 export async function updateAccountRemote(input: {

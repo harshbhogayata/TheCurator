@@ -2,7 +2,7 @@ import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { Redirect, useRouter } from "expo-router";
 import { useEffect, useMemo, useState } from "react";
-import * as ImagePicker from "expo-image-picker";
+import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
 import { Pressable, Text, TextInput, useWindowDimensions, View, StyleSheet } from "react-native";
 import {
   ArrowLeft,
@@ -613,16 +613,12 @@ export default function OnboardingScreen() {
 
   const handlePickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ['images'],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        await updateProfileAvatar(result.assets[0].uri);
+      const uri = await pickProfileImageUri();
+      if (!uri) {
+        return;
       }
+
+      await updateProfileAvatar(uri);
     } catch (error) {
       console.error("Image pick error", error);
     }
@@ -661,7 +657,7 @@ export default function OnboardingScreen() {
   }, [selectedCategories, session?.onboarding.selectedCategories]);
 
   if (status === "loading" || !session) {
-    return <LoadingScreen title="Preparing your setup" message="We're restoring your saved onboarding step so you can continue cleanly." />;
+    return <LoadingScreen message="We're restoring your saved onboarding step so you can continue cleanly." />;
   }
 
   if ((session.onboarding.isCompleted || serverStep === "complete") && !showCompletion && !completionIntent) {

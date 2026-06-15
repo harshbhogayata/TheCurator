@@ -27,7 +27,7 @@ export function StoreSiteHeader({ active }: StoreSiteHeaderProps) {
           WebkitBackdropFilter: 'blur(18px)',
         }}
       >
-        <Link to="/" className="flex shrink-0 items-center">
+        <Link to="/welcome" className="flex shrink-0 items-center">
           <span className="font-[family-name:var(--font-headline)] text-[28px] font-medium italic leading-none tracking-tight md:text-[34px]" style={{ color: LP.onSurface }}>
             The Curator
           </span>

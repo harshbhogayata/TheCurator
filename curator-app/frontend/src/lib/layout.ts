@@ -1,3 +1,5 @@
+import { isMobileLayout } from "./dev-mode";
+
 /**
  * Web layout contract.
  *
@@ -32,7 +34,7 @@ export const TAB_BAR_MAX_WIDTH = 420;
 /** Web-only: sidebar appears at this width (mobile app keeps bottom tabs on tablet) */
 export const WEB_DESKTOP_BREAKPOINT = 1024;
 
-export const WEB_SIDEBAR_WIDTH = 220;
+export const WEB_SIDEBAR_WIDTH = 240;
 
 export const DEV_BANNER_HEIGHT = 28;
 export const MASTHEAD_HEIGHT = 64;
@@ -87,10 +89,12 @@ export interface LayoutMetrics {
 }
 
 export function computeLayoutMetrics(width: number, height: number): LayoutMetrics {
+  const desktopCapable = isWebDesktop(width);
+  const forceMobile = isMobileLayout;
   return {
     width,
     height,
-    isWebDesktop: isWebDesktop(width),
+    isWebDesktop: desktopCapable && !forceMobile,
     isSmallPhone: isSmallPhone(width),
     contentPadding: contentPaddingForWidth(width),
     maxContentWidth: MAX_CONTENT_WIDTH,

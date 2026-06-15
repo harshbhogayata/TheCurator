@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Search, ChevronDown, ChevronUp, Mail, MessageCircle } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
+import { SUPPORT_EMAIL } from "../../src/constants/site";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
 
 interface FAQItem {
@@ -324,7 +325,7 @@ export default function HelpScreen() {
                   Email Support
                 </Text>
                 <Text style={{ fontFamily: "Manrope_400Regular", fontSize: 13, color: palette.onSurfaceVariant }}>
-                  support@thecurator.com
+                  {SUPPORT_EMAIL}
                 </Text>
               </View>
             </View>

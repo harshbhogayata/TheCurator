@@ -1,8 +1,9 @@
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router";
+import { Link, useNavigate } from "react-router";
 import { ArrowLeft, Eye, EyeOff, Lock, Mail } from "lucide-react";
 import { IdentityProviderButtons } from "../components/IdentityProviderButtons";
 import { useAuth } from "../context/AuthContext";
+import { AuthScreenLayout } from "../../ui/auth-screen-layout";
 
 export function SignIn() {
   const navigate = useNavigate();
@@ -15,11 +16,14 @@ export function SignIn() {
   const showIdentityProviders =
     providerAvailability.entra && (providerAvailability.google || providerAvailability.apple);
 
+  const onboardingComplete = onboarding?.completed ?? false;
+
   useEffect(() => {
-    if (authStatus === "authenticated" && onboarding) {
-      navigate(onboarding.completed ? "/brief" : "/onboarding", { replace: true });
+    if (authStatus === "loading") return;
+    if (authStatus === "authenticated") {
+      navigate(onboardingComplete ? "/brief" : "/onboarding", { replace: true });
     }
-  }, [authStatus, navigate, onboarding]);
+  }, [authStatus, navigate, onboardingComplete]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,17 +41,17 @@ export function SignIn() {
   };
 
   return (
-    <div className="flex min-h-[100dvh] items-center justify-center bg-background px-6 py-8">
-      <div className="w-full max-w-lg">
-        <button
-          onClick={() => navigate("/")}
-          className="mb-5 flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-2 text-sm text-on-surface-variant shadow-sm transition-colors hover:bg-surface-container hover:text-on-surface"
+    <AuthScreenLayout>
+      <div className="w-full px-6 py-6 lg:px-0">
+        <Link
+          to="/welcome"
+          className="relative z-30 mb-5 inline-flex items-center gap-2 rounded-full border border-outline-variant/20 bg-surface-container-lowest px-4 py-2 text-sm text-on-surface-variant no-underline shadow-sm transition-colors hover:bg-surface-container hover:text-on-surface"
         >
           <ArrowLeft className="w-5 h-5" />
           <span>Back</span>
-        </button>
+        </Link>
 
-        <div className="rounded-[56px] border border-outline-variant/15 bg-surface-container-lowest/85 p-7 shadow-[0_24px_70px_-32px_rgba(5,12,19,0.4)] backdrop-blur-xl md:p-9">
+        <div className="editorial-card p-7 md:p-9">
           <div className="mb-8">
             <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.2em] text-outline">
               Sign in
@@ -154,15 +158,15 @@ export function SignIn() {
 
           <div className="text-center">
             <p className="text-on-surface-variant mb-4">Don&apos;t have an account?</p>
-            <button
-              onClick={() => navigate("/sign-up")}
-              className="w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-10 py-4 font-medium tracking-wide text-on-surface transition-all duration-300 hover:bg-surface-container active:scale-[0.98]"
+            <Link
+              to="/sign-up"
+              className="relative z-30 block w-full rounded-full border border-outline-variant/20 bg-surface-container-low px-10 py-4 text-center font-medium tracking-wide text-on-surface no-underline transition-all duration-300 hover:bg-surface-container active:scale-[0.98]"
             >
               Create Account
-            </button>
+            </Link>
           </div>
         </div>
       </div>
-    </div>
+    </AuthScreenLayout>
   );
 }

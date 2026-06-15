@@ -9,6 +9,7 @@ import { z } from "zod";
 import { ArrowLeft, User, Mail, Lock } from "lucide-react-native";
 
 import { useAuth } from "../../src/providers/auth-provider";
+import { SITE_URL } from "../../src/constants/site";
 import { useTheme } from "../../src/providers/theme-provider";
 import { AuthCard } from "../../src/ui/auth-card";
 import { InputField } from "../../src/ui/input-field";
@@ -22,7 +23,6 @@ const schema = z.object({
 });
 
 type SignUpValues = z.infer<typeof schema>;
-const SITE_URL = "https://thecurator.app";
 
 export default function SignUpScreen() {
   const { palette } = useTheme();

@@ -14,9 +14,9 @@ export function BottomNav() {
   ] as const;
 
   return (
-    <nav className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4">
+    <nav className="fixed bottom-4 left-0 right-0 z-50 flex justify-center px-4" data-layout="bottom-nav">
       <div
-        className="w-full rounded-[40px] border-2 border-outline-variant/20 bg-surface-container-lowest/80 px-3 shadow-[0_8px_32px_rgba(0,0,0,0.12)] backdrop-blur-2xl"
+        className="glass-pill w-full border-2 border-outline-variant/20 px-3 shadow-[0_8px_32px_rgba(0,0,0,0.12)]"
         style={{ maxWidth: TAB_BAR_MAX_WIDTH }}
       >
         <div className="flex h-16 items-center justify-between">
@@ -29,7 +29,7 @@ export function BottomNav() {
               <Link
                 key={path}
                 to={path}
-                className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-2 transition-all ${
+                className={`flex flex-1 flex-col items-center justify-center gap-0.5 rounded-full px-2 py-2 no-underline transition-all ${
                   isActive
                     ? "bg-primary text-primary-foreground"
                     : "text-on-surface-variant hover:text-on-surface"

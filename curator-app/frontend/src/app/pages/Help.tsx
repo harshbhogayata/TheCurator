@@ -183,7 +183,7 @@ export function Help() {
             
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <a
-                href="mailto:support@thecurator.com"
+                href="mailto:support@thecuratorgroup.org"
                 className="bg-surface-container-low rounded-[30px] p-6 flex items-center gap-4 hover:bg-surface-container transition-all group"
               >
                 <div className="w-12 h-12 rounded-full bg-primary-container flex items-center justify-center">
@@ -191,7 +191,7 @@ export function Help() {
                 </div>
                 <div>
                   <div className="font-medium text-on-surface mb-1">Email Support</div>
-                  <div className="text-sm text-outline">support@thecurator.com</div>
+                  <div className="text-sm text-outline">support@thecuratorgroup.org</div>
                 </div>
               </a>
 

@@ -1,11 +1,12 @@
 from datetime import timedelta
 import hashlib
 import json
+import logging
 from uuid import UUID
 
 from django.conf import settings
 from django.db.models import Count, Q, Sum
-from django.http import FileResponse
+from django.http import FileResponse, Http404
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.text import slugify
@@ -19,7 +20,7 @@ from onboarding.models import UserPreference
 from mobileapi.category_catalog import CONTENT_CATEGORY_CATALOG, resolve_catalog_category_name
 from mobileapi.personalization import annotate_search, build_search_filter, personalized_category_slugs
 from mobileapi.export_services import export_file_path, validate_download_token, generate_data_export
-from mobileapi.revenuecat import process_revenuecat_webhook
+from mobileapi.revenuecat import process_revenuecat_webhook, refresh_entitlement_from_revenuecat
 from mobileapi.tasks import generate_data_export_task
 from mobileapi.models import (
     Article,
@@ -57,6 +58,8 @@ from mobileapi.serializers import (
     ReadingEventWriteSerializer,
     SavedArticleWriteSerializer,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def _parse_int(raw_value, fallback, min_value=0, max_value=100):
@@ -369,7 +372,58 @@ class ArticleAudioView(views.APIView):
 
     def get(self, request, article_id):
         article = get_object_or_404(Article, id=article_id, is_active=True, status=ArticleStatus.PUBLISHED)
-        entitlement = _get_or_create_entitlement(request.user)
+        entitlement = refresh_entitlement_from_revenuecat(
+            request.user,
+            _get_or_create_entitlement(request.user),
+        )
+        if entitlement.effective_tier not in {
+            SubscriptionTier.PREMIUM,
+            SubscriptionTier.LIFETIME,
+        }:
+            raise EntitlementRequired(SubscriptionTier.PREMIUM)
+
+        from mobileapi.audio_services import (
+            AudioGenerationError,
+            audio_generation_configured,
+            ensure_article_audio,
+            narration_text_for_article,
+        )
+
+        narration_text = narration_text_for_article(article)
+        if not article.audio_url and audio_generation_configured() and article.content.strip():
+            from content_pipeline.tasks import generate_article_audio_task
+
+            try:
+                article = ensure_article_audio(article)
+            except AudioGenerationError as exc:
+                logger.warning("Sync article audio generation failed: %s", exc)
+                try:
+                    generate_article_audio_task.delay(str(article.id))
+                except Exception:  # noqa: BLE001 - Celery optional in dev
+                    logger.debug("Queued article audio generation unavailable.", exc_info=True)
+
+        if not article.audio_url and not narration_text:
+            raise exceptions.NotFound("Audio is not available for this article.")
+
+        return response.Response(
+            {
+                "audioUrl": article.audio_url or "",
+                "durationSec": article.audio_duration_sec,
+                "narrationText": narration_text if not article.audio_url else "",
+            }
+        )
+
+
+class BriefAudioView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "reads"
+
+    def get(self, request, brief_id):
+        brief = get_object_or_404(Brief, id=brief_id, is_active=True)
+        entitlement = refresh_entitlement_from_revenuecat(
+            request.user,
+            _get_or_create_entitlement(request.user),
+        )
         if entitlement.effective_tier not in {
             SubscriptionTier.BASIC,
             SubscriptionTier.PREMIUM,
@@ -377,13 +431,34 @@ class ArticleAudioView(views.APIView):
         }:
             raise EntitlementRequired(SubscriptionTier.BASIC)
 
-        if not article.audio_url:
-            raise exceptions.NotFound("Audio is not available for this article.")
+        from mobileapi.audio_services import (
+            AudioGenerationError,
+            audio_generation_configured,
+            ensure_brief_audio,
+            narration_text_for_brief,
+        )
+
+        narration_text = narration_text_for_brief(brief)
+        if not brief.audio_url and audio_generation_configured() and brief.summary.strip():
+            from content_pipeline.tasks import generate_brief_audio_task
+
+            try:
+                brief = ensure_brief_audio(brief)
+            except AudioGenerationError as exc:
+                logger.warning("Sync brief audio generation failed: %s", exc)
+                try:
+                    generate_brief_audio_task.delay(str(brief.id))
+                except Exception:  # noqa: BLE001 - Celery optional in dev
+                    logger.debug("Queued brief audio generation unavailable.", exc_info=True)
+
+        if not brief.audio_url and not narration_text:
+            raise exceptions.NotFound("Audio is not available for this brief.")
 
         return response.Response(
             {
-                "audioUrl": article.audio_url,
-                "durationSec": article.audio_duration_sec,
+                "audioUrl": brief.audio_url or "",
+                "durationSec": brief.audio_duration_sec,
+                "narrationText": narration_text if not brief.audio_url else "",
             }
         )
 
@@ -791,7 +866,10 @@ class EntitlementView(views.APIView):
     throttle_scope = "reads"
 
     def get(self, request):
-        entitlement = _get_or_create_entitlement(request.user)
+        entitlement = refresh_entitlement_from_revenuecat(
+            request.user,
+            _get_or_create_entitlement(request.user),
+        )
         return response.Response(EntitlementSerializer(entitlement).data)
 
 
@@ -863,3 +941,26 @@ class RevenueCatWebhookView(views.APIView):
             return response.Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
         return response.Response(status=status.HTTP_200_OK)
+
+
+class PublicAudioFileView(views.APIView):
+    """Serve locally generated narration mp3 files (public CDN-style URLs)."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def get(self, request, storage_path):
+        from mobileapi.audio_services import local_audio_root
+
+        root = local_audio_root().resolve()
+        target = (root / storage_path).resolve()
+        if root not in target.parents and target != root:
+            raise Http404("Invalid audio path.")
+        if not target.is_file():
+            raise Http404("Audio file not found.")
+
+        return FileResponse(
+            open(target, "rb"),
+            content_type="audio/mpeg",
+            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+        )

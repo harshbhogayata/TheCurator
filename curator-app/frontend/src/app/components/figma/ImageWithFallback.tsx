@@ -1,9 +1,7 @@
 import React, { useMemo, useState } from 'react';
+import { ImageIcon } from 'lucide-react';
 import { IMAGES } from '../../constants/images';
 import { optimizedImageUrl } from '../../../lib/images';
-
-const ERROR_IMG_SRC =
-  'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iODgiIGhlaWdodD0iODgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyIgc3Ryb2tlPSIjMDAwIiBzdHJva2UtbGluZWpvaW49InJvdW5kIiBvcGFjaXR5PSIuMyIgZmlsbD0ibm9uZSIgc3Ryb2tlLXdpZHRoPSIzLjciPjxyZWN0IHg9IjE2IiB5PSIxNiIgd2lkdGg9IjU2IiBoZWlnaHQ9IjU2IiByeD0iNiIvPjxwYXRoIGQ9Im0xNiA1OCAxNi0xOCAzMiAzMiIvPjxjaXJjbGUgY3g9IjUzIiBjeT0iMzUiIHI9IjciLz48L3N2Zz4KCg==';
 
 type ImageWithFallbackProps = React.ImgHTMLAttributes<HTMLImageElement> & {
   query?: string;
@@ -35,7 +33,7 @@ function resolveImageSource(src?: string, query?: string) {
   if (normalized.includes('politics government capitol building')) return IMAGES.editorial.avatar;
   if (normalized.includes('science research laboratory discovery')) return IMAGES.hero.welcome;
 
-  return src;
+  return IMAGES.editorial.brief;
 }
 
 export function ImageWithFallback(props: ImageWithFallbackProps) {
@@ -46,20 +44,20 @@ export function ImageWithFallback(props: ImageWithFallbackProps) {
     [query, src, cdnWidth],
   );
 
-  const handleError = () => {
-    setDidError(true);
-  };
-
-  return didError ? (
-    <div
-      className={`inline-block bg-gray-100 text-center align-middle ${className ?? ''}`}
-      style={style}
-    >
-      <div className="flex h-full w-full items-center justify-center">
-        <img src={ERROR_IMG_SRC} alt="Error loading image" {...rest} data-original-url={resolvedSrc} />
+  if (didError || !resolvedSrc) {
+    return (
+      <div
+        className={`flex items-center justify-center bg-surface-container text-outline ${className ?? ''}`}
+        style={style}
+        role="img"
+        aria-label={alt || 'Image unavailable'}
+      >
+        <ImageIcon className="h-[28%] w-[28%] min-h-5 min-w-5 opacity-40" strokeWidth={1.5} />
       </div>
-    </div>
-  ) : (
+    );
+  }
+
+  return (
     <img
       src={resolvedSrc}
       alt={alt}
@@ -68,7 +66,7 @@ export function ImageWithFallback(props: ImageWithFallbackProps) {
       loading="lazy"
       decoding="async"
       {...rest}
-      onError={handleError}
+      onError={() => setDidError(true)}
     />
   );
 }

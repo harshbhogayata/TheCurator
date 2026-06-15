@@ -1,3 +1,4 @@
+import { useEffect } from 'react';
 import { X, Sparkles, Compass, Bookmark, Settings, User, Heart, Info, FileText, HelpCircle, LogOut, Search, BarChart3, FolderOpen } from 'lucide-react';
 import { useNavigate } from 'react-router';
 
@@ -5,6 +6,7 @@ import { AppShell } from '../components/AppShell';
 import { SubscriptionBadge } from '../components/SubscriptionBadge';
 import { useAuth } from '../context/AuthContext';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useLayout } from '../../providers/layout-provider';
 import { IMAGES } from '../constants/images';
 
 const menuItems = [
@@ -26,6 +28,13 @@ export function Menu() {
   const navigate = useNavigate();
   const { user, signOut } = useAuth();
   const { tier } = useSubscription();
+  const { isWebDesktop } = useLayout();
+
+  useEffect(() => {
+    if (isWebDesktop) {
+      navigate('/settings', { replace: true });
+    }
+  }, [isWebDesktop, navigate]);
 
   const memberLabel =
     tier === 'lifetime'

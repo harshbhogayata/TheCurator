@@ -23,10 +23,7 @@ export default function IndexScreen() {
 
   if (status === "loading") {
     return (
-      <LoadingScreen
-        title="Setting the tone"
-        message="We’re restoring your profile, theme, and onboarding state."
-      />
+      <LoadingScreen message="Restoring your session and preferences." />
     );
   }
 

@@ -11,6 +11,7 @@ import { useTheme } from "../providers/theme-provider";
 import { useAudio } from "../providers/audio-provider";
 import { useBriefs } from "../hooks/use-briefs";
 import { useArticles } from "../hooks/use-articles";
+import { AudioWaveVisualizer } from "./audio-wave-visualizer";
 
 function formatTime(ms: number): string {
   const totalSeconds = Math.floor(ms / 1000);
@@ -112,6 +113,15 @@ function AudioMiniPlayerInner() {
         <View style={styles.controlsRow}>
           {/* Title area */}
           <View style={styles.titleArea}>
+            <AudioWaveVisualizer
+              active={isPlaying}
+              color={palette.primary}
+              secondaryColor={palette.secondary}
+              height={22}
+              barWidth={2.5}
+              gap={3}
+              style={styles.miniWave}
+            />
             <Text
               numberOfLines={1}
               style={[
@@ -208,6 +218,10 @@ const styles = StyleSheet.create({
   },
   titleArea: {
     flex: 1,
+    gap: 4,
+  },
+  miniWave: {
+    alignSelf: "flex-start",
   },
   briefTitle: {
     fontFamily: "Manrope_500Medium",

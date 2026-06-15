@@ -9,12 +9,17 @@ import { useTheme } from "../providers/theme-provider";
 import { useAudio } from "../providers/audio-provider";
 import { useSubscription } from "../providers/subscription-provider";
 import { fetchArticleAudio } from "../services/mobile-api";
+import { ApiError } from "../services/api-client";
+import { useToast } from "../providers/toast-provider";
 import { PaywallModal } from "./paywall-modal";
+import { AudioWaveVisualizer } from "./audio-wave-visualizer";
 
 interface ArticleAudioPlayerProps {
   articleId: string;
   audioUrl?: string;
   durationSec?: number | null;
+  hasAudioAvailable?: boolean;
+  readTimeMinutes?: number;
   title: string;
   isBrief?: boolean;
 }
@@ -30,11 +35,14 @@ function ArticleAudioPlayerInner({
   articleId,
   audioUrl,
   durationSec,
+  hasAudioAvailable,
+  readTimeMinutes,
   title,
   isBrief = false,
 }: ArticleAudioPlayerProps) {
   const { palette } = useTheme();
   const router = useRouter();
+  const { showToast } = useToast();
   const { hasAudioAccess, hasBriefAudioAccess } = useSubscription();
   const canListen = isBrief ? hasBriefAudioAccess : hasAudioAccess;
   const {
@@ -52,8 +60,12 @@ function ArticleAudioPlayerInner({
   const [paywallVisible, setPaywallVisible] = useState(false);
   const [isResolvingAudio, setIsResolvingAudio] = useState(false);
 
-  const hasAudio = Boolean(audioUrl || durationSec);
-  if (!hasAudio) return null;
+  const estimatedDurationSec = readTimeMinutes ? readTimeMinutes * 60 : null;
+  const hasAudioMetadata = Boolean(audioUrl || durationSec || hasAudioAvailable);
+  const showPlayer = isBrief ? hasAudioMetadata : hasAudioMetadata || hasAudioAccess;
+  if (!showPlayer) return null;
+
+  const displayDurationSec = durationSec ?? estimatedDurationSec;
 
   const isThisArticle = currentBriefId === articleId;
   const isPlaying = isThisArticle && state === "playing";
@@ -61,7 +73,7 @@ function ArticleAudioPlayerInner({
   const isActive = isThisArticle && state !== "idle";
 
   const effectiveDurationMs =
-    isActive && durationMs > 0 ? durationMs : (durationSec ?? 0) * 1000;
+    isActive && durationMs > 0 ? durationMs : (displayDurationSec ?? 0) * 1000;
   const effectivePositionMs = isActive ? positionMs : 0;
   const progress =
     effectiveDurationMs > 0 ? effectivePositionMs / effectiveDurationMs : 0;
@@ -77,11 +89,28 @@ function ArticleAudioPlayerInner({
     if (!isActive) {
       setIsResolvingAudio(true);
       try {
-        const playableUrl = audioUrl || (await fetchArticleAudio(articleId)).audioUrl;
-        await playBrief(articleId, playableUrl);
-      } catch {
+        const playable = audioUrl
+          ? { audioUrl, durationSec: durationSec ?? null }
+          : await fetchArticleAudio(articleId);
+        await playBrief(articleId, playable.audioUrl, {
+          narrationText: playable.narrationText,
+        });
+      } catch (error) {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
-        setPaywallVisible(true);
+        if (error instanceof ApiError && error.status === 404) {
+          showToast(
+            "info",
+            hasAudioAvailable
+              ? "Narration is still loading. Try again in a moment."
+              : "Narration is being prepared for this story. Try again shortly.",
+          );
+          return;
+        }
+        if (error instanceof ApiError && error.status === 403) {
+          setPaywallVisible(true);
+          return;
+        }
+        showToast("error", "Couldn't load narration. Try again.");
       } finally {
         setIsResolvingAudio(false);
       }
@@ -101,6 +130,8 @@ function ArticleAudioPlayerInner({
     resume,
     articleId,
     audioUrl,
+    hasAudioAvailable,
+    showToast,
   ]);
 
   return (
@@ -150,6 +181,22 @@ function ArticleAudioPlayerInner({
               <Lock size={12} color={palette.onSurfaceVariant} />
             </View>
           )}
+        </View>
+
+        <View
+          style={[
+            styles.waveShell,
+            { backgroundColor: palette.surfaceContainerHigh + "80" },
+          ]}
+        >
+          <AudioWaveVisualizer
+            active={isPlaying || isLoading}
+            color={palette.primary}
+            secondaryColor={palette.secondary}
+            height={40}
+            barWidth={3.5}
+            gap={4}
+          />
         </View>
 
         {/* Progress track */}
@@ -244,8 +291,8 @@ function ArticleAudioPlayerInner({
       <PaywallModal
         visible={paywallVisible}
         onClose={() => setPaywallVisible(false)}
-        featureName="Narrated Stories"
-        requiredTier="basic"
+        featureName={isBrief ? "Daily Brief Audio" : "Narrated Stories"}
+        requiredTier={isBrief ? "basic" : "premium"}
         onUpgrade={() => {
           setPaywallVisible(false);
           router.push("/(app)/donate");
@@ -298,6 +345,11 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     alignItems: "center",
     justifyContent: "center",
+  },
+  waveShell: {
+    borderRadius: 20,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
   },
   progressTrack: {
     height: 3,

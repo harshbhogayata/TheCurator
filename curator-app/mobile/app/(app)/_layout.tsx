@@ -13,10 +13,7 @@ export default function AppLayout() {
 
   if (status === "loading") {
     return (
-      <LoadingScreen
-        title="Restoring your session"
-        message="We're syncing your account before opening the app."
-      />
+      <LoadingScreen message="We're syncing your account before opening the app." />
     );
   }
 

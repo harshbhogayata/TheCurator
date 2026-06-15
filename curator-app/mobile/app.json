@@ -7,6 +7,39 @@
       "eas": {
         "projectId": "584dd577-0bcb-4201-bb11-6f81bc75cc00"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/584dd577-0bcb-4201-bb11-6f81bc75cc00"
+    },
+    "android": {
+      "package": "com.curator.mobile",
+      "versionCode": 1,
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#fbf9f3"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": true,
+      "permissions": [
+        "android.permission.MODIFY_AUDIO_SETTINGS"
+      ],
+      "blockedPermissions": [
+        "android.permission.RECORD_AUDIO"
+      ]
+    },
+    "ios": {
+      "bundleIdentifier": "com.curator.mobile",
+      "buildNumber": "1",
+      "supportsTablet": false,
+      "infoPlist": {
+        "CFBundleDisplayName": "Curator",
+        "UIBackgroundModes": [
+          "audio"
+        ]
+      }
     }
   }
 }

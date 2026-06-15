@@ -4,6 +4,7 @@ from mobileapi.views import (
     ArticleAudioView,
     ArticleDetailView,
     ArticleListView,
+    BriefAudioView,
     BriefListView,
     CategoryListView,
     CollectionArticleView,
@@ -22,6 +23,7 @@ from mobileapi.views import (
     SavedArticleCollectionView,
     SavedArticleDetailView,
     PrivacyExportDownloadView,
+    PublicAudioFileView,
     RevenueCatWebhookView,
 )
 
@@ -33,6 +35,8 @@ urlpatterns = [
     path("articles/<uuid:article_id>", ArticleDetailView.as_view(), name="article-detail"),
     path("articles/<uuid:article_id>/audio", ArticleAudioView.as_view(), name="article-audio"),
     path("briefs", BriefListView.as_view(), name="briefs"),
+    path("briefs/<uuid:brief_id>/audio", BriefAudioView.as_view(), name="brief-audio"),
+    path("media/audio/<path:storage_path>", PublicAudioFileView.as_view(), name="public-audio-file"),
     path("preferences", PreferenceView.as_view(), name="preferences"),
     path("devices", DeviceCollectionView.as_view(), name="devices"),
     path("devices/<uuid:device_id>", DeviceDetailView.as_view(), name="device-detail"),

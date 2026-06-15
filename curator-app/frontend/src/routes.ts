@@ -1,7 +1,7 @@
 import { index, layout, route, type RouteConfig } from "@react-router/dev/routes";
 
 export default [
-  // App-store landing page (static, app-styled, resilient when the API is down).
+  // Root → /welcome (full web app entry; legal pages stay public below).
   index("routes/public/home.tsx"),
 
   // Public, server-rendered website (SEO surface).

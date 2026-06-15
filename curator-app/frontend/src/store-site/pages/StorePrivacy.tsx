@@ -117,7 +117,7 @@ export function StorePrivacy() {
         <Link to="/terms" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Terms of Use</Link>
         <Link to="/support" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Support</Link>
         <Link to="/account-deletion" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Delete account</Link>
-        <Link to="/" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Coming soon</Link>
+        <Link to="/welcome" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Open app</Link>
       </div>
     </StoreSiteLayout>
   );

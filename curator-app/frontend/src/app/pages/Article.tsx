@@ -1,12 +1,12 @@
 import { useState, useEffect, useMemo } from 'react';
-import { ArrowLeft, Bookmark, Share2, Type } from 'lucide-react';
 import { AppShell } from '../components/AppShell';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { ReadingProgressBar } from '../components/ReadingProgressBar';
 import { TypographySettings } from '../components/TypographySettings';
-import { ArticleReactions } from '../components/ArticleReactions';
 import { ArticleAudioPlayer } from '../components/ArticleAudioPlayer';
 import { ArticleCardSkeleton } from '../components/SkeletonLoaders';
+import { AddToCollectionModal } from '../components/AddToCollectionModal';
+import { ArticleCard } from '../components/ArticleCard';
 import { useNavigate, useParams } from 'react-router';
 import { useSavedArticles } from '../context/SavedArticlesContext';
 import { useAuth } from '../context/AuthContext';
@@ -15,7 +15,10 @@ import { useReadingPreferences } from '../context/ReadingPreferencesContext';
 import { useReadingStats } from '../context/ReadingStatsContext';
 import { useArticle, useArticles } from '../../hooks/use-articles';
 import { useLayout } from '../../providers/layout-provider';
-import { DEV_BANNER_HEIGHT } from '../../lib/layout';
+import { organicShapeStyle } from '../../lib/layout';
+import { shape } from '../../ui/tokens/spacing';
+import { ArticleReaderToolbar } from '../../ui/article-reader-toolbar';
+import { FeedStack } from '../../ui/feed-stack';
 
 export function Article({ articleId }: { articleId?: string } = {}) {
   const params = useParams();
@@ -26,18 +29,17 @@ export function Article({ articleId }: { articleId?: string } = {}) {
   const { success } = useToast();
   const { preferences, saveProgress } = useReadingPreferences();
   const { startSession, endSession } = useReadingStats();
-  const { isWebDesktop, devBannerActive, mastheadHeight, readMeasure } = useLayout();
-  const [showShareMenu, setShowShareMenu] = useState(false);
+  const { isWebDesktop, mastheadHeight, readMeasure } = useLayout();
   const [showTypographySettings, setShowTypographySettings] = useState(false);
-  
-  // Auth guard
+  const [showCollectionModal, setShowCollectionModal] = useState(false);
+
   useEffect(() => {
     if (!isAuthenticated) {
       navigate('/welcome', { replace: true });
     }
   }, [isAuthenticated, navigate]);
-  
-  const { data: article, isLoading } = useArticle(id ?? '');
+
+  const { data: article, isLoading, isError, refetch } = useArticle(id ?? '');
   const { data: allArticles = [] } = useArticles();
 
   const relatedArticles = useMemo(() => {
@@ -57,20 +59,14 @@ export function Article({ articleId }: { articleId?: string } = {}) {
     : article
       ? { alt: article.title, query: article.imageQuery }
       : { alt: 'Article', query: '' };
-  
-  // Start reading session when article loads
+
   useEffect(() => {
     if (article?.id) {
       startSession(article.id);
-      
-      // End session on unmount
-      return () => {
-        endSession(article.id);
-      };
+      return () => endSession(article.id);
     }
   }, [article?.id, startSession, endSession]);
-  
-  // Track scroll progress (throttled to 200ms)
+
   useEffect(() => {
     if (!article?.id) return;
 
@@ -87,7 +83,6 @@ export function Article({ articleId }: { articleId?: string } = {}) {
       const scrollTop = window.scrollY;
       const progress = (scrollTop / (documentHeight - windowHeight)) * 100;
 
-      // Save progress every 5% change
       if (Math.floor(progress) % 5 === 0) {
         saveProgress(article.id, scrollTop, progress);
       }
@@ -96,40 +91,49 @@ export function Article({ articleId }: { articleId?: string } = {}) {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, [article?.id, saveProgress]);
-  
+
   const handleSaveToggle = () => {
     if (!article) return;
-
     if (isArticleSaved(article.id)) {
       unsaveArticle(article.id);
       success('Article removed from saved');
     } else {
       const saved = saveArticle(article);
-      if (saved) {
-        success('Article saved!');
-      }
+      if (saved) success('Article saved!');
     }
   };
-  
-  const handleShare = () => {
-    setShowShareMenu(!showShareMenu);
-  };
-  
-  const copyLink = () => {
-    const url = window.location.href;
-    navigator.clipboard.writeText(url);
-    success('Link copied to clipboard!');
-    setShowShareMenu(false);
-  };
-  
-  const shareViaEmail = () => {
+
+  const handleShare = async () => {
     if (!article) return;
-    const subject = encodeURIComponent(article.title);
-    const body = encodeURIComponent(`Check out this article on The Curator: ${window.location.href}`);
-    window.location.href = `mailto:?subject=${subject}&body=${body}`;
-    setShowShareMenu(false);
+    const url = window.location.href;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: article.title, text: article.excerpt, url });
+        return;
+      } catch {
+        // user cancelled
+      }
+    }
+    await navigator.clipboard.writeText(url);
+    success('Link copied to clipboard!');
   };
-  
+
+  const toolbarTop = isWebDesktop ? mastheadHeight + 12 : 16;
+
+  const articleMeasure =
+    preferences.readingWidth === 'narrow'
+      ? 650
+      : preferences.readingWidth === 'wide'
+        ? 900
+        : readMeasure;
+
+  const bodyFontClass =
+    preferences.fontSize === 'small'
+      ? 'text-base md:text-lg'
+      : preferences.fontSize === 'large'
+        ? 'text-xl md:text-2xl'
+        : 'text-lg md:text-xl';
+
   if (isLoading) {
     return (
       <AppShell title="Article" archetype="read" showHeader={false}>
@@ -140,366 +144,158 @@ export function Article({ articleId }: { articleId?: string } = {}) {
     );
   }
 
-  if (!article) {
+  if (isError) {
     return (
       <AppShell title="Article" archetype="read" showHeader={false}>
         <div className="py-24 text-center">
-          <h1 className="font-[family-name:var(--font-headline)] text-3xl text-on-surface mb-4">
-            Article not found
+          <h1 className="mb-4 font-[family-name:var(--font-headline)] text-3xl text-on-surface">
+            We couldn&apos;t load this article
           </h1>
           <button
             type="button"
-            onClick={() => navigate('/explore')}
-            className="rounded-full bg-inverse-surface px-8 py-3 text-white hover:bg-primary"
+            onClick={() => void refetch()}
+            className="rounded-full bg-inverse-surface px-8 py-3 text-inverse-on-surface hover:bg-primary"
           >
-            Back to Explore
+            Try again
           </button>
         </div>
       </AppShell>
     );
   }
-  
-  const content = article.content || `This is a synthesized narrative from ${article.sources.length} trusted sources, providing a comprehensive view on ${article.category.toLowerCase()} developments.
 
-${article.excerpt}
-
-Our editorial team has analyzed perspectives from leading publications and research institutions to bring you this distilled insight. The convergence of these viewpoints reveals patterns and implications that individual articles might miss.
-
-This approach to journalism—aggregating and synthesizing multiple authoritative sources—represents a new paradigm in news consumption. Rather than presenting a single perspective, we offer a curated synthesis that respects the complexity of important issues while making them accessible.
-
-The implications of these developments extend across multiple sectors and geographies. Understanding these connections is essential for making informed decisions in an increasingly interconnected world.
-
-As this story continues to develop, we'll update this narrative with new insights from our network of sources, ensuring you have access to the most current and comprehensive understanding available.`;
-
-  const toolbarTop = isWebDesktop
-    ? mastheadHeight + (devBannerActive ? DEV_BANNER_HEIGHT : 0) + 12
-    : devBannerActive
-      ? DEV_BANNER_HEIGHT + 16
-      : 16;
-  const articleMeasure =
-    preferences.readingWidth === 'narrow'
-      ? 650
-      : preferences.readingWidth === 'wide'
-        ? 900
-        : readMeasure;
-  
-  return (
-    <AppShell title={article.title} archetype="read" showHeader={false}>
-      <div className="relative pb-12">
-      {/* Article toolbar */}
-      <div
-        className="sticky z-40 -mx-4 mb-8 flex items-center justify-between gap-3 bg-background/90 px-4 py-3 backdrop-blur-xl lg:mx-0 lg:rounded-full lg:border lg:border-outline-variant/15 lg:bg-surface-container-lowest/80 lg:px-3"
-        style={{ top: toolbarTop }}
-      >
-          {/* Left: Back Button (Circle Pill) */}
-          <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-            <button 
-              onClick={() => navigate(-1)}
-              className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-            >
-              <ArrowLeft className="w-5 h-5 text-on-surface" />
-            </button>
-          </div>
-          
-          {/* Right: Typography, Save & Share (Separate Pills) */}
-          <div className="flex items-center gap-3">
-            <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-              <button 
-                onClick={() => setShowTypographySettings(true)}
-                className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-              >
-                <Type className="w-5 h-5 text-on-surface" />
-              </button>
-            </div>
-            
-            <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-              <button 
-                onClick={handleSaveToggle}
-                className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors"
-              >
-                {isArticleSaved(article.id) ? (
-                  <Bookmark className="w-5 h-5 text-primary" fill="currentColor" />
-                ) : (
-                  <Bookmark className="w-5 h-5 text-on-surface" />
-                )}
-              </button>
-            </div>
-            
-            <div className="rounded-full border-2 border-outline-variant/30 bg-surface-container-lowest/80 backdrop-blur-2xl shadow-[0_4px_16px_rgba(0,0,0,0.12)] p-0.5">
-              <button 
-                onClick={handleShare}
-                className="w-10 h-10 rounded-full hover:bg-surface-container/40 flex items-center justify-center transition-colors relative"
-              >
-                <Share2 className="w-5 h-5 text-on-surface" />
-              </button>
-            </div>
-          </div>
-        </div>
-      
-      {/* Reading Progress Bar */}
-      <ReadingProgressBar />
-      
-      <div className="px-0">
-        {/* Category Badge - Floating */}
-        <div className="mb-6">
-          <span 
-            className="inline-block px-6 py-2 bg-primary-container/40 backdrop-blur-xl border border-outline-variant/15 text-on-primary-container text-[10px] uppercase tracking-[0.25em] font-bold shadow-lg"
-            style={{ borderRadius: '25px 15px 30px 20px' }}
+  if (!article) {
+    return (
+      <AppShell title="Article" archetype="read" showHeader={false}>
+        <div className="py-24 text-center">
+          <h1 className="mb-4 font-[family-name:var(--font-headline)] text-3xl text-on-surface">
+            Article not found
+          </h1>
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-full bg-inverse-surface px-8 py-3 text-inverse-on-surface hover:bg-primary"
           >
+            Go back
+          </button>
+        </div>
+      </AppShell>
+    );
+  }
+
+  const paragraphs = (article.content?.trim() ?? '')
+    .split('\n\n')
+    .filter((p) => p.trim().length > 0);
+
+  return (
+    <AppShell title={article.title} archetype="read" showHeader={false} showMasthead={isWebDesktop}>
+      <ReadingProgressBar />
+
+      <div className="relative pb-16 lg:pb-24">
+        <ArticleReaderToolbar
+          topOffset={toolbarTop}
+          isSaved={isArticleSaved(article.id)}
+          onBack={() => navigate(-1)}
+          onTypography={() => setShowTypographySettings(true)}
+          onSave={handleSaveToggle}
+          onCollection={() => setShowCollectionModal(true)}
+          onShare={() => void handleShare()}
+        />
+
+        <div className="mx-auto" style={{ maxWidth: isWebDesktop ? articleMeasure : undefined }}>
+          <span className="mb-5 inline-block rounded-full bg-secondary-container px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.22em] text-on-secondary-container">
             {article.category}
           </span>
-        </div>
-        
-        {/* Title - Large and Editorial */}
-        <h1 className="mb-8 max-w-[920px] font-[family-name:var(--font-headline)] text-5xl leading-[1.05] tracking-tight text-on-surface md:text-7xl">
-          {article.title}
-        </h1>
-        
-        {/* Meta Information */}
-        <div className="flex flex-wrap items-center gap-3 text-outline mb-10 pb-10 border-b border-outline-variant/20">
-          <span className="text-sm">{article.author || 'The Curator Editorial Team'}</span>
-          <span className="text-sm">•</span>
-          <span className="text-sm">{article.publishedDate || 'March 23, 2026'}</span>
-          <span className="text-sm">•</span>
-          <span className="text-sm">{article.readTime}</span>
+
+          <h1 className="mb-6 font-[family-name:var(--font-headline)] text-4xl leading-[1.08] tracking-tight text-on-surface md:text-5xl lg:text-6xl">
+            {article.title}
+          </h1>
+
+          <div className="mb-8 flex flex-wrap items-center gap-3 border-b border-outline-variant/20 pb-8 text-sm text-outline">
+            <span>{article.author || 'The Curator Editorial Team'}</span>
+            <span>·</span>
+            <span>{article.publishedDate}</span>
+            <span>·</span>
+            <span>{article.readTime}</span>
+          </div>
         </div>
 
-        <ArticleAudioPlayer
-          articleId={article.id}
-          audioUrl={article.audioUrl}
-          durationSec={article.audioDurationSec}
-          title={article.title}
-        />
-        
-        {/* Hero Image - Full Width Organic Shape */}
         <div
-          className="relative mb-12 overflow-hidden border border-outline-variant/15 shadow-2xl"
+          className="relative mb-10 overflow-hidden border border-outline-variant/15 shadow-2xl lg:mb-12"
           style={{
-            borderRadius: isWebDesktop ? '48px' : '0px',
-            height: isWebDesktop ? 'clamp(320px, 45vw, 560px)' : '60vh',
+            ...organicShapeStyle(shape.imageHero),
+            height: isWebDesktop ? 'clamp(320px, 40vw, 520px)' : '300px',
+            maxWidth: isWebDesktop ? articleMeasure : undefined,
+            margin: isWebDesktop ? '0 auto 2.5rem' : '0 0 2.5rem',
           }}
         >
-          <ImageWithFallback 
-            className="w-full h-full object-cover" 
-            {...heroImageProps}
-          />
-          <div className="absolute inset-0 bg-gradient-to-t from-inverse-surface/40 via-transparent to-transparent" />
+          <ImageWithFallback className="h-full w-full object-cover" {...heroImageProps} />
+          <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent" />
         </div>
-        
-        {/* Sources - Inline Editorial Style */}
-        <div className="mx-auto mb-12" style={{ maxWidth: articleMeasure }}>
-          <p className="text-outline italic mb-4">
-            This narrative synthesizes reporting from <span className="text-on-surface font-medium">{article.sources.length} trusted sources</span>, including:
-          </p>
+
+        <div className="mx-auto mb-8" style={{ maxWidth: articleMeasure }}>
+          <p className="mb-3 text-[10px] font-semibold uppercase tracking-[0.24em] text-outline">Sources</p>
           <div className="flex flex-wrap gap-2">
-            {article.sources.map((source, i) => (
-              <span 
-                key={i}
-                className="text-on-surface text-sm"
+            {article.sources.map((source, index) => (
+              <span
+                key={`${source}-${index}`}
+                className="rounded-full border border-outline-variant/20 bg-surface-container-low px-3 py-1.5 text-sm text-on-surface-variant"
               >
-                {source}{i < article.sources.length - 1 ? ',' : ''}
+                {source}
               </span>
             ))}
           </div>
         </div>
-        
-        {/* Article Content - Magazine Style */}
-        <article 
-          className="mb-16"
-          style={{
-            maxWidth: articleMeasure,
-            margin: '0 auto'
-          }}
-        >
-          <div className="prose prose-lg max-w-none">
-            {content.split('\n\n').map((paragraph, i) => (
-              <p 
-                key={i} 
-                className={`text-on-surface leading-[1.9] mb-8 ${
-                  preferences.fontSize === 'small' ? 'text-base md:text-lg' :
-                  preferences.fontSize === 'large' ? 'text-xl md:text-2xl' :
-                  'text-lg md:text-xl'
-                } ${
-                  i === 0 
-                    ? 'first-letter:text-7xl first-letter:font-[family-name:var(--font-headline)] first-letter:float-left first-letter:mr-4 first-letter:leading-[0.8] first-letter:text-primary' 
+
+        <div className="mx-auto mb-10" style={{ maxWidth: articleMeasure }}>
+          <ArticleAudioPlayer
+            articleId={article.id}
+            audioUrl={article.audioUrl}
+            durationSec={article.audioDurationSec}
+            title={article.title}
+          />
+        </div>
+
+        <article className="mx-auto mb-16" style={{ maxWidth: articleMeasure }}>
+          {paragraphs.length > 0 ? (
+            paragraphs.map((paragraph, index) => (
+              <p
+                key={index}
+                className={`mb-8 font-[family-name:var(--font-headline)] leading-[1.85] text-on-surface ${bodyFontClass} ${
+                  index === 0
+                    ? 'first-letter:float-left first-letter:mr-3 first-letter:font-[family-name:var(--font-headline)] first-letter:text-5xl first-letter:leading-[0.85] first-letter:text-primary md:first-letter:text-6xl'
                     : ''
                 }`}
               >
                 {paragraph}
               </p>
-            ))}
-          </div>
+            ))
+          ) : (
+            <p className="text-on-surface-variant">The full narrative is not available right now.</p>
+          )}
         </article>
-        
-        {/* Article Reactions */}
-        <div className="flex justify-center mb-16">
-          <ArticleReactions articleId={article.id} />
-        </div>
-        
-        {/* Divider */}
-        <div className="flex items-center justify-center mb-16">
-          <div 
-            className="h-1 bg-gradient-to-r from-transparent via-outline-variant/30 to-transparent"
-            style={{ width: '60%' }}
-          />
-        </div>
-        
-        {/* Related Narratives - Enhanced Cards */}
-        <section className="mb-12">
-          <h2 className="font-[family-name:var(--font-headline)] text-4xl md:text-5xl italic text-on-surface mb-3">
-            Related Narratives
-          </h2>
-          <p className="text-outline mb-10">
-            Continue exploring stories in {article.category}
-          </p>
-          
-          <div className="space-y-8">
-            {relatedArticles.map((relatedArticle, index) => (
-                <div 
-                  key={relatedArticle.id}
-                  onClick={() => {
-                    window.scrollTo(0, 0);
-                    navigate(`/article/${relatedArticle.id}`);
-                  }}
-                  className="group cursor-pointer"
-                >
-                  {/* Alternating Layout */}
-                  {index % 2 === 0 ? (
-                    // Image Left, Content Right
-                    <div className="flex flex-col md:flex-row gap-6 items-start hover:opacity-90 transition-opacity">
-                      <div 
-                        className="relative overflow-hidden border border-outline-variant/15 shadow-lg w-full md:w-1/2 shrink-0"
-                        style={{ 
-                          borderRadius: `${60 + index * 5}px ${30 + index * 3}px ${70 + index * 5}px ${40 + index * 3}px`,
-                          height: '280px'
-                        }}
-                      >
-                        <ImageWithFallback 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                          {...(relatedArticle.imageUrl
-                            ? { src: relatedArticle.imageUrl, alt: relatedArticle.title }
-                            : { alt: relatedArticle.title, query: relatedArticle.imageQuery })}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-br from-inverse-surface/60 via-transparent to-transparent" />
-                        
-                        {/* Floating Badge */}
-                        <div 
-                          className="absolute top-5 left-5 px-4 py-1.5 bg-white/95 backdrop-blur-sm text-inverse-surface text-[9px] uppercase tracking-[0.2em] font-bold shadow-lg"
-                          style={{ borderRadius: '20px 12px 25px 15px' }}
-                        >
-                          {relatedArticle.category}
-                        </div>
-                      </div>
-                      
-                      <div className="flex-1 pt-2">
-                        <h3 className="font-[family-name:var(--font-headline)] text-3xl md:text-4xl text-on-surface leading-tight mb-4 group-hover:text-primary transition-colors">
-                          {relatedArticle.title}
-                        </h3>
-                        <p className="text-outline leading-relaxed mb-4 line-clamp-3">
-                          {relatedArticle.excerpt}
-                        </p>
-                        <div className="flex items-center gap-3 text-outline text-sm">
-                          <span>{relatedArticle.readTime}</span>
-                          <span>•</span>
-                          <span>{relatedArticle.sources.length} sources</span>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    // Content Left, Image Right
-                    <div className="flex flex-col md:flex-row-reverse gap-6 items-start hover:opacity-90 transition-opacity">
-                      <div 
-                        className="relative overflow-hidden border border-outline-variant/15 shadow-lg w-full md:w-1/2 shrink-0"
-                        style={{ 
-                          borderRadius: `${70 + index * 5}px ${40 + index * 3}px ${60 + index * 5}px ${30 + index * 3}px`,
-                          height: '280px'
-                        }}
-                      >
-                        <ImageWithFallback 
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" 
-                          {...(relatedArticle.imageUrl
-                            ? { src: relatedArticle.imageUrl, alt: relatedArticle.title }
-                            : { alt: relatedArticle.title, query: relatedArticle.imageQuery })}
-                        />
-                        <div className="absolute inset-0 bg-gradient-to-bl from-inverse-surface/60 via-transparent to-transparent" />
-                        
-                        {/* Floating Badge */}
-                        <div 
-                          className="absolute top-5 right-5 px-4 py-1.5 bg-white/95 backdrop-blur-sm text-inverse-surface text-[9px] uppercase tracking-[0.2em] font-bold shadow-lg"
-                          style={{ borderRadius: '20px 12px 25px 15px' }}
-                        >
-                          {relatedArticle.category}
-                        </div>
-                      </div>
-                      
-                      <div className="flex-1 pt-2">
-                        <h3 className="font-[family-name:var(--font-headline)] text-3xl md:text-4xl text-on-surface leading-tight mb-4 group-hover:text-primary transition-colors">
-                          {relatedArticle.title}
-                        </h3>
-                        <p className="text-outline leading-relaxed mb-4 line-clamp-3">
-                          {relatedArticle.excerpt}
-                        </p>
-                        <div className="flex items-center gap-3 text-outline text-sm">
-                          <span>{relatedArticle.readTime}</span>
-                          <span>•</span>
-                          <span>{relatedArticle.sources.length} sources</span>
-                        </div>
-                      </div>
-                    </div>
-                  )}
-                </div>
+
+        {relatedArticles.length > 0 && (
+          <section className="mx-auto border-t border-outline-variant/15 pt-12" style={{ maxWidth: isWebDesktop ? 960 : articleMeasure }}>
+            <h2 className="mb-8 font-[family-name:var(--font-headline)] text-2xl italic text-on-surface lg:text-3xl">
+              Similar Narratives
+            </h2>
+            <FeedStack variant="compact">
+              {relatedArticles.map((relatedArticle) => (
+                <ArticleCard key={relatedArticle.id} article={relatedArticle} variant="compact" />
               ))}
-          </div>
-        </section>
+            </FeedStack>
+          </section>
+        )}
       </div>
-      
-      {/* Share Menu Modal */}
-      {showShareMenu && (
-        <div 
-          className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-[100] p-6"
-          onClick={() => setShowShareMenu(false)}
-        >
-          <div 
-            className="bg-surface-container-lowest p-8 max-w-sm w-full shadow-2xl"
-            style={{ borderRadius: '60px 35px 70px 45px' }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 className="font-[family-name:var(--font-headline)] text-2xl text-on-surface mb-6 text-center">
-              Share Article
-            </h3>
-            
-            <div className="space-y-3">
-              <button
-                onClick={copyLink}
-                className="w-full bg-primary hover:bg-primary/90 text-white py-3 px-6 rounded-full transition-all text-center"
-              >
-                Copy Link
-              </button>
-              
-              <button
-                onClick={shareViaEmail}
-                className="w-full bg-surface-container hover:bg-surface-container-high text-on-surface py-3 px-6 rounded-full transition-all text-center"
-              >
-                Share via Email
-              </button>
-              
-              <button
-                onClick={() => setShowShareMenu(false)}
-                className="w-full bg-transparent border-2 border-outline-variant hover:bg-surface-container text-on-surface py-3 px-6 rounded-full transition-all text-center"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        </div>
+
+      {showCollectionModal && (
+        <AddToCollectionModal article={article} onClose={() => setShowCollectionModal(false)} />
       )}
-      
-      {/* Typography Settings Modal */}
-      <TypographySettings 
+
+      <TypographySettings
         isOpen={showTypographySettings}
         onClose={() => setShowTypographySettings(false)}
       />
-      </div>
     </AppShell>
   );
 }

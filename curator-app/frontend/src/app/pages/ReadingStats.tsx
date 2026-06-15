@@ -38,7 +38,7 @@ export function ReadingStats() {
   const maxVal = Math.max(...barData.map((d) => d.value), 1);
 
   return (
-    <AppShell title="Reading Stats">
+    <AppShell title="Reading Stats" archetype="form">
       <div className="mx-auto max-w-3xl space-y-8">
         <div
           className="relative overflow-hidden bg-gradient-to-br from-primary via-secondary to-tertiary p-8 text-white shadow-xl"

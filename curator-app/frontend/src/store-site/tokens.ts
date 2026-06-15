@@ -59,12 +59,27 @@ export const SHAPE_MINI = {
 export const LAUNCH_DATE = new Date('2026-09-01T10:00:00');
 export const LAUNCH_LABEL = 'September 2026';
 
+export const SITE_URL = 'https://thecuratorgroup.org';
+
 export const STORE_CONTACT = {
-  support: 'support@thecurator.com',
-  privacy: 'privacy@thecurator.com',
+  support: 'support@thecuratorgroup.org',
+  privacy: 'privacy@thecuratorgroup.org',
 } as const;
+
+/** Shared store-listing copy — keep marketing + legal pages in sync. */
+export const STORE_PLATFORMS = {
+  label: 'App Store, Google Play & Galaxy Store',
+  amp: 'App Store, Google Play & Galaxy Store',
+  short: 'App Store · Google Play · Galaxy Store',
+  marquee: 'APP STORE · GOOGLE PLAY · GALAXY STORE',
+  meta: 'Launching on the App Store, Google Play, and Samsung Galaxy Store',
+  notify: 'when The Curator hits the App Store, Google Play, and Galaxy Store',
+  review: 'App Store, Google Play & Samsung Galaxy Store',
+} as const;
+
+export type StorePlatform = 'apple' | 'google' | 'samsung';
 
 export const PILL_BORDER = `${LP.outlineVariant}4D`;
 export const PILL_SURFACE = 'rgba(255,255,255,0.7)';
 
-export type StoreNavKey = 'home' | 'privacy' | 'terms' | 'support';
+export type StoreNavKey = 'home' | 'privacy' | 'terms' | 'support' | 'deletion';

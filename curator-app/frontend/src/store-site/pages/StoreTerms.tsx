@@ -95,7 +95,7 @@ export function StoreTerms() {
       >
         <Link to="/privacy" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Privacy Policy</Link>
         <Link to="/support" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Support</Link>
-        <Link to="/" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Coming soon</Link>
+        <Link to="/welcome" className="rounded-full px-4 py-2 transition-colors hover:bg-white/60" style={{ color: LP.onSurface }}>Open app</Link>
       </div>
     </StoreSiteLayout>
   );

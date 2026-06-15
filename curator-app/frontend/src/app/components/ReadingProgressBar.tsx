@@ -1,10 +1,8 @@
 import { useEffect, useState } from 'react';
-import { DEV_BANNER_HEIGHT } from '../../lib/layout';
 import { useLayout } from '../../providers/layout-provider';
 
 export function ReadingProgressBar() {
   const [progress, setProgress] = useState(0);
-  const { devBannerActive } = useLayout();
   
   useEffect(() => {
     const calculateProgress = () => {
@@ -25,10 +23,7 @@ export function ReadingProgressBar() {
   }, []);
   
   return (
-    <div
-      className="fixed left-0 right-0 z-[60] h-1 bg-surface-container-high/30"
-      style={{ top: devBannerActive ? DEV_BANNER_HEIGHT : 0 }}
-    >
+    <div className="fixed left-0 right-0 top-0 z-[60] h-0.5 bg-surface-container-high/40">
       <div 
         className="h-full bg-gradient-to-r from-primary via-secondary to-tertiary transition-all duration-150 ease-out"
         style={{ width: `${progress}%` }}

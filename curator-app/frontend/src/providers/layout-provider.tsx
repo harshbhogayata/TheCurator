@@ -9,7 +9,6 @@ import {
 
 import {
   computeLayoutMetrics,
-  DEV_BANNER_HEIGHT,
   MASTHEAD_HEIGHT,
   MOBILE_HEADER_CONTENT_OFFSET,
   type LayoutMetrics,
@@ -18,9 +17,7 @@ import { isDevModeActive } from "../lib/dev-mode";
 import { TAB_BAR_HEIGHT } from "../ui/tokens/spacing";
 
 interface LayoutContextValue extends LayoutMetrics {
-  /** Top padding before page content (accounts for header + dev banner) */
   contentTopOffset: number;
-  /** Bottom padding (tab bar on mobile) */
   contentBottomOffset: number;
   devBannerActive: boolean;
 }
@@ -35,26 +32,24 @@ function readViewport() {
 }
 
 export function LayoutProvider({ children }: { children: ReactNode }) {
-  const [viewport, setViewport] = useState(readViewport);
+  const [viewport, setViewport] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
-    const onResize = () => setViewport(readViewport());
-    window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    const sync = () => setViewport(readViewport());
+    sync();
+    window.addEventListener("resize", sync);
+    return () => window.removeEventListener("resize", sync);
   }, []);
 
   const value = useMemo((): LayoutContextValue => {
     const metrics = computeLayoutMetrics(viewport.width, viewport.height);
     const devBannerActive = isDevModeActive();
-    const bannerOffset = devBannerActive ? DEV_BANNER_HEIGHT : 0;
 
     const contentTopOffset = metrics.isWebDesktop
-      ? MASTHEAD_HEIGHT + 32 + bannerOffset
-      : MOBILE_HEADER_CONTENT_OFFSET + bannerOffset;
+      ? MASTHEAD_HEIGHT + 32
+      : MOBILE_HEADER_CONTENT_OFFSET;
 
-    const contentBottomOffset = metrics.isWebDesktop
-      ? 64
-      : TAB_BAR_HEIGHT + 32;
+    const contentBottomOffset = metrics.isWebDesktop ? 64 : TAB_BAR_HEIGHT + 32;
 
     return {
       ...metrics,
@@ -67,7 +62,6 @@ export function LayoutProvider({ children }: { children: ReactNode }) {
   return <LayoutContext.Provider value={value}>{children}</LayoutContext.Provider>;
 }
 
-/** Same role as mobile useLayout() — all screens must use this for spacing */
 export function useLayout(): LayoutContextValue {
   const ctx = useContext(LayoutContext);
   if (!ctx) {

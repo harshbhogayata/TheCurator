@@ -28,6 +28,10 @@ const EDITORIAL_QUOTE_ATTRIBUTION = "— The Curator Editorial Board";
 import { AdBanner } from "../../../src/ui/ad-banner";
 import { ErrorState } from "../../../src/ui/error-state";
 import { BriefCardSkeleton } from "../../../src/ui/skeleton-loader";
+import { useToast } from "../../../src/providers/toast-provider";
+import type { BriefItem } from "../../../src/data/briefs";
+import { fetchBriefAudio } from "../../../src/services/mobile-api";
+import { ApiError } from "../../../src/services/api-client";
 import { PaywallModal } from "../../../src/ui/paywall-modal";
 
 export default function BriefsScreen() {
@@ -36,6 +40,7 @@ export default function BriefsScreen() {
   const { hasAdFree, hasBriefAudioAccess } = useSubscription();
   const { playBrief, state, currentBriefId, pause, resume } = useAudio();
   const { data: briefs = [], isFetching, isLoading, refetch, isError } = useBriefs();
+  const { showToast } = useToast();
   const headerOffset = useHeaderOffset();
 
   const displayBriefs = briefs;
@@ -52,20 +57,37 @@ export default function BriefsScreen() {
   const moreBriefs = displayBriefs.slice(1);
 
   const handlePlayBrief = useCallback(
-    (id: string, audioUrl: string) => {
+    async (brief: BriefItem) => {
       if (!hasBriefAudioAccess) {
         setPaywallVisible(true);
         return;
       }
 
-      if (currentBriefId === id) {
+      if (currentBriefId === brief.id) {
         if (state === "playing") pause();
         else resume();
-      } else {
-        playBrief(id, audioUrl);
+        return;
+      }
+
+      try {
+        const payload = await fetchBriefAudio(brief.id);
+        if (!payload.audioUrl && !payload.narrationText) {
+          showToast("info", "Narration is being prepared. Try again shortly.");
+          return;
+        }
+
+        await playBrief(brief.id, payload.audioUrl, {
+          narrationText: payload.narrationText,
+        });
+      } catch (error) {
+        if (error instanceof ApiError && error.status === 404) {
+          showToast("info", "Narration is being prepared. Try again shortly.");
+          return;
+        }
+        showToast("error", "Couldn't load narration. Try again.");
       }
     },
-    [hasBriefAudioAccess, currentBriefId, state, playBrief, pause, resume]
+    [hasBriefAudioAccess, currentBriefId, state, playBrief, pause, resume, showToast],
   );
 
   return (
@@ -244,9 +266,7 @@ export default function BriefsScreen() {
             {/* Play Button Row */}
             <View style={styles.featuredPlayRow}>
               <Pressable
-                onPress={() =>
-                  handlePlayBrief(featuredBrief.id, featuredBrief.audioUrl)
-                }
+                onPress={() => handlePlayBrief(featuredBrief)}
                 style={[
                   styles.featuredPlayButton,
                   { backgroundColor: palette.inverseSurface },
@@ -285,7 +305,7 @@ export default function BriefsScreen() {
               return (
                 <PressableScale
                   key={brief.id}
-                  onPress={() => handlePlayBrief(brief.id, brief.audioUrl)}
+                  onPress={() => handlePlayBrief(brief)}
                   style={[
                     styles.briefItemCard,
                     {

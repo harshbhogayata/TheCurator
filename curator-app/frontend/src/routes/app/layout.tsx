@@ -12,7 +12,16 @@ export default function AppLayout() {
   useEffect(() => setMounted(true), []);
 
   if (!mounted) {
-    return <div className="min-h-screen bg-background" aria-busy="true" />;
+    return (
+      <div className="curator-shell min-h-screen bg-surface-container-low mesh-gradient" aria-busy="true">
+        <div
+          className="mx-auto flex min-h-screen max-w-[680px] items-center justify-center px-6"
+          data-layout="main-column"
+        >
+          <p className="font-[family-name:var(--font-headline)] text-lg italic text-on-surface-variant">Loading…</p>
+        </div>
+      </div>
+    );
   }
 
   return (

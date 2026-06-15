@@ -23,6 +23,18 @@ const LOG_LEVEL = Platform.OS !== "web" && Constants.appOwnership !== "expo"
   : { DEBUG: 0, INFO: 1, WARN: 2, ERROR: 3 };
 
 import { fetchEntitlement } from "../services/mobile-api";
+import {
+  createCheckout,
+  createRazorpayOrder,
+  verifyRazorpayCheckout,
+  verifyRazorpayPayment,
+} from "../services/billing-api";
+import {
+  openRazorpayCheckout,
+  openStandardRazorpayOrderCheckout,
+  openWebDonateCheckout,
+} from "../services/razorpay-checkout";
+import { getBillingProvider, usesRazorpayBilling, type BillingProvider } from "../lib/billing-provider";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
 import { useAuth } from "./auth-provider";
 
@@ -31,6 +43,7 @@ export type SubscriptionTier = "free" | "basic" | "premium" | "lifetime";
 interface SubscriptionContextValue {
   tier: SubscriptionTier;
   setTier: (tier: SubscriptionTier) => void;
+  billingProvider: BillingProvider;
   hasAdFree: boolean;
   hasAudioAccess: boolean;
   hasBriefAudioAccess: boolean;
@@ -42,6 +55,7 @@ interface SubscriptionContextValue {
   maxCollections: number;
   packages: PurchasesPackage[];
   purchasePackage: (pkg: PurchasesPackage) => Promise<boolean>;
+  purchaseTier: (tier: Exclude<SubscriptionTier, "free">) => Promise<boolean>;
   isPurchasing: boolean;
 }
 
@@ -122,6 +136,39 @@ const TIER_FEATURES: Record<
   },
 };
 
+const TIER_RANK: Record<SubscriptionTier, number> = {
+  free: 0,
+  basic: 1,
+  premium: 2,
+  lifetime: 3,
+};
+
+function higherTier(a: SubscriptionTier, b: SubscriptionTier): SubscriptionTier {
+  return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
+}
+
+async function resolveSubscriptionTier(): Promise<SubscriptionTier> {
+  let resolved: SubscriptionTier = MOCK_PREMIUM ? "premium" : "free";
+
+  try {
+    const payload = await fetchEntitlement();
+    resolved = payload.effectiveTier ?? payload.tier;
+  } catch {
+    // Fall back to RevenueCat or mock defaults below.
+  }
+
+  if (!MOCK_BACKEND && Purchases && Platform.OS !== "web" && Constants.appOwnership !== "expo") {
+    try {
+      const customerInfo = await Purchases.getCustomerInfo();
+      resolved = higherTier(resolved, tierFromCustomerInfo(customerInfo));
+    } catch {
+      // RevenueCat unavailable; keep backend/mock tier.
+    }
+  }
+
+  return resolved;
+}
+
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
 
 function hasRevenueCatEntitlement(customerInfo: any, tier: Exclude<SubscriptionTier, "free">): boolean {
@@ -171,8 +218,10 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const isExpoGo = Constants.appOwnership === "expo";
 
   useEffect(() => {
-    if (isExpoGo || Platform.OS === "web" || !Purchases) {
-      if (__DEV__) {
+    if (usesRazorpayBilling() || isExpoGo || Platform.OS === "web" || !Purchases) {
+      if (__DEV__ && usesRazorpayBilling()) {
+        console.log("Razorpay billing enabled — skipping RevenueCat configuration.");
+      } else if (__DEV__ && (isExpoGo || Platform.OS === "web" || !Purchases)) {
         console.log("Expo Go, web, or missing Purchases native module. Bypassing native RevenueCat configuration.");
       }
       return;
@@ -199,7 +248,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
         // Listen for external customer updates (App Store restorations, renewals, etc.)
         const removeListener = Purchases.addCustomerInfoUpdateListener((customerInfo: any) => {
-          setTierState(tierFromCustomerInfo(customerInfo));
+          setTierState((current) => higherTier(current, tierFromCustomerInfo(customerInfo)));
         });
         listenerRemove = typeof removeListener === "function" ? removeListener : (removeListener as any)?.remove?.bind(removeListener) ?? null;
       } catch (e) {
@@ -213,7 +262,11 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   }, [isExpoGo]);
 
   useEffect(() => {
-    if (!MOCK_BACKEND && Platform.OS !== "web" && !isExpoGo && Purchases) {
+    if (usesRazorpayBilling() || MOCK_BACKEND) {
+      return;
+    }
+
+    if (Platform.OS !== "web" && !isExpoGo && Purchases) {
       if (session?.user?.id) {
         const appUserId = session.user.firebaseUid ?? (firebaseConfigured ? getFirebaseAuth().currentUser?.uid : null) ?? session.user.id;
         void Purchases.logIn(appUserId).catch(console.error);
@@ -231,10 +284,10 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       }
 
       let cancelled = false;
-      void fetchEntitlement()
-        .then((payload) => {
+      void resolveSubscriptionTier()
+        .then((resolved) => {
           if (!cancelled) {
-            setTierState(payload.effectiveTier ?? payload.tier);
+            setTierState(resolved);
           }
         })
         .catch(() => {
@@ -272,7 +325,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       const { customerInfo } = await Purchases.purchasePackage(pkg);
       
       const purchasedTier = tierFromCustomerInfo(customerInfo);
-      setTierState(purchasedTier);
+      setTierState((current) => higherTier(current, purchasedTier));
       return purchasedTier !== "free";
     } catch (e: any) {
       if (!e.userCancelled) {
@@ -284,12 +337,93 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     }
   }, []);
 
+  const purchaseTier = useCallback(async (selectedTier: Exclude<SubscriptionTier, "free">) => {
+    if (MOCK_BACKEND) {
+      setTierState(selectedTier);
+      return true;
+    }
+
+    if (!usesRazorpayBilling()) {
+      const pkg = findPackageForTier(packages, selectedTier);
+      if (!pkg) {
+        return false;
+      }
+      return purchasePackage(pkg);
+    }
+
+    setIsPurchasing(true);
+    try {
+      const checkout = await createCheckout(selectedTier);
+      if (checkout.provider !== "razorpay") {
+        throw new Error("Only Razorpay checkout is supported in the mobile app.");
+      }
+
+      const runNativeCheckout = async () => {
+        if (checkout.mode === "subscription" && checkout.subscriptionId) {
+          const response = await openRazorpayCheckout(checkout);
+          await verifyRazorpayCheckout({
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            razorpay_order_id: response.razorpay_order_id,
+            razorpay_subscription_id: response.razorpay_subscription_id,
+          });
+          return;
+        }
+
+        if (checkout.mode === "order" && checkout.orderId) {
+          const response = await openRazorpayCheckout(checkout);
+          await verifyRazorpayCheckout({
+            razorpay_payment_id: response.razorpay_payment_id,
+            razorpay_signature: response.razorpay_signature,
+            razorpay_order_id: response.razorpay_order_id,
+          });
+          return;
+        }
+
+        const order = await createRazorpayOrder({ tier: selectedTier });
+        const response = await openStandardRazorpayOrderCheckout({
+          keyId: order.key_id,
+          orderId: order.order_id,
+          amount: order.amount,
+          currency: order.currency,
+          description: `${selectedTier} membership`,
+        });
+        const verified = await verifyRazorpayPayment({
+          razorpay_order_id: response.razorpay_order_id,
+          razorpay_payment_id: response.razorpay_payment_id,
+          razorpay_signature: response.razorpay_signature,
+        });
+        if (!verified.success) {
+          throw new Error("Payment verification failed.");
+        }
+      };
+
+      try {
+        await runNativeCheckout();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Payment failed";
+        if (message === "Payment cancelled") {
+          return false;
+        }
+        // Native Razorpay may fail on New Architecture — fall back to web checkout.
+        await openWebDonateCheckout(selectedTier);
+      }
+
+      const resolved = await resolveSubscriptionTier();
+      setTierState(resolved);
+      return resolved !== "free";
+    } finally {
+      setIsPurchasing(false);
+    }
+  }, [isExpoGo, packages, purchasePackage]);
+
   const features = TIER_FEATURES[tier];
 
   const value = useMemo<SubscriptionContextValue>(
     () => ({
       tier,
       setTier,
+      billingProvider: getBillingProvider(),
       hasAdFree: features.adFree,
       hasAudioAccess: features.audio,
       hasBriefAudioAccess: features.briefAudio,
@@ -301,9 +435,10 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       maxCollections: features.maxCollections,
       packages,
       purchasePackage,
+      purchaseTier,
       isPurchasing,
     }),
-    [tier, setTier, features, packages, purchasePackage, isPurchasing],
+    [tier, setTier, features, packages, purchasePackage, purchaseTier, isPurchasing],
   );
 
   return (

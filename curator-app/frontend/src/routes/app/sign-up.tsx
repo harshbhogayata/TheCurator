@@ -1,1 +1,1 @@
-﻿export { Onboarding as default } from "../../app/pages/Onboarding";
+﻿export { SignUp as default } from "../../app/pages/SignUp";

@@ -111,7 +111,7 @@ export function Account() {
   };
   
   return (
-    <AppShell title="Account">
+    <AppShell title="Account" archetype="form">
       <div className="mx-auto max-w-2xl space-y-6">
         {/* Profile Photo */}
         <div className="flex flex-col items-center mb-8">

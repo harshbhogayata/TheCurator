@@ -126,7 +126,7 @@ export function Settings() {
   ];
 
   return (
-    <AppShell title="Settings">
+    <AppShell title="Settings" archetype="form">
       <div className="space-y-8">
         <div className="flex items-center gap-4 rounded-[40px] border border-outline-variant/15 bg-surface-container-lowest/70 p-6">
           <img

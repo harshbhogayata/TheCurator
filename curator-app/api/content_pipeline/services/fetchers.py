@@ -18,7 +18,7 @@ from content_pipeline.models import RawItem, Source, SourceKind
 logger = logging.getLogger(__name__)
 
 FETCH_TIMEOUT = 30
-USER_AGENT = "CuratorBot/1.0 (+https://thecurator.app)"
+USER_AGENT = "CuratorBot/1.0 (+https://thecuratorgroup.org)"
 
 
 def normalize_url(url):

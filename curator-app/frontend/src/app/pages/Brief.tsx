@@ -12,14 +12,26 @@ import { useAudio } from '../context/AudioContext';
 import { useBriefs } from '../../hooks/use-briefs';
 import { organicShapeStyle } from '../../lib/layout';
 import { shape } from '../../ui/tokens/spacing';
+import { useLayout } from '../../providers/layout-provider';
 
 const EDITORIAL_QUOTE = 'Truth is not a destination, but a distillation of perspectives.';
 const EDITORIAL_ATTRIBUTION = '— The Curator Editorial Board';
 
 export function Brief() {
   const navigate = useNavigate();
-  const { isAuthenticated } = useRequireAuth();
+  const { isReady } = useRequireAuth();
+
+  if (!isReady) {
+    return (
+      <AppShell title="Briefs" archetype="feed">
+        <div className="flex min-h-[40vh] items-center justify-center">
+          <p className="text-sm text-on-surface-variant">Loading your brief…</p>
+        </div>
+      </AppShell>
+    );
+  }
   const { hasAdFree, hasAudioAccess } = useSubscription();
+  const { isWebDesktop } = useLayout();
   const { playBrief, pauseBrief, resumeBrief, audioState } = useAudio();
   const { data: briefs = [], isLoading, isError, refetch } = useBriefs();
   const [paywallOpen, setPaywallOpen] = useState(false);
@@ -29,10 +41,6 @@ export function Brief() {
     setRefreshing(true);
     void refetch().finally(() => setRefreshing(false));
   }, [refetch]);
-
-  if (!isAuthenticated) {
-    return null;
-  }
 
   const featuredBrief = briefs[0];
   const moreBriefs = briefs.slice(1);
@@ -103,9 +111,12 @@ export function Brief() {
         ) : (
           <>
             <section
-              className="border border-outline-variant/15 bg-surface-container-lowest/70 p-6 backdrop-blur-xl sm:p-8"
+              className={`border border-outline-variant/15 bg-surface-container-lowest/70 p-6 backdrop-blur-xl sm:p-8 ${
+                isWebDesktop ? 'lg:grid lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center lg:gap-10' : ''
+              }`}
               style={organicShapeStyle(shape.imageHero)}
             >
+              <div>
               <div className="mb-5 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-primary to-secondary px-4 py-2">
                 <Sparkles className="h-4 w-4 text-primary-foreground" fill="currentColor" />
                 <span className="text-[10px] uppercase tracking-[0.2em] text-primary-foreground">Today&apos;s Featured</span>
@@ -116,7 +127,7 @@ export function Brief() {
                   <img src={featuredBrief.imageUrl} alt="" className="h-full w-full object-cover" />
                 </div>
                 <div className="flex-1 text-center md:text-left">
-                  <h2 className="font-[family-name:var(--font-headline)] text-2xl leading-tight text-on-background sm:text-3xl">
+                  <h2 className="font-[family-name:var(--font-headline)] text-2xl leading-tight text-on-background sm:text-3xl lg:text-4xl">
                     {featuredBrief.title}
                   </h2>
                   <div className="mt-3 flex flex-wrap items-center justify-center gap-3 text-sm text-outline md:justify-start">
@@ -129,8 +140,9 @@ export function Brief() {
                   )}
                 </div>
               </div>
+              </div>
 
-              <div className="mt-8 flex justify-center">
+              <div className="mt-8 flex justify-center lg:mt-0">
                 <button
                   type="button"
                   onClick={() => handlePlay(featuredBrief.id, featuredBrief.audioUrl)}
@@ -150,8 +162,8 @@ export function Brief() {
             {!hasAdFree && <AdBanner position="inline" />}
 
             <section>
-              <h3 className="mb-6 px-1 font-[family-name:var(--font-headline)] text-2xl italic text-on-surface">More Briefs</h3>
-              <div className="space-y-3">
+              <h3 className="mb-6 px-1 font-[family-name:var(--font-headline)] text-2xl italic text-on-surface lg:text-3xl">More Briefs</h3>
+              <div className={isWebDesktop ? 'grid gap-4 lg:grid-cols-2' : 'space-y-3'}>
                 {moreBriefs.map((brief) => {
                   const isPlaying = audioState.currentBriefId === brief.id && audioState.isPlaying;
                   return (

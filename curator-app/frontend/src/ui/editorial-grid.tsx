@@ -5,14 +5,14 @@ import { ArticleCard } from "../app/components/ArticleCard";
 import { FeedStack } from "./feed-stack";
 
 interface EditorialGridProps {
-  topArticles: Article[];
+  topArticles?: Article[];
   stories: Article[];
   emptyTitle?: string;
   emptyDescription?: string;
 }
 
 export function EditorialGrid({
-  topArticles,
+  topArticles = [],
   stories,
   emptyTitle = "No narratives found",
   emptyDescription = "Try adjusting your filters.",
@@ -33,7 +33,7 @@ export function EditorialGrid({
   return (
     <div className="space-y-8">
       {featured && (
-        <section className="grid gap-6 lg:grid-cols-[minmax(0,2fr)_minmax(280px,1fr)]">
+        <section className="grid gap-6 xl:grid-cols-[minmax(0,1.6fr)_minmax(280px,1fr)]">
           <ArticleCard article={featured} variant="featured" />
           {secondary.length > 0 && (
             <div className="grid gap-6">

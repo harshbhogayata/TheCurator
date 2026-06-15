@@ -1,0 +1,80 @@
+/* Opt-in view transition styles — do NOT use navigation:auto (breaks SPA clicks) */
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.38s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(root) {
+  animation-name: curator-fade-out;
+}
+
+::view-transition-new(root) {
+  animation-name: curator-fade-in;
+}
+
+::view-transition-old(curator-main),
+::view-transition-new(curator-main) {
+  animation-duration: 0.42s;
+  animation-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+::view-transition-old(curator-main) {
+  animation-name: curator-slide-out;
+}
+
+::view-transition-new(curator-main) {
+  animation-name: curator-slide-in;
+}
+
+@keyframes curator-fade-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes curator-fade-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes curator-slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+@keyframes curator-slide-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+}
+
+html.lenis,
+html.lenis body {
+  height: auto;
+}
+
+.lenis.lenis-smooth {
+  scroll-behavior: auto !important;
+}
+
+.lenis.lenis-smooth [data-lenis-prevent] {
+  overscroll-behavior: contain;
+}
+
+.lenis.lenis-stopped {
+  overflow: hidden;
+}

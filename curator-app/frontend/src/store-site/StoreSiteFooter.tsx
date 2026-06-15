@@ -9,7 +9,7 @@ import {
   Trash2,
 } from 'lucide-react';
 
-import { LAUNCH_LABEL, LP, STORE_CONTACT } from './tokens';
+import { LAUNCH_LABEL, LP, STORE_CONTACT, STORE_PLATFORMS } from './tokens';
 import { StorePlatformBadge } from './StorePlatformBadge';
 
 export function StoreSiteFooter() {
@@ -19,10 +19,10 @@ export function StoreSiteFooter() {
         <div className="store-animate-marquee whitespace-nowrap flex gap-4 text-[10px] font-bold uppercase tracking-[0.28em]" style={{ color: `${LP.onSurface}B3` }}>
           <span>THE CURATOR • A CALMER COMPANION FOR THE WORLD IN MOTION • </span>
           <span>FILTER THE NOISE • DISTILL THE DAILY BRIEFING • </span>
-          <span>ESTABLISHED 2026 • APP STORE &amp; GOOGLE PLAY · {LAUNCH_LABEL.toUpperCase()} • </span>
+          <span>ESTABLISHED 2026 • {STORE_PLATFORMS.marquee} · {LAUNCH_LABEL.toUpperCase()} • </span>
           <span>THE CURATOR • A CALMER COMPANION FOR THE WORLD IN MOTION • </span>
           <span>FILTER THE NOISE • DISTILL THE DAILY BRIEFING • </span>
-          <span>ESTABLISHED 2026 • APP STORE &amp; GOOGLE PLAY · {LAUNCH_LABEL.toUpperCase()} • </span>
+          <span>ESTABLISHED 2026 • {STORE_PLATFORMS.marquee} · {LAUNCH_LABEL.toUpperCase()} • </span>
         </div>
       </div>
 
@@ -38,6 +38,7 @@ export function StoreSiteFooter() {
             <div className="mt-6 flex flex-wrap items-center gap-2">
               <StorePlatformBadge platform="apple">App Store · {LAUNCH_LABEL}</StorePlatformBadge>
               <StorePlatformBadge platform="google">Google Play · {LAUNCH_LABEL}</StorePlatformBadge>
+              <StorePlatformBadge platform="samsung">Galaxy Store · {LAUNCH_LABEL}</StorePlatformBadge>
             </div>
           </div>
 
@@ -71,7 +72,7 @@ export function StoreSiteFooter() {
               </li>
               <li>
                 <Link to="/account-deletion" className="inline-flex items-center gap-2 transition-colors hover:opacity-100" style={{ color: 'inherit' }}>
-                  <Trash2 className="h-4 w-4" style={{ color: LP.outline }} /> Delete account
+                  <Trash2 className="h-4 w-4" style={{ color: LP.outline }} /> Account deletion
                 </Link>
               </li>
             </ul>
@@ -84,7 +85,7 @@ export function StoreSiteFooter() {
             <Link to="/privacy" className="transition-colors hover:opacity-100">Privacy</Link>
             <Link to="/terms" className="transition-colors hover:opacity-100">Terms</Link>
             <Link to="/support" className="transition-colors hover:opacity-100">Support</Link>
-            <Link to="/account-deletion" className="transition-colors hover:opacity-100">Delete account</Link>
+            <Link to="/account-deletion" className="transition-colors hover:opacity-100">Account deletion</Link>
           </div>
         </div>
       </div>

@@ -2,7 +2,7 @@ import { useMemo, useState, useEffect } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
-import * as ImagePicker from "expo-image-picker";
+import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
 import { Camera, Download, Hash, Link2, Mail, Save, User } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
@@ -34,17 +34,13 @@ export default function AccountScreen() {
 
   const handlePickImage = async () => {
     try {
-      const result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ["images"],
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.8,
-      });
-
-      if (!result.canceled && result.assets.length > 0) {
-        await updateProfileAvatar(result.assets[0].uri);
-        showToast("success", "Profile picture updated.");
+      const uri = await pickProfileImageUri();
+      if (!uri) {
+        return;
       }
+
+      await updateProfileAvatar(uri);
+      showToast("success", "Profile picture updated.");
     } catch {
       showToast("error", "Couldn't update your profile picture right now.");
     }

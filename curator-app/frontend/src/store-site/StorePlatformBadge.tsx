@@ -1,18 +1,25 @@
 import type { ReactNode } from 'react';
-import { Apple, Store } from 'lucide-react';
+import { Apple, Smartphone, Store } from 'lucide-react';
 
 import { storePill } from './accent';
+import type { StorePlatform } from './tokens';
 
 interface StorePlatformBadgeProps {
-  platform: 'apple' | 'google';
+  platform: StorePlatform;
   children: ReactNode;
   className?: string;
   tone?: 'light' | 'dark';
 }
 
+const PLATFORM_ICONS = {
+  apple: Apple,
+  google: Store,
+  samsung: Smartphone,
+} as const;
+
 export function StorePlatformBadge({ platform, children, className = '', tone = 'light' }: StorePlatformBadgeProps) {
   const pill = storePill(platform, tone);
-  const Icon = platform === 'apple' ? Apple : Store;
+  const Icon = PLATFORM_ICONS[platform];
 
   return (
     <span

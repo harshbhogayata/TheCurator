@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 
 type Theme = "light" | "dark" | "system";
 
@@ -10,21 +18,32 @@ interface ThemeContextType {
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 const THEME_STORAGE_KEY = "curator_theme";
-const LEGACY_THEME_STORAGE_KEY = "theme";
+const LEGACY_THEME_STORAGE_KEYS = ["curator_theme_preference", "curator-theme", "theme"] as const;
 
 function isTheme(value: string | null): value is Theme {
   return value === "light" || value === "dark" || value === "system";
 }
 
+function readStoredTheme(): Theme | null {
+  const direct = localStorage.getItem(THEME_STORAGE_KEY);
+  if (isTheme(direct)) return direct;
+  for (const key of LEGACY_THEME_STORAGE_KEYS) {
+    const value = localStorage.getItem(key);
+    if (isTheme(value)) return value;
+  }
+  return null;
+}
+
 export function ThemeProvider({ children }: { children: ReactNode }) {
-  const [theme, setThemeState] = useState<Theme>(() => {
-    const savedTheme =
-      localStorage.getItem(THEME_STORAGE_KEY) || localStorage.getItem(LEGACY_THEME_STORAGE_KEY);
+  const [theme, setThemeState] = useState<Theme>("system");
+  const [effectiveTheme, setEffectiveTheme] = useState<"light" | "dark">("light");
 
-    return isTheme(savedTheme) ? savedTheme : "system";
-  });
-
-  const [effectiveTheme, setEffectiveTheme] = useState<"light" | "dark">("dark");
+  useEffect(() => {
+    const stored = readStoredTheme();
+    if (stored) {
+      setThemeState(stored);
+    }
+  }, []);
 
   useEffect(() => {
     const updateEffectiveTheme = () => {
@@ -54,17 +73,20 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     document.documentElement.classList.add(effectiveTheme);
   }, [effectiveTheme]);
 
-  const setTheme = (newTheme: Theme) => {
+  const setTheme = useCallback((newTheme: Theme) => {
     setThemeState(newTheme);
     localStorage.setItem(THEME_STORAGE_KEY, newTheme);
-    localStorage.removeItem(LEGACY_THEME_STORAGE_KEY);
-  };
+    for (const key of LEGACY_THEME_STORAGE_KEYS) {
+      localStorage.removeItem(key);
+    }
+  }, []);
 
-  return (
-    <ThemeContext.Provider value={{ theme, effectiveTheme, setTheme }}>
-      {children}
-    </ThemeContext.Provider>
+  const value = useMemo(
+    () => ({ theme, effectiveTheme, setTheme }),
+    [theme, effectiveTheme, setTheme],
   );
+
+  return <ThemeContext.Provider value={value}>{children}</ThemeContext.Provider>;
 }
 
 export function useTheme() {

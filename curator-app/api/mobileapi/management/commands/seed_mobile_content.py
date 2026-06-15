@@ -432,6 +432,13 @@ BRIEFS = [
 class Command(BaseCommand):
     help = "Seed mobile editorial articles and briefs for local/staging QA."
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            "--generate-audio",
+            action="store_true",
+            help="After seeding, generate OpenAI TTS narration for all seeded content (requires storage/TTS env).",
+        )
+
     @transaction.atomic
     def handle(self, *args, **options):
         for category in CONTENT_CATEGORY_CATALOG:
@@ -487,3 +494,9 @@ class Command(BaseCommand):
                 f"Seed complete. Upserted {article_count} articles and {brief_count} briefs."
             )
         )
+
+        if options["generate_audio"]:
+            from django.core.management import call_command
+
+            self.stdout.write("Generating TTS narration for seeded content...")
+            call_command("generate_content_audio", "--all-missing")

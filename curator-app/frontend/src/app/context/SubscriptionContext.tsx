@@ -1,8 +1,10 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "../../lib/query-keys";
-import { createStripeCheckout, createStripePortal, fetchEntitlement } from "../../services/mobile-api";
+import { openStandardRazorpayCheckout } from "../../lib/razorpay-checkout";
+import { createBillingPortal, createCheckout, fetchEntitlement } from "../../services/mobile-api";
+import { createRazorpayOrder, verifyRazorpayPayment } from "../../services/razorpay-api";
 import type { SubscriptionTier } from "../../lib/types";
 import { useAuth } from "./AuthContext";
 import { isMockBackend, isMockPremium } from "../../lib/dev-mode";
@@ -16,9 +18,7 @@ interface SubscriptionContextType {
   hasCommunityAccess: boolean;
   hasExclusiveContent: boolean;
   maxSaves: number;
-  /** Starts Stripe checkout (redirects). In mock/dev mode, upgrades locally. */
   upgradeTier: (newTier: Exclude<SubscriptionTier, "free">) => Promise<void>;
-  /** Opens the Stripe customer portal (redirects). In mock/dev mode, downgrades locally. */
   cancelSubscription: () => Promise<void>;
 }
 
@@ -66,7 +66,8 @@ const TIER_FEATURES = {
 const SubscriptionContext = createContext<SubscriptionContextType | undefined>(undefined);
 
 export function SubscriptionProvider({ children }: { children: ReactNode }) {
-  const { isAuthenticated } = useAuth();
+  const queryClient = useQueryClient();
+  const { isAuthenticated, user } = useAuth();
   const [localTier, setLocalTier] = useState<SubscriptionTier>("free");
 
   const { data: entitlement } = useQuery({
@@ -98,19 +99,71 @@ export function SubscriptionProvider({ children }: { children: ReactNode }) {
           setLocalTier(newTier);
           return;
         }
-        const { url } = await createStripeCheckout(newTier);
-        window.location.assign(url);
+
+        const checkout = await createCheckout(newTier);
+
+        if (checkout.provider === "stripe") {
+          window.location.assign(checkout.url);
+          return;
+        }
+
+        if (checkout.mode === "subscription" && checkout.subscriptionId) {
+          const { openRazorpayCheckout } = await import("../../lib/razorpay-checkout");
+          const { verifyRazorpayCheckout } = await import("../../services/mobile-api");
+          await openRazorpayCheckout(checkout, async (response) => {
+            await verifyRazorpayCheckout({
+              razorpay_payment_id: response.razorpay_payment_id,
+              razorpay_signature: response.razorpay_signature,
+              razorpay_order_id: response.razorpay_order_id,
+              razorpay_subscription_id: response.razorpay_subscription_id,
+            });
+            await queryClient.invalidateQueries({ queryKey: queryKeys.entitlements.all });
+          });
+          return;
+        }
+
+        const order = await createRazorpayOrder({ tier: newTier });
+        const payment = await openStandardRazorpayCheckout({
+          keyId: order.key_id,
+          orderId: order.order_id,
+          amount: order.amount,
+          currency: order.currency,
+          name: "The Curator",
+          description: `${newTier} membership`,
+          prefill: {
+            email: user?.email,
+            name: user?.name,
+          },
+        });
+
+        const verified = await verifyRazorpayPayment({
+          razorpay_order_id: payment.razorpay_order_id,
+          razorpay_payment_id: payment.razorpay_payment_id,
+          razorpay_signature: payment.razorpay_signature,
+        });
+
+        if (!verified.success) {
+          throw new Error("Payment verification failed.");
+        }
+
+        await queryClient.invalidateQueries({ queryKey: queryKeys.entitlements.all });
       },
       cancelSubscription: async () => {
         if (MOCK_PREMIUM || isMockBackend) {
           setLocalTier("free");
           return;
         }
-        const { url } = await createStripePortal();
-        window.location.assign(url);
+
+        const portal = await createBillingPortal();
+        if (portal.provider === "stripe") {
+          window.location.assign(portal.url);
+          return;
+        }
+
+        await queryClient.invalidateQueries({ queryKey: queryKeys.entitlements.all });
       },
     }),
-    [tier, features],
+    [tier, features, queryClient, user?.email, user?.name],
   );
 
   return <SubscriptionContext.Provider value={value}>{children}</SubscriptionContext.Provider>;

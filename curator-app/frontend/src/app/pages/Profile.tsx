@@ -31,7 +31,7 @@ export function Profile() {
   const profileImage = user?.profileImage || IMAGES.editorial.profile;
 
   return (
-    <AppShell title="Profile">
+    <AppShell title="Profile" archetype="form">
       <div className="mx-auto max-w-2xl space-y-10">
         <section className="flex flex-col items-center space-y-6 text-center">
           <div className="relative">

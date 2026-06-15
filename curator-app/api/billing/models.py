@@ -23,3 +23,24 @@ class StripeWebhookEvent(UUIDPrimaryKeyModel):
 
     def __str__(self):
         return f"{self.event_type} · {self.event_id}"
+
+
+class RazorpayWebhookEvent(UUIDPrimaryKeyModel):
+    """Audit/idempotency record for received Razorpay webhook events."""
+
+    event_id = models.CharField(max_length=128, unique=True)
+    event_type = models.CharField(max_length=64)
+    payload = models.JSONField(default=dict, blank=True)
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name="razorpay_webhook_events",
+    )
+
+    class Meta:
+        ordering = ["-created_at"]
+
+    def __str__(self):
+        return f"{self.event_type} · {self.event_id}"

@@ -455,6 +455,8 @@ export default function ArticleScreen() {
           articleId={article.id}
           audioUrl={article.audioUrl}
           durationSec={article.audioDurationSec}
+          hasAudioAvailable={article.hasAudioAvailable}
+          readTimeMinutes={article.readTimeMinutes}
           title={article.title}
         />
 

@@ -12,11 +12,20 @@ import { ReadingStatsProvider } from './context/ReadingStatsContext';
 import { AudioProvider } from './context/AudioContext';
 import { Layout } from './components/Layout';
 import { LayoutProvider } from '../providers/layout-provider';
+import { ExperienceProvider } from '../providers/experience-provider';
 
 /** Full provider stack for the authenticated app surface (client-only). */
 export function AppProviders({ children }: { children: ReactNode }) {
   // PWA: offline caching of assets + saved articles (push subscription is
   // opt-in via Settings; registering the worker alone shows no prompts).
+  useEffect(() => {
+    if (import.meta.env.DEV && "serviceWorker" in navigator) {
+      void navigator.serviceWorker.getRegistrations().then((regs) => {
+        void Promise.all(regs.map((r) => r.unregister()));
+      });
+    }
+  }, []);
+
   useEffect(() => {
     if ('serviceWorker' in navigator && !import.meta.env.DEV) {
       void navigator.serviceWorker
@@ -31,7 +40,8 @@ export function AppProviders({ children }: { children: ReactNode }) {
       <LayoutProvider>
         <ThemeProvider>
           <AuthProvider>
-            <SubscriptionProvider>
+            <ExperienceProvider>
+              <SubscriptionProvider>
               <SavedArticlesProvider>
                 <CollectionsProvider>
                   <ReadingPreferencesProvider>
@@ -46,6 +56,7 @@ export function AppProviders({ children }: { children: ReactNode }) {
                 </CollectionsProvider>
               </SavedArticlesProvider>
             </SubscriptionProvider>
+            </ExperienceProvider>
           </AuthProvider>
         </ThemeProvider>
       </LayoutProvider>

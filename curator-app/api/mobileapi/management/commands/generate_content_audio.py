@@ -1,0 +1,158 @@
+import logging
+
+from django.conf import settings
+from django.core.management.base import BaseCommand, CommandError
+from django.db.models import Q
+
+from mobileapi.audio_services import (
+    AudioGenerationError,
+    audio_storage_configured,
+    chunk_text,
+    generate_audio_for_article,
+    generate_audio_for_brief,
+)
+from mobileapi.models import Article, Brief
+
+logger = logging.getLogger(__name__)
+
+
+class Command(BaseCommand):
+    help = "Generate TTS narration for articles and briefs (Edge TTS by default; OpenAI optional)."
+
+    def add_arguments(self, parser):
+        parser.add_argument("--article-id", help="Generate audio for a single article id.")
+        parser.add_argument("--brief-id", help="Generate audio for a single brief id.")
+        parser.add_argument(
+            "--all-missing",
+            action="store_true",
+            help="Generate audio for every active article/brief missing audio_url.",
+        )
+        parser.add_argument(
+            "--articles-only",
+            action="store_true",
+            help="With --all-missing, only process articles.",
+        )
+        parser.add_argument(
+            "--briefs-only",
+            action="store_true",
+            help="With --all-missing, only process briefs.",
+        )
+        parser.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="Regenerate audio even when a URL already exists.",
+        )
+        parser.add_argument("--voice", default=None, help="Override the configured TTS voice.")
+        parser.add_argument("--model", default=None, help="Override the configured TTS model.")
+        parser.add_argument("--limit", type=int, default=None, help="Process at most N records per type.")
+        parser.add_argument(
+            "--dry-run",
+            action="store_true",
+            help="Report what would be generated without calling TTS or uploading.",
+        )
+
+    def handle(self, *args, **options):
+        if not options["dry_run"] and not audio_storage_configured():
+            raise CommandError(
+                "Configure TTS (Edge is free by default) and storage "
+                "(AUDIO_STORAGE_BACKEND=local with API_PUBLIC_BASE_URL, or AUDIO_S3_*)."
+            )
+
+        processed = 0
+        if options["article_id"]:
+            processed += self._process_articles(
+                Article.objects.filter(id=options["article_id"]),
+                options,
+            )
+        elif options["brief_id"]:
+            processed += self._process_briefs(
+                Brief.objects.filter(id=options["brief_id"]),
+                options,
+            )
+        elif options["all_missing"]:
+            if not options["briefs_only"]:
+                articles = Article.objects.filter(is_active=True).exclude(content="")
+                if not options["overwrite"]:
+                    articles = articles.filter(Q(audio_url="") | Q(audio_url__isnull=True))
+                processed += self._process_articles(articles.order_by("-published_at", "rank"), options)
+
+            if not options["articles_only"]:
+                briefs = Brief.objects.filter(is_active=True).exclude(summary="")
+                if not options["overwrite"]:
+                    briefs = briefs.filter(Q(audio_url="") | Q(audio_url__isnull=True))
+                processed += self._process_briefs(briefs.order_by("-published_at", "rank"), options)
+        else:
+            raise CommandError("Pass --article-id, --brief-id, or --all-missing.")
+
+        self.stdout.write(self.style.SUCCESS(f"Done. Processed {processed} narration file(s)."))
+
+    def _process_articles(self, queryset, options):
+        if options["limit"]:
+            queryset = queryset[: options["limit"]]
+
+        processed = 0
+        for article in queryset:
+            chunks = chunk_text(article.content)
+            if not chunks:
+                self.stdout.write(self.style.WARNING(f"Skipping article (no content): {article.title}"))
+                continue
+
+            if options["dry_run"]:
+                total_chars = sum(len(chunk) for chunk in chunks)
+                self.stdout.write(
+                    f"[dry-run] article · {article.title}: {len(chunks)} chunk(s), {total_chars} chars"
+                )
+                continue
+
+            try:
+                generate_audio_for_article(
+                    article,
+                    model=options["model"] or getattr(settings, "OPENAI_TTS_MODEL", None),
+                    voice=options["voice"] or getattr(settings, "OPENAI_TTS_VOICE", None),
+                )
+            except AudioGenerationError as exc:
+                raise CommandError(str(exc)) from exc
+
+            processed += 1
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Article audio: {article.title} ({article.audio_duration_sec or '?'}s)"
+                )
+            )
+        return processed
+
+    def _process_briefs(self, queryset, options):
+        if options["limit"]:
+            queryset = queryset[: options["limit"]]
+
+        processed = 0
+        for brief in queryset:
+            narration = f"{brief.title}. {brief.summary}".strip()
+            chunks = chunk_text(narration)
+            if not chunks:
+                self.stdout.write(self.style.WARNING(f"Skipping brief (no summary): {brief.title}"))
+                continue
+
+            if options["dry_run"]:
+                total_chars = sum(len(chunk) for chunk in chunks)
+                self.stdout.write(
+                    f"[dry-run] brief · {brief.title}: {len(chunks)} chunk(s), {total_chars} chars"
+                )
+                continue
+
+            try:
+                generate_audio_for_brief(
+                    brief,
+                    model=options["model"] or getattr(settings, "OPENAI_TTS_MODEL", None),
+                    voice=options["voice"] or getattr(settings, "OPENAI_TTS_VOICE", None),
+                )
+            except AudioGenerationError as exc:
+                raise CommandError(str(exc)) from exc
+
+            processed += 1
+            self.stdout.write(
+                self.style.SUCCESS(
+                    f"Brief audio: {brief.title} ({brief.audio_duration_sec or '?'}s)"
+                )
+            )
+        return processed
