@@ -33,14 +33,36 @@ Add the CNAME Cloudflare shows in DNS.
 
 ### 3. Create API token
 
-R2 → **Manage R2 API Tokens** → **Create API token**  
-Permissions: **Object Read & Write** on `curator-audio`  
-Save **Access Key ID** and **Secret Access Key**.
+R2 → **Manage R2 API Tokens** → **Create API token**
+
+**Choose Account API token** (not User) — this is for your Railway server, not your laptop.
+
+| Type | Use when |
+|------|----------|
+| **Account API token** (pick this) | Production backends (Railway/Django). Stays valid even if your personal login changes. |
+| User API token | Solo dev experiments only — tied to your Cloudflare user; dies if you lose account access. |
+
+On the token form:
+
+- **Permissions:** Object Read & Write  
+- **Buckets:** Apply to **specific buckets only** → select `curator-audio`  
+- **TTL:** leave empty (no expiry) for server use  
+
+After **Create**, copy **Access Key ID** and **Secret Access Key** immediately — the secret is shown **once**.
+
+Your S3 endpoint (also on that screen):
+
+`https://<ACCOUNT_ID>.r2.cloudflarestorage.com`
+
+With `audio.thecuratorgroup.org` connected, set:
+
+`AUDIO_PUBLIC_BASE_URL=https://audio.thecuratorgroup.org`
 
 ### 4. Railway environment variables
 
 ```env
 TTS_PROVIDER=edge
+EDGE_TTS_VOICE=en-US-JennyNeural
 AUDIO_STORAGE_BACKEND=s3
 AUDIO_S3_ENDPOINT_URL=https://<ACCOUNT_ID>.r2.cloudflarestorage.com
 AUDIO_S3_BUCKET=curator-audio

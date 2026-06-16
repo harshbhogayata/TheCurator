@@ -1,6 +1,5 @@
 import logging
 
-from django.conf import settings
 from django.core.management.base import BaseCommand, CommandError
 from django.db.models import Q
 
@@ -8,6 +7,8 @@ from mobileapi.audio_services import (
     AudioGenerationError,
     audio_storage_configured,
     chunk_text,
+    default_tts_model,
+    default_tts_voice,
     generate_audio_for_article,
     generate_audio_for_brief,
 )
@@ -107,8 +108,8 @@ class Command(BaseCommand):
             try:
                 generate_audio_for_article(
                     article,
-                    model=options["model"] or getattr(settings, "OPENAI_TTS_MODEL", None),
-                    voice=options["voice"] or getattr(settings, "OPENAI_TTS_VOICE", None),
+                    model=default_tts_model(options["model"]),
+                    voice=default_tts_voice(options["voice"]),
                 )
             except AudioGenerationError as exc:
                 raise CommandError(str(exc)) from exc
@@ -143,8 +144,8 @@ class Command(BaseCommand):
             try:
                 generate_audio_for_brief(
                     brief,
-                    model=options["model"] or getattr(settings, "OPENAI_TTS_MODEL", None),
-                    voice=options["voice"] or getattr(settings, "OPENAI_TTS_VOICE", None),
+                    model=default_tts_model(options["model"]),
+                    voice=default_tts_voice(options["voice"]),
                 )
             except AudioGenerationError as exc:
                 raise CommandError(str(exc)) from exc

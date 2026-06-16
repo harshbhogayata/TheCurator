@@ -102,6 +102,24 @@ def resolve_tts_provider():
     return "edge"
 
 
+def default_tts_voice(override=None):
+    """Return the configured voice for the active TTS provider."""
+    if override:
+        return override
+    if resolve_tts_provider() == "openai":
+        return getattr(settings, "OPENAI_TTS_VOICE", "alloy")
+    return getattr(settings, "EDGE_TTS_VOICE", "en-US-JennyNeural")
+
+
+def default_tts_model(override=None):
+    """Return the configured model for the active TTS provider (OpenAI only)."""
+    if override:
+        return override
+    if resolve_tts_provider() == "openai":
+        return getattr(settings, "OPENAI_TTS_MODEL", "gpt-4o-mini-tts")
+    return None
+
+
 def storage_backend():
     configured = getattr(settings, "AUDIO_STORAGE_BACKEND", "auto").lower()
     if configured in {"s3", "local"}:
