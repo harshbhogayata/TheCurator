@@ -197,7 +197,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   experiments: {
     typedRoutes: true,
   },
-  runtimeVersion: config.runtimeVersion ?? { policy: "appVersion" },
+  runtimeVersion: config.runtimeVersion ?? "1.0.0",
   updates: config.updates ?? {
     url: `https://u.expo.dev/${easProjectId}`,
   },

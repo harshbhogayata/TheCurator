@@ -1,0 +1,8 @@
+# Monorepo: only upload curator-app/mobile to EAS (exclude sibling packages)
+curator-matches/
+.cursor/
+assets/
+curator-app/api/
+curator-app/frontend/
+**/.expo-test-bundle/
+**/node_modules/

@@ -3,3 +3,10 @@
 .expo-test-bundle/
 *.md
 !README.md
+
+# Managed workflow — EAS prebuilds native projects on the server
+/android
+/ios
+
+# Dependencies are installed on EAS builders
+node_modules/
