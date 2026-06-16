@@ -201,15 +201,37 @@ def synthesize_chunk(text, *, provider, model=None, voice=None, api_key=None):
     )
 
 
-def mp3_duration_seconds(mp3_bytes):
+def mp3_chunk_duration_seconds(mp3_bytes):
+    """Duration of a single MP3 blob (works per Edge TTS chunk)."""
+    if not mp3_bytes:
+        return None
     try:
         from mutagen.mp3 import MP3
 
         audio = MP3(io.BytesIO(mp3_bytes))
-        return int(round(audio.info.length))
-    except Exception:  # noqa: BLE001 - duration is best-effort metadata
-        logger.warning("Could not determine mp3 duration; leaving audio_duration_sec unset.")
+        length = getattr(audio.info, "length", None)
+        if length and length > 0:
+            return float(length)
+    except Exception:
+        pass
+    return _estimate_mp3_duration_seconds(mp3_bytes)
+
+
+def _estimate_mp3_duration_seconds(mp3_bytes):
+    """Fallback when mutagen cannot parse headers (e.g. raw concatenated MPEG frames)."""
+    if len(mp3_bytes) < 128:
         return None
+    # Edge neural TTS speech MP3 is typically ~32–48 kbps CBR.
+    bytes_per_second = 4000
+    return len(mp3_bytes) / bytes_per_second
+
+
+def mp3_duration_seconds(mp3_bytes):
+    duration = mp3_chunk_duration_seconds(mp3_bytes)
+    if duration is not None:
+        return int(round(duration))
+    logger.warning("Could not determine mp3 duration; leaving audio_duration_sec unset.")
+    return None
 
 
 def build_storage_client():
@@ -272,17 +294,21 @@ def generate_audio_for_text(text, *, storage_key, model=None, voice=None):
         raise AudioGenerationError("No content to narrate.")
 
     audio = bytearray()
+    total_duration = 0.0
     for chunk in chunks:
-        audio.extend(
-            synthesize_chunk(
-                chunk,
-                provider=provider,
-                model=model,
-                voice=voice,
-            )
+        chunk_audio = synthesize_chunk(
+            chunk,
+            provider=provider,
+            model=model,
+            voice=voice,
         )
+        chunk_duration = mp3_chunk_duration_seconds(chunk_audio)
+        if chunk_duration is not None:
+            total_duration += chunk_duration
+        audio.extend(chunk_audio)
     audio_bytes = bytes(audio)
-    return upload_audio_bytes(storage_key, audio_bytes), mp3_duration_seconds(audio_bytes)
+    duration = int(round(total_duration)) if total_duration > 0 else mp3_duration_seconds(audio_bytes)
+    return upload_audio_bytes(storage_key, audio_bytes), duration
 
 
 def generate_audio_for_article(article, *, model=None, voice=None):
