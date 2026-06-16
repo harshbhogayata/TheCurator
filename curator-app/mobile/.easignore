@@ -1,0 +1,5 @@
+# Shrink EAS upload — dev/QA only (not needed in APK)
+.maestro/
+.expo-test-bundle/
+*.md
+!README.md

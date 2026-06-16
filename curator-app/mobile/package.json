@@ -13,6 +13,8 @@
     "test:e2e": "maestro test .maestro/smoke.yaml",
     "test:e2e:auth": "maestro test .maestro/flows/auth.yaml",
     "test:e2e:audio": "maestro test .maestro/flows/brief-audio-paywall.yaml .maestro/flows/article-audio-paywall.yaml",
+    "eas:env:preview": "eas env:push preview --path .env --force",
+    "eas:build:preview": "eas build --profile preview --platform android",
     "postinstall": "patch-package"
   },
   "dependencies": {
