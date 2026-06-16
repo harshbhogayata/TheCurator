@@ -267,6 +267,8 @@ export default function BriefsScreen() {
             <View style={styles.featuredPlayRow}>
               <Pressable
                 onPress={() => handlePlayBrief(featuredBrief)}
+                testID="brief-audio-play"
+                accessibilityLabel={hasBriefAudioAccess ? "Play brief audio" : "Unlock brief audio"}
                 style={[
                   styles.featuredPlayButton,
                   { backgroundColor: palette.inverseSurface },

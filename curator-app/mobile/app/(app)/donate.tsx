@@ -16,6 +16,7 @@ import {
 import { useTheme } from "../../src/providers/theme-provider";
 import { useSubscription, type SubscriptionTier } from "../../src/providers/subscription-provider";
 import { usesRazorpayBilling } from "../../src/lib/billing-provider";
+import { shouldUseWebRazorpayCheckout } from "../../src/services/razorpay-checkout";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
@@ -134,6 +135,7 @@ export default function DonateScreen() {
   const { palette } = useTheme();
   const { tier, setTier, packages, purchasePackage, purchaseTier, isPurchasing } = useSubscription();
   const razorpayBilling = usesRazorpayBilling();
+  const usesWebCheckout = razorpayBilling && shouldUseWebRazorpayCheckout();
   const { showToast } = useToast();
   const router = useRouter();
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
@@ -234,6 +236,31 @@ export default function DonateScreen() {
             No ads, no paywalls, no corporate influence. Just thoughtful journalism funded by readers like you.
           </Text>
         </View>
+
+        {usesWebCheckout ? (
+          <View
+            style={{
+              backgroundColor: palette.secondaryContainer + "99",
+              borderRadius: 16,
+              padding: 14,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: palette.outlineVariant + "33",
+            }}
+          >
+            <Text
+              style={{
+                fontFamily: "Manrope_500Medium",
+                fontSize: 13,
+                color: palette.onSecondaryContainer,
+                lineHeight: 20,
+                textAlign: "center",
+              }}
+            >
+              Secure checkout opens in your browser. Return here after payment — your plan updates automatically.
+            </Text>
+          </View>
+        ) : null}
 
         {/* Current Tier */}
         {tier !== "free" && (

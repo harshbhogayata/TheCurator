@@ -5,6 +5,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
+import { AvatarUploadError, isAvatarUploadAvailable } from "../../src/services/avatar-upload";
 import {
   ChevronRight,
   CreditCard,
@@ -43,6 +44,14 @@ export default function ProfileScreen() {
   const { showToast } = useToast();
   
   const handlePickImage = async () => {
+    if (!isAvatarUploadAvailable()) {
+      showToast(
+        "info",
+        "Profile photo upload will be available once Firebase Storage is enabled. Your initials avatar looks great for now.",
+      );
+      return;
+    }
+
     try {
       const uri = await pickProfileImageUri();
       if (!uri) {
@@ -52,6 +61,10 @@ export default function ProfileScreen() {
       await updateProfileAvatar(uri);
       showToast("success", "Profile picture updated");
     } catch (error) {
+      if (error instanceof AvatarUploadError) {
+        showToast(error.code === "storage_unavailable" ? "info" : "error", error.message);
+        return;
+      }
       console.error("Image pick error", error);
       showToast("error", "Failed to update profile picture");
     }

@@ -21,6 +21,7 @@ interface PrimaryButtonProps {
   variant?: ButtonVariant;
   icon?: React.ReactNode;
   iconPosition?: "left" | "right";
+  testID?: string;
 }
 
 export function PrimaryButton({
@@ -31,6 +32,7 @@ export function PrimaryButton({
   variant = "primary",
   icon,
   iconPosition = "right",
+  testID,
 }: PrimaryButtonProps) {
   const { palette } = useTheme();
   const isInactive = disabled || loading;
@@ -78,6 +80,7 @@ export function PrimaryButton({
           if (!reduceMotion) scale.value = withSpring(1, spring.settle);
         }}
         disabled={isInactive}
+        testID={testID}
         accessibilityRole="button"
         accessibilityLabel={label}
         accessibilityState={{ disabled: isInactive, busy: loading }}

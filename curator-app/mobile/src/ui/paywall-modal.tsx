@@ -79,7 +79,10 @@ function PaywallModalInner({
           <Lock size={32} color={palette.onPrimaryContainer} />
         </View>
 
-        <Text style={[styles.title, { color: palette.onSurface }]}>
+        <Text
+          testID="paywall-title"
+          style={[styles.title, { color: palette.onSurface }]}
+        >
           Unlock {featureName}
         </Text>
         <Text style={[styles.description, { color: palette.onSurfaceVariant }]}>
@@ -88,6 +91,7 @@ function PaywallModalInner({
 
         <Pressable
           onPress={onUpgrade ?? onClose}
+          testID="paywall-upgrade"
           style={[
             styles.primaryButton,
             { backgroundColor: palette.onSurface, shadowColor: "#000" },

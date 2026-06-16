@@ -35,6 +35,9 @@ Thumbs.db
 
 # ─── Expo / React Native ────────────────────────────────────────────────────
 .expo/
+.expo-test-bundle/
+curator-app/mobile/.expo-test-bundle/
+curator-app/api/media/audio/
 *.jks
 *.p8
 *.p12

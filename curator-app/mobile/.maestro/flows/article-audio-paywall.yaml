@@ -1,0 +1,35 @@
+appId: com.curator.mobile
+env:
+  MAESTRO_TEST_EMAIL: ${MAESTRO_TEST_EMAIL}
+  MAESTRO_TEST_PASSWORD: ${MAESTRO_TEST_PASSWORD}
+---
+# Free user: open first article → tap audio → paywall.
+- runFlow: auth.yaml
+
+- tapOn:
+    text: "Explore tab"
+
+- scroll
+
+# First article card in the editorial grid (center tap).
+- tapOn:
+    point: "50%,58%"
+
+- extendedWaitUntil:
+    visible:
+      id: "audio-play-button"
+    timeout: 20000
+
+- tapOn:
+    id: "audio-play-button"
+
+- extendedWaitUntil:
+    visible:
+      id: "paywall-title"
+    timeout: 10000
+
+- assertVisible:
+    text: "Narrated Stories|Unlock"
+
+- tapOn:
+    text: "Not Now"

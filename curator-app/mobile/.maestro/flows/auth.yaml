@@ -1,0 +1,34 @@
+appId: com.curator.mobile
+env:
+  MAESTRO_TEST_EMAIL: ${MAESTRO_TEST_EMAIL}
+  MAESTRO_TEST_PASSWORD: ${MAESTRO_TEST_PASSWORD}
+---
+# Sign in with email/password (skips if already on home tabs).
+- launchApp:
+    clearState: false
+
+- runFlow:
+    when:
+      visible:
+        id: "welcome-sign-in"
+    commands:
+      - tapOn:
+          id: "welcome-sign-in"
+
+- runFlow:
+    when:
+      visible:
+        id: "auth-email"
+    commands:
+      - tapOn:
+          id: "auth-email"
+      - inputText: ${MAESTRO_TEST_EMAIL}
+      - tapOn:
+          id: "auth-password"
+      - inputText: ${MAESTRO_TEST_PASSWORD}
+      - hideKeyboard
+      - tapOn:
+          id: "auth-sign-in"
+      - extendedWaitUntil:
+          visible: "Brief|Explore|Saved|Search"
+          timeout: 30000

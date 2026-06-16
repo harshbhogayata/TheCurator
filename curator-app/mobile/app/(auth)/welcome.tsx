@@ -80,13 +80,15 @@ export default function WelcomeScreen() {
       <View style={styles.ctaSection}>
         {errorMessage ? <StatusBanner tone="error" message={errorMessage} /> : null}
 
-        <PrimaryButton
-          label="Get Started"
+          <PrimaryButton
+            label="Get Started"
+            testID="welcome-get-started"
           onPress={() => router.push("/sign-up")}
           icon={<ArrowRight size={18} color={palette.inversePrimary} />}
         />
         <PrimaryButton
           label="I already have an account"
+          testID="welcome-sign-in"
           variant="secondary"
           onPress={() => router.push("/sign-in")}
         />

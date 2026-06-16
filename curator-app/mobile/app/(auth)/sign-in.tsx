@@ -71,6 +71,7 @@ export default function SignInScreen() {
               render={({ field: { onChange, value } }) => (
                 <InputField
                   label="Email address"
+                  testID="auth-email"
                   value={value}
                   onChangeText={(v) => { clearError(); onChange(v); }}
                   autoCapitalize="none"
@@ -88,6 +89,7 @@ export default function SignInScreen() {
               render={({ field: { onChange, value } }) => (
                 <InputField
                   label="Password"
+                  testID="auth-password"
                   value={value}
                   onChangeText={(v) => { clearError(); onChange(v); }}
                   secureTextEntry
@@ -114,6 +116,7 @@ export default function SignInScreen() {
         <View style={[styles.stickyFooter, { backgroundColor: palette.background, borderTopColor: palette.outlineVariant + "40" }]}>
           <PrimaryButton
             label="Sign in"
+            testID="auth-sign-in"
             loading={isBusy || isSubmitting}
             onPress={onSubmit}
           />

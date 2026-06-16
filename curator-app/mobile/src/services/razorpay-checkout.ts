@@ -10,10 +10,13 @@ type NativeRazorpayModule = {
   open: (options: Record<string, unknown>) => Promise<RazorpaySuccessResponse>;
 };
 
+/** Android uses secure web checkout (native SDK is incompatible with New Architecture). */
+export function shouldUseWebRazorpayCheckout(): boolean {
+  return Platform.OS === "android" || Constants.appOwnership === "expo";
+}
+
 function resolveNativeRazorpay(): NativeRazorpayModule | null {
-  // Android preview/production builds use web checkout: react-native-razorpay is
-  // unmaintained and unreliable with React Native New Architecture (required by Reanimated v4).
-  if (Platform.OS !== "ios") {
+  if (shouldUseWebRazorpayCheckout()) {
     return null;
   }
 
@@ -101,8 +104,11 @@ export async function openStandardRazorpayOrderCheckout(input: {
   });
 }
 
-/** Expo Go fallback — complete payment on the web app, then refresh entitlement. */
+/** Complete payment on the web app (Android / Expo Go), then refresh entitlement. */
 export async function openWebDonateCheckout(plan: string): Promise<void> {
   const siteUrl = (process.env.EXPO_PUBLIC_SITE_URL ?? "http://localhost:5173").replace(/\/$/, "");
-  await WebBrowser.openBrowserAsync(`${siteUrl}/donate?plan=${encodeURIComponent(plan)}`);
+  await WebBrowser.openBrowserAsync(`${siteUrl}/donate?plan=${encodeURIComponent(plan)}`, {
+    presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
+    enableBarCollapsing: true,
+  });
 }

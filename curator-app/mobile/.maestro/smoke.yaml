@@ -1,0 +1,8 @@
+appId: com.curator.mobile
+env:
+  MAESTRO_TEST_EMAIL: ${MAESTRO_TEST_EMAIL}
+  MAESTRO_TEST_PASSWORD: ${MAESTRO_TEST_PASSWORD}
+---
+# Full smoke suite: auth → brief paywall → article paywall
+- runFlow: flows/brief-audio-paywall.yaml
+- runFlow: flows/article-audio-paywall.yaml

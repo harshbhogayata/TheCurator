@@ -231,6 +231,7 @@ function ArticleAudioPlayerInner({
 
           <Pressable
             onPress={handlePlayPause}
+            testID="audio-play-button"
             style={[
               styles.playButton,
               { backgroundColor: palette.primary },

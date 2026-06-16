@@ -1,0 +1,32 @@
+appId: com.curator.mobile
+env:
+  MAESTRO_TEST_EMAIL: ${MAESTRO_TEST_EMAIL}
+  MAESTRO_TEST_PASSWORD: ${MAESTRO_TEST_PASSWORD}
+---
+# Free user: tap featured brief play → paywall → upgrade CTA.
+- runFlow: auth.yaml
+
+- extendedWaitUntil:
+    visible:
+      id: "brief-audio-play"
+    timeout: 20000
+
+- tapOn:
+    id: "brief-audio-play"
+
+- extendedWaitUntil:
+    visible:
+      id: "paywall-title"
+    timeout: 10000
+
+- assertVisible:
+    text: "Upgrade Now"
+
+- tapOn:
+    id: "paywall-upgrade"
+
+- extendedWaitUntil:
+    visible: "Support Us|Subscribe"
+    timeout: 15000
+
+- back

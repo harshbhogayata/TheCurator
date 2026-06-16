@@ -33,6 +33,7 @@ import {
   openRazorpayCheckout,
   openStandardRazorpayOrderCheckout,
   openWebDonateCheckout,
+  shouldUseWebRazorpayCheckout,
 } from "../services/razorpay-checkout";
 import { getBillingProvider, usesRazorpayBilling, type BillingProvider } from "../lib/billing-provider";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
@@ -353,6 +354,13 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
     setIsPurchasing(true);
     try {
+      if (shouldUseWebRazorpayCheckout()) {
+        await openWebDonateCheckout(selectedTier);
+        const resolved = await resolveSubscriptionTier();
+        setTierState(resolved);
+        return resolved !== "free";
+      }
+
       const checkout = await createCheckout(selectedTier);
       if (checkout.provider !== "razorpay") {
         throw new Error("Only Razorpay checkout is supported in the mobile app.");
