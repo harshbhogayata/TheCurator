@@ -7,6 +7,7 @@
 # Managed workflow — EAS prebuilds native projects on the server
 /android
 /ios
+android.local.bak/
 
 # Dependencies are installed on EAS builders
 node_modules/

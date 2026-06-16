@@ -48,3 +48,4 @@ expo-*.log
 # generated native folders
 /ios
 /android
+android.local.bak/
