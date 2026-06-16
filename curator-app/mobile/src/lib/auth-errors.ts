@@ -7,10 +7,19 @@ const FIREBASE_MESSAGES: Record<string, string> = {
   "auth/invalid-credential": "The email or password is incorrect.",
   "auth/invalid-email": "Enter a valid email address.",
   "auth/network-request-failed": "We could not reach Firebase. Check your connection and try again.",
-  "auth/operation-not-allowed": "Email sign-in is temporarily unavailable. Please contact support.",
+  "auth/operation-not-allowed":
+    "Email sign-in is not enabled. In Firebase Console → Authentication → Sign-in method, turn on Email/Password.",
   "auth/too-many-requests": "Too many attempts. Wait a moment, then try again.",
   "auth/user-disabled": "This account has been disabled. Please contact support.",
   "auth/weak-password": "Use a stronger password with at least 8 characters.",
+  "auth/invalid-api-key":
+    "Firebase rejected this app build. Add your EAS Android SHA-1 to the API key in Google Cloud (see expo.dev → Credentials).",
+  "auth/app-not-authorized":
+    "This app is not authorized for Firebase. Add package com.curator.mobile and your EAS SHA-1 fingerprint in Google Cloud.",
+  "auth/unauthorized-domain": "This domain is not authorized in Firebase. Add it under Authentication → Settings → Authorized domains.",
+  "auth/missing-android-pkg-name":
+    "Firebase Android package mismatch. Confirm com.curator.mobile is registered in Firebase project settings.",
+  "auth/internal-error": "Firebase had an internal error. Try again in a few minutes.",
 };
 
 function readFirebaseCode(error: unknown): string | null {
@@ -19,10 +28,28 @@ function readFirebaseCode(error: unknown): string | null {
   return typeof code === "string" ? code : null;
 }
 
+function readFirebaseCodeFromMessage(message: string): string | null {
+  const match = message.match(/\(auth\/[^)]+\)/);
+  return match ? match[0].slice(1, -1) : null;
+}
+
+function messageForFirebaseCode(code: string, action: AuthAction): string {
+  if (code && FIREBASE_MESSAGES[code]) return FIREBASE_MESSAGES[code];
+  if (code.startsWith("auth/")) {
+    return `Authentication failed (${code}). Check Firebase Email/Password sign-in and API key SHA-1 restrictions.`;
+  }
+  if (action === "sign-up") return "We could not create your account. Please try again.";
+  if (action === "password-reset") return "We could not send the reset email. Please try again.";
+  if (action === "session") return "We could not restore your Curator session.";
+  return "We could not sign you in. Check your details and try again.";
+}
+
 export function getAuthErrorMessage(error: unknown, action: AuthAction): string {
-  const firebaseCode = readFirebaseCode(error);
-  if (firebaseCode && FIREBASE_MESSAGES[firebaseCode]) {
-    return FIREBASE_MESSAGES[firebaseCode];
+  const firebaseCode =
+    readFirebaseCode(error) ??
+    (error instanceof Error ? readFirebaseCodeFromMessage(error.message) : null);
+  if (firebaseCode) {
+    return messageForFirebaseCode(firebaseCode, action);
   }
 
   if (error instanceof ApiError) {
@@ -41,12 +68,12 @@ export function getAuthErrorMessage(error: unknown, action: AuthAction): string 
     return error.message;
   }
 
-  if (error instanceof Error && !/^Firebase:/i.test(error.message)) {
-    return error.message;
+  if (error instanceof Error && error.message.trim()) {
+    const cleaned = error.message.replace(/^Firebase:\s*/i, "").trim();
+    if (cleaned && !/^Error\s*\(auth\//i.test(cleaned)) {
+      return cleaned;
+    }
   }
 
-  if (action === "sign-up") return "We could not create your account. Please try again.";
-  if (action === "password-reset") return "We could not send the reset email. Please try again.";
-  if (action === "session") return "We could not restore your Curator session.";
-  return "We could not sign you in. Check your details and try again.";
+  return messageForFirebaseCode("", action);
 }
