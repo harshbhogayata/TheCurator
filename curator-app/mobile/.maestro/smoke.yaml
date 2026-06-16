@@ -3,6 +3,6 @@ env:
   MAESTRO_TEST_EMAIL: ${MAESTRO_TEST_EMAIL}
   MAESTRO_TEST_PASSWORD: ${MAESTRO_TEST_PASSWORD}
 ---
-# Full smoke suite: auth → brief paywall → article paywall
+# Full smoke suite: brief paywall → article paywall (each flow signs in via auth.yaml)
 - runFlow: flows/brief-audio-paywall.yaml
 - runFlow: flows/article-audio-paywall.yaml
