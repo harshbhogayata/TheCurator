@@ -93,15 +93,10 @@
   </main>
 
   <script type="module">
-    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
-    import { getAuth, applyActionCode } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
-
-    const firebaseConfig = {{ firebase_config_json|safe }};
     const params = new URLSearchParams(window.location.search);
     const status = params.get("status");
     const mode = params.get("mode");
     const oobCode = params.get("oobCode");
-    const apiKey = params.get("apiKey") || firebaseConfig.apiKey || "";
     const button = document.getElementById("verify-btn");
     const statusEl = document.getElementById("status");
     const lede = document.getElementById("lede");
@@ -118,34 +113,43 @@
       lede.textContent = "Return to The Curator app and tap I verified on your profile.";
       button.hidden = true;
       showStatus("You can close this tab.", "ok");
-    } else if (!oobCode || mode !== "verifyEmail" || !apiKey) {
+    } else if (!oobCode || mode !== "verifyEmail") {
       title.textContent = "Link not valid";
       lede.textContent = "In the app, tap Resend email and open only the newest message.";
       button.hidden = true;
       showStatus("Missing or invalid verification code.", "error");
     } else {
-      const app = initializeApp({ ...firebaseConfig, apiKey });
-      const auth = getAuth(app);
-
       button.addEventListener("click", async () => {
         button.disabled = true;
         try {
-          await applyActionCode(auth, oobCode);
+          const response = await fetch("/m/verify-email/confirm", {
+            method: "POST",
+            headers: { "Content-Type": "application/json", Accept: "application/json" },
+            body: JSON.stringify({ oobCode }),
+          });
+          const payload = await response.json().catch(() => ({}));
+          if (!response.ok) {
+            const code = payload && typeof payload.code === "string" ? payload.code : "";
+            const detail = payload && typeof payload.detail === "string" ? payload.detail : "";
+            if (code === "invalid_action_code" || code === "expired_action_code") {
+              showStatus(
+                "This link expired or was already used. Tap Resend in the app and use only the newest email.",
+                "error",
+              );
+            } else {
+              showStatus(detail || "Could not verify right now. Try Resend email in the app.", "error");
+            }
+            button.disabled = false;
+            return;
+          }
+
           title.textContent = "Email verified";
           lede.textContent = "Return to the app and tap I verified.";
           button.hidden = true;
           showStatus("Your email address is confirmed.", "ok");
-        } catch (error) {
+        } catch {
           button.disabled = false;
-          const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
-          if (code.includes("invalid-action-code") || code.includes("expired-action-code")) {
-            showStatus(
-              "This link expired or was already used. Tap Resend in the app and use only the newest email.",
-              "error",
-            );
-          } else {
-            showStatus("Could not verify right now. Try Resend email in the app.", "error");
-          }
+          showStatus("Could not reach the server. Check your connection and try again.", "error");
         }
       });
     }
