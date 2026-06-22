@@ -6,6 +6,7 @@ from firebase_admin import auth as firebase_auth
 
 from publicapi.email_delivery import deliver_email
 from publicapi.email_templates import build_curator_email_body, build_curator_email_html
+from users.auth_page_urls import mobile_verify_email_page_url
 
 logger = logging.getLogger(__name__)
 
@@ -21,12 +22,12 @@ def build_click_to_verify_url(admin_link: str) -> str:
     if not params.get("oobCode") or not params.get("mode"):
         raise ValueError("Firebase verification link is missing action parameters.")
 
-    base = settings.WEB_BASE_URL.rstrip("/") + "/verify-email"
+    base = mobile_verify_email_page_url()
     return f"{base}?{urlencode(params)}"
 
 
 def send_verification_email(*, email: str) -> bool:
-    continue_url = f"{settings.WEB_BASE_URL.rstrip('/')}/verify-email?status=done"
+    continue_url = f"{mobile_verify_email_page_url()}?status=done"
     action_settings = firebase_auth.ActionCodeSettings(
         url=continue_url,
         handle_code_in_app=False,

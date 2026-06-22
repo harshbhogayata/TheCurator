@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Verify email · The Curator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Newsreader:ital,wght@0,500;0,700;1,500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #fbf9f3;
+      --surface: #ffffff;
+      --primary: #31332b;
+      --on-primary: #ffffff;
+      --on-surface: #1c1b18;
+      --on-surface-variant: #5c5b56;
+      --outline: #c8c6be;
+      --error-container: #f5e0e0;
+      --on-error-container: #5c3838;
+      --success: #2d4a31;
+      --success-bg: #dce8dd;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      border: 1px solid color-mix(in srgb, var(--outline) 35%, transparent);
+      border-radius: 40px;
+      padding: 32px 28px;
+      box-shadow: 0 24px 60px rgba(49, 51, 43, 0.08);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-family: "Newsreader", Georgia, serif;
+      font-size: 2rem;
+      font-style: italic;
+      font-weight: 500;
+    }
+    .sub {
+      margin: 0 0 20px;
+      color: var(--on-surface-variant);
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+    .btn {
+      appearance: none;
+      border: none;
+      width: 100%;
+      border-radius: 999px;
+      padding: 16px 24px;
+      font: 600 0.95rem/1.2 "Manrope", sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: var(--primary);
+      color: var(--on-primary);
+      cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .status {
+      margin-top: 16px;
+      border-radius: 20px;
+      padding: 12px 14px;
+      font-size: 0.92rem;
+      line-height: 1.5;
+      text-align: left;
+    }
+    .status.error { background: var(--error-container); color: var(--on-error-container); }
+    .status.ok { background: var(--success-bg); color: var(--success); }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1 id="title">Verify your email</h1>
+    <p class="sub" id="lede">
+      Tap the button below to confirm your email for The Curator.
+    </p>
+    <button type="button" class="btn" id="verify-btn">Verify email</button>
+    <p class="status" id="status" hidden></p>
+  </main>
+
+  <script type="module">
+    import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+    import { getAuth, applyActionCode } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
+    const firebaseConfig = {{ firebase_config_json|safe }};
+    const params = new URLSearchParams(window.location.search);
+    const status = params.get("status");
+    const mode = params.get("mode");
+    const oobCode = params.get("oobCode");
+    const apiKey = params.get("apiKey") || firebaseConfig.apiKey || "";
+    const button = document.getElementById("verify-btn");
+    const statusEl = document.getElementById("status");
+    const lede = document.getElementById("lede");
+    const title = document.getElementById("title");
+
+    function showStatus(message, kind) {
+      statusEl.hidden = false;
+      statusEl.textContent = message;
+      statusEl.className = `status ${kind}`;
+    }
+
+    if (status === "done") {
+      title.textContent = "Email verified";
+      lede.textContent = "Return to The Curator app and tap I verified on your profile.";
+      button.hidden = true;
+      showStatus("You can close this tab.", "ok");
+    } else if (!oobCode || mode !== "verifyEmail" || !apiKey) {
+      title.textContent = "Link not valid";
+      lede.textContent = "In the app, tap Resend email and open only the newest message.";
+      button.hidden = true;
+      showStatus("Missing or invalid verification code.", "error");
+    } else {
+      const app = initializeApp({ ...firebaseConfig, apiKey });
+      const auth = getAuth(app);
+
+      button.addEventListener("click", async () => {
+        button.disabled = true;
+        try {
+          await applyActionCode(auth, oobCode);
+          title.textContent = "Email verified";
+          lede.textContent = "Return to the app and tap I verified.";
+          button.hidden = true;
+          showStatus("Your email address is confirmed.", "ok");
+        } catch (error) {
+          button.disabled = false;
+          const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+          if (code.includes("invalid-action-code") || code.includes("expired-action-code")) {
+            showStatus(
+              "This link expired or was already used. Tap Resend in the app and use only the newest email.",
+              "error",
+            );
+          } else {
+            showStatus("Could not verify right now. Try Resend email in the app.", "error");
+          }
+        }
+      });
+    }
+  </script>
+</body>
+</html>

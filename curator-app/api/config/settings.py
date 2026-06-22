@@ -321,6 +321,8 @@ RAZORPAY_SUBSCRIPTION_TOTAL_COUNT = env.int("RAZORPAY_SUBSCRIPTION_TOTAL_COUNT",
 # Public web app origin used for checkout/portal redirect URLs.
 WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecuratorgroup.org")
 MOBILE_DONATE_URL = env("MOBILE_DONATE_URL", default="")
+MOBILE_RESET_PASSWORD_URL = env("MOBILE_RESET_PASSWORD_URL", default="")
+MOBILE_VERIFY_EMAIL_URL = env("MOBILE_VERIFY_EMAIL_URL", default="")
 
 _parsed_web_base = urlparse(WEB_BASE_URL)
 if _parsed_web_base.scheme and _parsed_web_base.netloc:

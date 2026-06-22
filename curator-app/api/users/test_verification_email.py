@@ -9,15 +9,20 @@ from users.services.verification_email import build_click_to_verify_url
 
 
 class VerificationEmailUrlTests(TestCase):
-  @override_settings(WEB_BASE_URL="https://thecuratorgroup.org")
+  @override_settings(
+    API_PUBLIC_BASE_URL="https://thecurator-production-1b47.up.railway.app",
+    WEB_BASE_URL="https://thecuratorgroup.org",
+  )
   def test_rewrites_firebase_handler_to_click_to_verify_page(self):
     admin_link = (
       "https://thecuratorin.firebaseapp.com/__/auth/action"
       "?mode=verifyEmail&oobCode=abc123&apiKey=key456&lang=en"
-      "&continueUrl=https%3A%2F%2Fthecuratorgroup.org%2Fverify-email%3Fstatus%3Ddone"
+      "&continueUrl=https%3A%2F%2Fthecurator-production-1b47.up.railway.app%2Fm%2Fverify-email%3Fstatus%3Ddone"
     )
     url = build_click_to_verify_url(admin_link)
-    self.assertTrue(url.startswith("https://thecuratorgroup.org/verify-email?"))
+    self.assertTrue(
+      url.startswith("https://thecurator-production-1b47.up.railway.app/m/verify-email?")
+    )
     self.assertIn("mode=verifyEmail", url)
     self.assertIn("oobCode=abc123", url)
     self.assertIn("apiKey=key456", url)

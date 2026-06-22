@@ -7,6 +7,7 @@ from firebase_admin.auth import UserNotFoundError
 
 from publicapi.email_delivery import deliver_email
 from publicapi.email_templates import build_curator_email_body, build_curator_email_html
+from users.auth_page_urls import mobile_reset_password_page_url
 from users.services.verification_email import VERIFY_QUERY_KEYS
 
 logger = logging.getLogger(__name__)
@@ -21,12 +22,13 @@ def build_click_to_reset_url(admin_link: str) -> str:
     if not params.get("oobCode") or params.get("mode") != "resetPassword":
         raise ValueError("Firebase password reset link is missing action parameters.")
 
-    base = settings.WEB_BASE_URL.rstrip("/") + "/reset-password"
+    base = mobile_reset_password_page_url()
     return f"{base}?{urlencode(params)}"
 
 
 def send_password_reset_email(*, email: str) -> bool:
-    continue_url = f"{settings.WEB_BASE_URL.rstrip('/')}/reset-password?status=done"
+    page_url = mobile_reset_password_page_url()
+    continue_url = f"{page_url}?status=done"
     action_settings = firebase_auth.ActionCodeSettings(
         url=continue_url,
         handle_code_in_app=False,
