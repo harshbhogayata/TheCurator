@@ -11,21 +11,18 @@ import { updatePreferences } from "../services/mobile-api";
  */
 export function useTextSizePreference() {
   const { preferences, hydrateFontSize } = useReadingPreferences();
-  const {
-    session,
-    status,
-    updateSessionPreferences,
-    updateOnboardingPreferences,
-  } = useAuth();
+  const { session, status, updateSessionPreferences } = useAuth();
 
   const selectTextSize = useCallback(
     (size: TextSize) => {
+      const previousSize = preferences.fontSize;
       hydrateFontSize(size);
 
       if (status !== "signed-in" || !session) {
         return;
       }
 
+      const previousPreferences = session.preferences;
       const nextPreferences = { ...session.preferences, textSize: size };
       updateSessionPreferences(nextPreferences);
 
@@ -34,18 +31,11 @@ export function useTextSizePreference() {
           updateSessionPreferences({ ...nextPreferences, ...payload });
         })
         .catch(() => {
-          void updateOnboardingPreferences(nextPreferences).catch(() => {
-            // Reading prefs stay local; settings/onboarding surfaces their own errors.
-          });
+          hydrateFontSize(previousSize);
+          updateSessionPreferences(previousPreferences);
         });
     },
-    [
-      hydrateFontSize,
-      session,
-      status,
-      updateOnboardingPreferences,
-      updateSessionPreferences,
-    ],
+    [hydrateFontSize, preferences.fontSize, session, status, updateSessionPreferences],
   );
 
   return {

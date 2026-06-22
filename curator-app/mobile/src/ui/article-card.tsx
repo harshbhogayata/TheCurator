@@ -56,7 +56,8 @@ function ArticleCardInner({
 
   const scale = useSharedValue(1);
   const reduceMotion = useReduceMotion();
-  const isSaved = isArticleSaved(article.id);
+  const savedState = isArticleSaved(article.id);
+  const isSaved = savedState === true;
   const imageUrl = getImageUrl(article);
   const hasAudio = Boolean(article.hasAudioAvailable || article.audioUrl || article.audioDurationSec);
 
@@ -81,13 +82,16 @@ function ArticleCardInner({
   }, [onPress, router, article.id]);
 
   const handleBookmarkPress = useCallback(() => {
+    if (savedState === null) {
+      return;
+    }
     hapticMedium();
     if (isSaved) {
       unsaveArticle(article.id);
     } else {
       saveArticle(article.id);
     }
-  }, [isSaved, article.id, saveArticle, unsaveArticle]);
+  }, [savedState, isSaved, article.id, saveArticle, unsaveArticle]);
 
   if (variant === "compact") {
     return (

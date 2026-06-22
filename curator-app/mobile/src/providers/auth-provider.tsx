@@ -31,10 +31,17 @@ import { resetQueryCache } from "../lib/query-client";
 import { buildEmailVerificationSettings } from "../lib/firebase-email-verification";
 import { useTheme } from "./theme-provider";
 import { getAuthErrorMessage } from "../lib/auth-errors";
+import { mockBackendEnabled } from "../lib/dev-flags";
 
 // Set EXPO_PUBLIC_MOCK_BACKEND=true in .env to short-circuit auth locally.
-// Defaults to false so production builds are safe without explicit opt-in.
-const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = mockBackendEnabled;
+
+const DEV_MOCK_ONBOARDING = {
+  currentStep: "complete" as const,
+  isCompleted: true,
+  completedAt: new Date().toISOString(),
+  selectedCategories: ["technology", "world", "business"],
+};
 
 function buildMockSession(overrides?: Partial<SessionPayload>): SessionPayload {
   const now = new Date().toISOString();
@@ -108,15 +115,24 @@ export function AuthProvider({ children }: PropsWithChildren) {
   const [session, setSession] = useState<SessionPayload | null>(null);
   const activeExchangePromiseRef = useRef<Promise<void> | null>(null);
   const activeUserIdRef = useRef<string | null>(null);
+  const sessionRef = useRef<SessionPayload | null>(null);
+  sessionRef.current = session;
 
   const { runBusy, setError, clearError, isBusy, globalError } = useUIStore();
 
-  const dismissSessionError = useCallback(() => {
+  const dismissSessionError = useCallback(async () => {
     clearError();
     activeUserIdRef.current = null;
-    void resetQueryCache();
-    setStatus("signed-out");
+    await resetQueryCache();
     setSession(null);
+    setStatus("signed-out");
+    if (!MOCK_BACKEND && firebaseConfigured) {
+      try {
+        await firebaseSignOut(getFirebaseAuth());
+      } catch {
+        // Firebase may already be signed out.
+      }
+    }
   }, [clearError]);
 
   const applySession = useCallback(
@@ -190,10 +206,21 @@ export function AuthProvider({ children }: PropsWithChildren) {
   );
 
   const refreshSession = useCallback(async () => {
-    setStatus("loading");
+    const hadSession = Boolean(sessionRef.current);
+    if (!hadSession) {
+      setStatus("loading");
+    }
     try {
       await exchangeSession();
     } catch (error) {
+      if (hadSession) {
+        setError(
+          error instanceof Error
+            ? error.message
+            : "We couldn't refresh your session. Please try again.",
+        );
+        return;
+      }
       setStatus("error");
       setError(
         error instanceof Error
@@ -205,6 +232,11 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (MOCK_BACKEND) {
+      applySession(
+        buildMockSession({
+          onboarding: DEV_MOCK_ONBOARDING,
+        }),
+      );
       return;
     }
 
@@ -225,9 +257,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
 
-        setStatus("loading");
+        if (!sessionRef.current) {
+          setStatus("loading");
+        }
         await exchangeSession(firebaseUser);
       } catch (error) {
+        if (sessionRef.current) {
+          setError(
+            error instanceof Error
+              ? error.message
+              : "We couldn't sync your session in the background.",
+          );
+          return;
+        }
         setStatus("error");
         setError(
           error instanceof Error

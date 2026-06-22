@@ -21,21 +21,21 @@ export function AppProviders({ children }: PropsWithChildren) {
     >
       <ThemeProvider>
         <AuthProvider>
-          <BottomSheetModalProvider>
-            <SubscriptionProvider>
-              <SavedArticlesProvider>
-                <CollectionsProvider>
-                  <ReadingPreferencesProvider>
-                    <ReadingStatsProvider>
-                      <AudioProvider>
-                        <ToastProvider>{children}</ToastProvider>
-                      </AudioProvider>
-                    </ReadingStatsProvider>
-                  </ReadingPreferencesProvider>
-                </CollectionsProvider>
-              </SavedArticlesProvider>
-            </SubscriptionProvider>
-          </BottomSheetModalProvider>
+          <ToastProvider>
+            <BottomSheetModalProvider>
+              <SubscriptionProvider>
+                <SavedArticlesProvider>
+                  <CollectionsProvider>
+                    <ReadingPreferencesProvider>
+                      <ReadingStatsProvider>
+                        <AudioProvider>{children}</AudioProvider>
+                      </ReadingStatsProvider>
+                    </ReadingPreferencesProvider>
+                  </CollectionsProvider>
+                </SavedArticlesProvider>
+              </SubscriptionProvider>
+            </BottomSheetModalProvider>
+          </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
     </PersistQueryClientProvider>

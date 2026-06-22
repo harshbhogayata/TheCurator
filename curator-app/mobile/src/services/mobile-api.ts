@@ -185,17 +185,25 @@ export async function fetchArticlesByIds(articleIds: string[]): Promise<Article[
     return [];
   }
 
-  const uniqueIds = Array.from(new Set(articleIds));
+  const orderedIds: string[] = [];
+  const seen = new Set<string>();
+  for (const id of articleIds) {
+    if (!seen.has(id)) {
+      seen.add(id);
+      orderedIds.push(id);
+    }
+  }
+
   const chunks: string[][] = [];
-  for (let index = 0; index < uniqueIds.length; index += 50) {
-    chunks.push(uniqueIds.slice(index, index + 50));
+  for (let index = 0; index < orderedIds.length; index += 50) {
+    chunks.push(orderedIds.slice(index, index + 50));
   }
 
   const pages = await Promise.all(
     chunks.map((chunk) => fetchArticlePage({ ids: chunk.join(","), limit: chunk.length })),
   );
   const articlesById = new Map(pages.flatMap((page) => page.items).map((article) => [article.id, article]));
-  return uniqueIds.map((id) => articlesById.get(id)).filter((article): article is Article => Boolean(article));
+  return orderedIds.map((id) => articlesById.get(id)).filter((article): article is Article => Boolean(article));
 }
 
 export async function fetchArticle(articleId: string): Promise<Article> {

@@ -1,4 +1,5 @@
 from django.test import TestCase
+from unittest.mock import patch
 
 from billing.models import RazorpayWebhookEvent, StripeWebhookEvent
 from billing.razorpay_service import process_razorpay_webhook
@@ -151,6 +152,14 @@ class RazorpayWebhookProcessingTests(TestCase):
             firebase_uid="razorpay-uid",
         )
 
+    def test_payment_captured_without_tier_is_ignored(self):
+        event = _razorpay_payment_event(self.user)
+        event["payload"]["payment"]["entity"]["notes"] = {"user_id": str(self.user.id)}
+        process_razorpay_webhook(event)
+
+        entitlement = UserEntitlement.objects.get(user=self.user)
+        self.assertEqual(entitlement.tier, SubscriptionTier.FREE)
+
     def test_payment_captured_grants_lifetime(self):
         process_razorpay_webhook(_razorpay_payment_event(self.user))
 
@@ -200,3 +209,61 @@ class RazorpayStandardOrderTests(TestCase):
 
         with self.assertRaises(RazorpayServiceError):
             create_standard_order(amount=50, receipt="test")
+
+
+class MobileDonateHandoffTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="handoff@example.com",
+            password="x",
+            firebase_uid="handoff-uid",
+        )
+
+    def test_build_handoff_includes_plan_in_url(self):
+        from billing.handoff import build_mobile_donate_handoff
+
+        payload = build_mobile_donate_handoff(self.user, SubscriptionTier.PREMIUM)
+        self.assertIn("plan=premium", payload["donateUrl"])
+        self.assertIn("/m/donate", payload["donateUrl"])
+        self.assertIn("handoff=", payload["donateUrl"])
+        self.assertIn("source=app", payload["donateUrl"])
+
+    def test_build_handoff_rejects_invalid_plan(self):
+        from billing.handoff import build_mobile_donate_handoff
+        from billing.razorpay_service import RazorpayServiceError
+
+        with self.assertRaises(RazorpayServiceError):
+            build_mobile_donate_handoff(self.user, "gold")
+
+    @patch("billing.handoff.create_custom_token", return_value="firebase-custom-token")
+    def test_create_and_exchange_handoff(self, mock_token):
+        from rest_framework.test import APIClient
+
+        client = APIClient()
+        client.force_authenticate(user=self.user)
+
+        create_resp = client.post(
+            "/api/billing/v1/mobile-handoff/",
+            {"plan": "premium"},
+            format="json",
+        )
+        self.assertEqual(create_resp.status_code, 200)
+        token = create_resp.data["handoffToken"]
+
+        client.force_authenticate(user=None)
+        exchange_resp = client.post(
+            "/api/billing/v1/mobile-handoff/exchange/",
+            {"handoffToken": token},
+            format="json",
+        )
+        self.assertEqual(exchange_resp.status_code, 200)
+        self.assertEqual(exchange_resp.data["customToken"], "firebase-custom-token")
+        mock_token.assert_called_once_with("handoff-uid")
+
+    def test_mobile_donate_page_renders(self):
+        from django.test import Client
+
+        response = Client().get("/m/donate?plan=premium&source=app")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Support The Curator", response.content)
+        self.assertIn(b"premium", response.content)

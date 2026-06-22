@@ -6,6 +6,7 @@ import {
   Share,
   ScrollView,
   StyleSheet,
+  Alert,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
@@ -30,6 +31,7 @@ import { useAuth } from "../../../src/providers/auth-provider";
 import { useSavedArticles } from "../../../src/providers/saved-articles-provider";
 import { useReadingPreferences } from "../../../src/providers/reading-preferences-provider";
 import { useReadingStats } from "../../../src/providers/reading-stats-provider";
+import { useSubscription } from "../../../src/providers/subscription-provider";
 import { ReadingProgressBar } from "../../../src/ui/reading-progress-bar";
 import { TypographySettings } from "../../../src/ui/typography-settings";
 import { ArticleCard, getImageUrl } from "../../../src/ui/article-card";
@@ -44,9 +46,10 @@ export default function ArticleScreen() {
   const { palette } = useTheme();
   const { maxContentWidth } = useLayout();
   const { session } = useAuth();
-  const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
+  const { isArticleSaved, saveArticle, unsaveArticle, isHydrated } = useSavedArticles();
   const { fontSizeValue, lineHeightValue } = useReadingPreferences();
   const { recordArticleRead } = useReadingStats();
+  const { hasCollections } = useSubscription();
   const { data: article, isLoading: isArticleLoading, isError: isArticleError, refetch } = useArticle(id ?? "");
   const { data: allArticles = [] } = useArticles();
 
@@ -57,8 +60,12 @@ export default function ArticleScreen() {
   const startTime = useRef(Date.now());
   const scrollRef = useRef<ScrollView>(null);
   const savedScrollY = useRef(0);
-  const autoSaveAttempted = useRef(false);
+  const isArticleSavedRef = useRef(isArticleSaved);
   const scrollKey = `curator.scroll.${id}`;
+
+  useEffect(() => {
+    isArticleSavedRef.current = isArticleSaved;
+  }, [isArticleSaved]);
 
   // Related articles: same category first, pad with others to always reach 3
   const relatedArticles = useMemo(() => {
@@ -84,16 +91,24 @@ export default function ArticleScreen() {
     [articleContent],
   );
 
-  // Reading session tracking
+  // Reading session tracking + optional auto-save after meaningful read time
   useEffect(() => {
     startTime.current = Date.now();
     return () => {
       const readTimeMs = Date.now() - startTime.current;
-      if (readTimeMs > 5000 && article?.id) {
-        recordArticleRead(readTimeMs, article.id);
+      const articleId = article?.id;
+      if (readTimeMs > 5000 && articleId) {
+        recordArticleRead(readTimeMs, articleId);
+        if (
+          isHydrated &&
+          session?.preferences.autoSaveEnabled &&
+          isArticleSavedRef.current(articleId) === false
+        ) {
+          saveArticle(articleId);
+        }
       }
     };
-  }, [recordArticleRead, article?.id]);
+  }, [article?.id, isHydrated, recordArticleRead, saveArticle, session?.preferences.autoSaveEnabled]);
 
   // Restore reading position
   useEffect(() => {
@@ -118,26 +133,30 @@ export default function ArticleScreen() {
     };
   }, [scrollKey]);
 
-  // Auto-save when preference is enabled and article isn't already saved
-  useEffect(() => {
-    if (article && session?.preferences.autoSaveEnabled && !isArticleSaved(article.id) && !autoSaveAttempted.current) {
-      autoSaveAttempted.current = true;
-      saveArticle(article.id);
-    }
-  }, [article, session?.preferences.autoSaveEnabled, isArticleSaved, saveArticle]);
-
-  // Bookmark
-  const isSaved = article ? isArticleSaved(article.id) : false;
+  const savedState = article ? isArticleSaved(article.id) : null;
+  const isSaved = savedState === true;
 
   const toggleBookmark = useCallback(() => {
-    if (!article) return;
+    if (!article || savedState === null) return;
     hapticMedium();
     if (isSaved) {
       unsaveArticle(article.id);
     } else {
       saveArticle(article.id);
     }
-  }, [article, isSaved, saveArticle, unsaveArticle]);
+  }, [article, savedState, isSaved, saveArticle, unsaveArticle]);
+
+  const openCollectionModal = useCallback(() => {
+    if (!hasCollections) {
+      Alert.alert(
+        "Upgrade Required",
+        "Collections are available on Basic and above.",
+        [{ text: "OK" }],
+      );
+      return;
+    }
+    setCollectionModalVisible(true);
+  }, [hasCollections]);
 
   // Share
   const shareArticle = useCallback(async () => {
@@ -303,7 +322,7 @@ export default function ArticleScreen() {
             />
           </Pressable>
           <Pressable
-            onPress={() => setCollectionModalVisible(true)}
+            onPress={openCollectionModal}
             accessibilityRole="button"
             accessibilityLabel="Add to collection"
             style={[

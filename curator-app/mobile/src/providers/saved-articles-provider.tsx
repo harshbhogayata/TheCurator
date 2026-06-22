@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -16,29 +17,76 @@ import {
   saveArticleById,
   unsaveArticleById,
 } from "../services/mobile-api";
+import {
+  clearSavedArticlesCaches,
+  dropArticleFromSavedCaches,
+  primeSavedArticlesCache,
+} from "../lib/saved-articles-cache";
 import { invalidateSavedArticlesQueries } from "../lib/query-client";
+import {
+  createSaveMutationQueue,
+  notifyArticlesUnsaved,
+} from "../lib/saved-articles-sync";
 import { notifyReadingStatsRefresh } from "../lib/stats-sync";
+import { mockBackendEnabled } from "../lib/dev-flags";
 import { useAuth } from "./auth-provider";
 import { useSubscription } from "./subscription-provider";
+import { useToast } from "./toast-provider";
 
 interface SavedArticlesContextValue {
   savedArticleIds: string[];
+  isHydrated: boolean;
+  syncError: string | null;
   saveArticle: (id: string) => void;
   unsaveArticle: (id: string) => void;
-  isArticleSaved: (id: string) => boolean;
+  unsaveArticles: (ids: string[]) => void;
+  isArticleSaved: (id: string) => boolean | null;
   savedCount: number;
   clearAllSaved: () => void;
+  refreshSavedArticles: () => Promise<void>;
 }
 
-const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+const MOCK_BACKEND = mockBackendEnabled;
 const STORAGE_KEY = "curator.saved-articles";
 
 const SavedArticlesContext = createContext<SavedArticlesContextValue | null>(null);
 
 export function SavedArticlesProvider({ children }: PropsWithChildren) {
-  const { status } = useAuth();
+  const { session } = useAuth();
   const { hasUnlimitedSaves, maxSaves } = useSubscription();
+  const { showToast } = useToast();
+  const userId = session?.user?.id ?? null;
+
   const [savedArticleIds, setSavedArticleIds] = useState<string[]>([]);
+  const [isHydrated, setIsHydrated] = useState(MOCK_BACKEND);
+  const [syncError, setSyncError] = useState<string | null>(null);
+
+  const savedArticleIdsRef = useRef(savedArticleIds);
+  savedArticleIdsRef.current = savedArticleIds;
+
+  const enqueueMutation = useRef(createSaveMutationQueue()).current;
+
+  const syncFromServer = useCallback((ids: string[]) => {
+    setSavedArticleIds(ids);
+    setIsHydrated(true);
+    setSyncError(null);
+    primeSavedArticlesCache([...ids].reverse());
+    invalidateSavedArticlesQueries();
+    notifyReadingStatsRefresh();
+  }, []);
+
+  const refreshSavedArticles = useCallback(async () => {
+    if (MOCK_BACKEND || !userId) {
+      return;
+    }
+    try {
+      const ids = await listSavedArticleIds();
+      syncFromServer(ids);
+    } catch {
+      setSyncError("Couldn't sync saved articles. Pull to retry.");
+      setIsHydrated(false);
+    }
+  }, [syncFromServer, userId]);
 
   useEffect(() => {
     if (MOCK_BACKEND) {
@@ -51,151 +99,225 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
             setSavedArticleIds([]);
           }
         }
+        if (!cancelled) {
+          setIsHydrated(true);
+        }
       });
-
       return () => {
         cancelled = true;
       };
     }
 
-    if (status !== "signed-in") {
+    if (!userId) {
       setSavedArticleIds([]);
+      setIsHydrated(false);
       return;
     }
 
-    if (!MOCK_BACKEND) {
-      void AsyncStorage.removeItem(STORAGE_KEY);
-    }
-
+    setSavedArticleIds([]);
     let cancelled = false;
+    setIsHydrated(false);
 
-    listSavedArticleIds()
-      .then((ids) => {
+    const load = async () => {
+      try {
+        const ids = await listSavedArticleIds();
         if (!cancelled) {
-          setSavedArticleIds(ids);
+          syncFromServer(ids);
         }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setSavedArticleIds([]);
+      } catch {
+        if (cancelled) {
+          return;
         }
-      });
+        try {
+          const ids = await listSavedArticleIds();
+          if (!cancelled) {
+            syncFromServer(ids);
+          }
+        } catch {
+          if (!cancelled) {
+            setSyncError("Couldn't load saved articles. Open Saved and tap Retry.");
+            setIsHydrated(false);
+          }
+        }
+      }
+    };
+
+    void load();
 
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [syncFromServer, userId]);
+
+  const persistMock = useCallback((ids: string[]) => {
+    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+  }, []);
 
   const saveArticle = useCallback(
     (id: string) => {
-      if (savedArticleIds.includes(id)) {
+      if (!MOCK_BACKEND && !userId) {
         return;
       }
 
-      if (!hasUnlimitedSaves && savedArticleIds.length >= maxSaves) {
-        Alert.alert(
-          "Limit Reached",
-          `You've reached the limit of ${maxSaves} saved articles on your current tier. Upgrade to save more!`,
-          [{ text: "OK" }]
-        );
-        return;
-      }
-
-      if (!MOCK_BACKEND && status !== "signed-in") {
-        return;
-      }
+      let shouldPersist = false;
+      const previousIds = [...savedArticleIdsRef.current];
 
       setSavedArticleIds((prev) => {
+        if (prev.includes(id)) {
+          return prev;
+        }
+
+        if (!hasUnlimitedSaves && prev.length >= maxSaves) {
+          Alert.alert(
+            "Limit Reached",
+            `You've reached the limit of ${maxSaves} saved articles on your current tier. Upgrade to save more!`,
+            [{ text: "OK" }],
+          );
+          return prev;
+        }
+
+        shouldPersist = true;
         const next = [...prev, id];
         if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          persistMock(next);
         }
+        primeSavedArticlesCache([...next].reverse());
         return next;
       });
 
-      if (MOCK_BACKEND || status !== "signed-in") {
+      if (!shouldPersist || MOCK_BACKEND) {
         return;
       }
 
-      void saveArticleById(id)
+      void enqueueMutation(() => saveArticleById(id))
         .then((ids) => {
-          setSavedArticleIds(ids);
-          invalidateSavedArticlesQueries();
-          notifyReadingStatsRefresh();
+          syncFromServer(ids);
         })
         .catch(() => {
-          setSavedArticleIds((prev) => prev.filter((articleId) => articleId !== id));
+          setSavedArticleIds(previousIds);
+          dropArticleFromSavedCaches(id);
+          showToast("error", "Couldn't save this article. Try again.");
         });
     },
-    [status, savedArticleIds, hasUnlimitedSaves, maxSaves],
+    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, showToast, syncFromServer, userId],
+  );
+
+  const unsaveArticles = useCallback(
+    (ids: string[]) => {
+      const uniqueIds = [...new Set(ids.filter(Boolean))];
+      if (uniqueIds.length === 0) {
+        return;
+      }
+
+      if (!MOCK_BACKEND && !userId) {
+        return;
+      }
+
+      const previousIds = savedArticleIdsRef.current;
+
+      setSavedArticleIds((prev) => {
+        const next = prev.filter((articleId) => !uniqueIds.includes(articleId));
+        if (MOCK_BACKEND) {
+          persistMock(next);
+        }
+        for (const articleId of uniqueIds) {
+          dropArticleFromSavedCaches(articleId);
+        }
+        notifyArticlesUnsaved(uniqueIds);
+        return next;
+      });
+
+      if (MOCK_BACKEND) {
+        return;
+      }
+
+      void enqueueMutation(async () => {
+        let latest = previousIds;
+        for (const articleId of uniqueIds) {
+          latest = await unsaveArticleById(articleId);
+        }
+        return latest;
+      })
+        .then((ids) => {
+          syncFromServer(ids);
+        })
+        .catch(() => {
+          setSavedArticleIds(previousIds);
+          primeSavedArticlesCache([...previousIds].reverse());
+          showToast("error", "Couldn't update saved articles. Try again.");
+        });
+    },
+    [enqueueMutation, persistMock, showToast, syncFromServer, userId],
   );
 
   const unsaveArticle = useCallback(
     (id: string) => {
-      if (!MOCK_BACKEND && status !== "signed-in") {
-        return;
-      }
-
-      setSavedArticleIds((prev) => {
-        const next = prev.filter((articleId) => articleId !== id);
-        if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
-        }
-        return next;
-      });
-
-      if (MOCK_BACKEND || status !== "signed-in") {
-        return;
-      }
-
-      void unsaveArticleById(id)
-        .then((ids) => {
-          setSavedArticleIds(ids);
-          invalidateSavedArticlesQueries();
-          notifyReadingStatsRefresh();
-        })
-        .catch(() => {
-          setSavedArticleIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
-        });
+      unsaveArticles([id]);
     },
-    [status],
+    [unsaveArticles],
   );
 
   const isArticleSaved = useCallback(
-    (id: string) => savedArticleIds.includes(id),
-    [savedArticleIds],
+    (id: string): boolean | null => {
+      if (!isHydrated) {
+        return null;
+      }
+      return savedArticleIds.includes(id);
+    },
+    [isHydrated, savedArticleIds],
   );
 
   const clearAllSaved = useCallback(() => {
-    setSavedArticleIds([]);
+    const previousIds = savedArticleIdsRef.current;
 
+    setSavedArticleIds([]);
+    clearSavedArticlesCaches();
     if (MOCK_BACKEND) {
       void AsyncStorage.removeItem(STORAGE_KEY);
       return;
     }
 
-    if (status !== "signed-in") {
+    if (!userId) {
       return;
     }
 
-    void clearSavedArticlesRemote()
+    notifyArticlesUnsaved(previousIds);
+
+    void enqueueMutation(() => clearSavedArticlesRemote())
       .then((ids) => {
-        setSavedArticleIds(ids);
-        invalidateSavedArticlesQueries();
-        notifyReadingStatsRefresh();
+        syncFromServer(ids);
+      })
+      .catch(() => {
+        setSavedArticleIds(previousIds);
+        primeSavedArticlesCache([...previousIds].reverse());
+        showToast("error", "Couldn't clear saved articles. Try again.");
       });
-  }, [status]);
+  }, [enqueueMutation, showToast, syncFromServer, userId]);
 
   const value = useMemo<SavedArticlesContextValue>(
     () => ({
       savedArticleIds,
+      isHydrated,
+      syncError,
       saveArticle,
       unsaveArticle,
+      unsaveArticles,
       isArticleSaved,
       savedCount: savedArticleIds.length,
       clearAllSaved,
+      refreshSavedArticles,
     }),
-    [savedArticleIds, saveArticle, unsaveArticle, isArticleSaved, clearAllSaved],
+    [
+      savedArticleIds,
+      isHydrated,
+      syncError,
+      saveArticle,
+      unsaveArticle,
+      unsaveArticles,
+      isArticleSaved,
+      clearAllSaved,
+      refreshSavedArticles,
+    ],
   );
 
   return (

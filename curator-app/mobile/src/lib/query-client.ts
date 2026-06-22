@@ -29,6 +29,7 @@ export async function resetQueryCache(): Promise<void> {
 
 export function invalidateSavedArticlesQueries(): void {
   void queryClient.invalidateQueries({ queryKey: queryKeys.saved.list() });
+  void queryClient.invalidateQueries({ queryKey: ["articles", "byIds"] });
 }
 
 export function invalidateArticlesByIdsQueries(): void {

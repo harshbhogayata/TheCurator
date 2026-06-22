@@ -21,11 +21,12 @@ class SourceAdmin(admin.ModelAdmin):
         "kind",
         "category",
         "is_active",
+        "license_status",
         "fetch_interval_minutes",
         "last_fetched_at",
         "consecutive_failures",
     )
-    list_filter = ("kind", "is_active", "category")
+    list_filter = ("kind", "is_active", "license_status", "category")
     search_fields = ("name", "slug", "url")
     prepopulated_fields = {"slug": ("name",)}
     actions = ["fetch_now"]

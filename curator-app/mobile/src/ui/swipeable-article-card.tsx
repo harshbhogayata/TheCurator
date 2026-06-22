@@ -29,16 +29,20 @@ function SwipeableArticleCardInner({
   const { palette } = useTheme();
   const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
   const swipeableRef = useRef<SwipeableMethods>(null);
-  const isSaved = isArticleSaved(article.id);
+  const savedState = isArticleSaved(article.id);
+  const isSaved = savedState === true;
 
   const close = useCallback(() => swipeableRef.current?.close(), []);
 
   const handleToggleSave = useCallback(() => {
+    if (savedState === null) {
+      return;
+    }
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     if (isSaved) unsaveArticle(article.id);
     else saveArticle(article.id);
     close();
-  }, [isSaved, article.id, saveArticle, unsaveArticle, close]);
+  }, [savedState, isSaved, article.id, saveArticle, unsaveArticle, close]);
 
   const handleRemove = useCallback(() => {
     Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);

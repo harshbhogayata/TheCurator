@@ -13,7 +13,7 @@ from urllib.parse import urlparse, urlunparse
 import requests
 from django.utils import timezone
 
-from content_pipeline.models import RawItem, Source, SourceKind
+from content_pipeline.models import RawItem, Source, SourceKind, SourceLicenseStatus
 
 logger = logging.getLogger(__name__)
 
@@ -148,6 +148,17 @@ def fetch_source(source: Source):
 
 def fetch_source_safely(source: Source):
     """Fetch with failure bookkeeping on the Source row."""
+    if source.license_status not in {
+        SourceLicenseStatus.LICENSED,
+        SourceLicenseStatus.RSS_PERMITTED,
+    }:
+        logger.info(
+            "Skipping fetch for %s — license_status=%s",
+            source.slug,
+            source.license_status,
+        )
+        return 0
+
     try:
         created = fetch_source(source)
     except Exception as exc:  # noqa: BLE001 - record any upstream failure

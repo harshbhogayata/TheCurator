@@ -100,7 +100,7 @@ export const defaultPreferences: UserPreferences = {
   notificationFrequency: "daily",
   pushEnabled: true,
   emailDigestEnabled: true,
-  autoSaveEnabled: true,
+  autoSaveEnabled: false,
   textSize: "comfortable",
   reduceMotionEnabled: false,
 };

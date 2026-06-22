@@ -66,3 +66,10 @@ def get_firebase_user(firebase_uid: str):
 
 def delete_firebase_user(firebase_uid: str):
     return firebase_auth.delete_user(firebase_uid, app=get_firebase_app())
+
+
+def create_custom_token(firebase_uid: str) -> str:
+    token = firebase_auth.create_custom_token(firebase_uid, app=get_firebase_app())
+    if isinstance(token, bytes):
+        return token.decode("utf-8")
+    return str(token)

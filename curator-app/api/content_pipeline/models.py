@@ -10,6 +10,13 @@ class SourceKind(models.TextChoices):
     API = "api", "News API"
 
 
+class SourceLicenseStatus(models.TextChoices):
+    LICENSED = "licensed", "Licensed / partner feed"
+    RSS_PERMITTED = "rss_permitted", "RSS explicitly permitted"
+    REVIEW_REQUIRED = "review_required", "Needs legal review"
+    BLOCKED = "blocked", "Blocked — do not ingest"
+
+
 class Source(UUIDPrimaryKeyModel):
     """An upstream news source the pipeline pulls stories from."""
 
@@ -27,6 +34,13 @@ class Source(UUIDPrimaryKeyModel):
         help_text="Default category hint for stories from this source.",
     )
     is_active = models.BooleanField(default=True, db_index=True)
+    license_status = models.CharField(
+        max_length=32,
+        choices=SourceLicenseStatus.choices,
+        default=SourceLicenseStatus.REVIEW_REQUIRED,
+        db_index=True,
+        help_text="Only licensed or rss_permitted sources are ingested automatically.",
+    )
     fetch_interval_minutes = models.PositiveSmallIntegerField(default=60)
     last_fetched_at = models.DateTimeField(null=True, blank=True)
     last_error = models.TextField(blank=True)

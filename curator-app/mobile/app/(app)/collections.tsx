@@ -59,7 +59,10 @@ export default function CollectionsScreen() {
       showToast("error", "Please enter a collection name");
       return;
     }
-    createCollection(newName.trim(), newDescription.trim(), selectedColor);
+    const created = createCollection(newName.trim(), newDescription.trim(), selectedColor);
+    if (!created.id) {
+      return;
+    }
     showToast("success", "Collection created!");
     closeCreate();
     setNewName("");

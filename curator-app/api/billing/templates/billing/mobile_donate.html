@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Subscribe · The Curator</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Newsreader:ital,wght@0,500;0,700;1,500&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #fbf9f3;
+      --surface: #ffffff;
+      --primary: #31332b;
+      --primary-container: #e8e6df;
+      --on-primary: #ffffff;
+      --on-primary-container: #31332b;
+      --on-surface: #1c1b18;
+      --on-surface-variant: #5c5b56;
+      --outline: #c8c6be;
+      --error: #b3261e;
+      --error-container: #f5e0e0;
+      --on-error-container: #5c3838;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "Manrope", system-ui, sans-serif;
+      background: var(--bg);
+      color: var(--on-surface);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px 16px;
+    }
+    .card {
+      width: 100%;
+      max-width: 420px;
+      background: color-mix(in srgb, var(--surface) 88%, transparent);
+      border: 1px solid color-mix(in srgb, var(--outline) 35%, transparent);
+      border-radius: 40px;
+      padding: 32px 28px;
+      box-shadow: 0 24px 60px rgba(49, 51, 43, 0.08);
+      text-align: center;
+    }
+    .icon {
+      width: 72px;
+      height: 72px;
+      margin: 0 auto 20px;
+      border-radius: 999px;
+      background: var(--primary-container);
+      display: grid;
+      place-items: center;
+      font-size: 28px;
+    }
+    h1 {
+      margin: 0 0 8px;
+      font-family: "Newsreader", Georgia, serif;
+      font-size: 2rem;
+      font-style: italic;
+      font-weight: 500;
+      line-height: 1.15;
+    }
+    .sub {
+      margin: 0 0 24px;
+      color: var(--on-surface-variant);
+      font-size: 0.95rem;
+      line-height: 1.55;
+    }
+    .plan-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 10px 18px;
+      border-radius: 999px;
+      background: var(--primary-container);
+      color: var(--on-primary-container);
+      font-weight: 600;
+      text-transform: capitalize;
+      margin-bottom: 20px;
+    }
+    .status {
+      border-radius: 24px;
+      padding: 14px 16px;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      margin-bottom: 16px;
+    }
+    .status.info { background: var(--primary-container); color: var(--on-primary-container); }
+    .status.error { background: var(--error-container); color: var(--on-error-container); }
+    .status.success { background: #dce8dd; color: #2d4a31; }
+    .btn {
+      appearance: none;
+      border: none;
+      width: 100%;
+      border-radius: 999px;
+      padding: 16px 24px;
+      font: 600 0.95rem/1.2 "Manrope", sans-serif;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      background: var(--primary);
+      color: var(--on-primary);
+      cursor: pointer;
+    }
+    .btn:disabled { opacity: 0.55; cursor: not-allowed; }
+    .footnote {
+      margin-top: 18px;
+      font-size: 0.8rem;
+      color: var(--on-surface-variant);
+      line-height: 1.45;
+    }
+    .spinner {
+      width: 22px;
+      height: 22px;
+      border: 2px solid color-mix(in srgb, var(--primary) 20%, transparent);
+      border-top-color: var(--primary);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin: 0 auto 12px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <div class="icon" aria-hidden="true">♥</div>
+    <h1>Support The Curator</h1>
+    <p class="sub">Secure Razorpay checkout for your membership.</p>
+    <div class="plan-pill" id="plan-label">{{ plan }} plan</div>
+    <div id="banner" class="status info" hidden></div>
+    <div id="loading">
+      <div class="spinner" aria-hidden="true"></div>
+      <p class="sub" id="loading-text">Preparing checkout…</p>
+    </div>
+    <button type="button" class="btn" id="pay-btn" hidden>Pay with Razorpay</button>
+    <p class="footnote" id="footnote">
+      {% if from_app %}Return to the Curator app after payment. Your plan updates within a minute.{% else %}You can close this tab after payment completes.{% endif %}
+    </p>
+  </main>
+
+  <script type="module">
+    const config = {{ checkout_config_json|safe }};
+    config.apiBase = (config.apiBase || window.location.origin).replace(/\/$/, "");
+
+    const banner = document.getElementById("banner");
+    const loading = document.getElementById("loading");
+    const loadingText = document.getElementById("loading-text");
+    const payBtn = document.getElementById("pay-btn");
+
+    function showBanner(kind, message) {
+      banner.hidden = false;
+      banner.className = `status ${kind}`;
+      banner.textContent = message;
+    }
+
+    function setLoading(text, active) {
+      loading.hidden = !active;
+      if (text) loadingText.textContent = text;
+      payBtn.hidden = active;
+    }
+
+    async function apiFetch(path, { method = "GET", body, token } = {}) {
+      const headers = { Accept: "application/json", "Content-Type": "application/json" };
+      if (token) headers.Authorization = `Bearer ${token}`;
+      const response = await fetch(`${config.apiBase}${path}`, {
+        method,
+        headers,
+        body: body ? JSON.stringify(body) : undefined,
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const detail = payload.detail || payload.message || `Request failed (${response.status})`;
+        throw new Error(detail);
+      }
+      return payload;
+    }
+
+    async function loadRazorpay() {
+      if (window.Razorpay) return;
+      await new Promise((resolve, reject) => {
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = resolve;
+        script.onerror = () => reject(new Error("Could not load Razorpay checkout."));
+        document.head.appendChild(script);
+      });
+    }
+
+    async function signInFromHandoff() {
+      if (!config.handoffToken) return null;
+      setLoading("Signing you in from the app…", true);
+      const { customToken } = await apiFetch("/api/billing/v1/mobile-handoff/exchange/", {
+        method: "POST",
+        body: { handoffToken: config.handoffToken },
+      });
+      if (!config.firebase.apiKey) {
+        throw new Error("Checkout sign-in is not configured on the server.");
+      }
+      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js");
+      const { getAuth, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
+      const app = initializeApp(config.firebase);
+      const auth = getAuth(app);
+      await signInWithCustomToken(auth, customToken);
+      return auth.currentUser.getIdToken();
+    }
+
+    async function openRazorpay(checkout, idToken) {
+      await loadRazorpay();
+      const key = config.razorpayKeyId || checkout.keyId;
+      if (!key) throw new Error("Razorpay is not configured.");
+
+      return new Promise((resolve, reject) => {
+        const options = {
+          key,
+          name: checkout.name || "The Curator",
+          description: checkout.description || "Membership",
+          prefill: checkout.prefill || {},
+          theme: { color: "#31332b" },
+          handler: async (response) => {
+            try {
+              if (checkout.mode === "subscription" && checkout.subscriptionId) {
+                await apiFetch("/api/billing/v1/verify/", {
+                  method: "POST",
+                  body: {
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                    razorpay_subscription_id: response.razorpay_subscription_id,
+                  },
+                  token: idToken,
+                });
+              } else {
+                await apiFetch("/api/verify-payment", {
+                  method: "POST",
+                  body: {
+                    razorpay_order_id: response.razorpay_order_id,
+                    razorpay_payment_id: response.razorpay_payment_id,
+                    razorpay_signature: response.razorpay_signature,
+                  },
+                  token: idToken,
+                });
+              }
+              resolve(response);
+            } catch (error) {
+              reject(error);
+            }
+          },
+          modal: { ondismiss: () => reject(new Error("Payment cancelled")) },
+        };
+
+        if (checkout.mode === "subscription" && checkout.subscriptionId) {
+          options.subscription_id = checkout.subscriptionId;
+        } else {
+          options.order_id = checkout.orderId;
+          options.amount = checkout.amount;
+          options.currency = checkout.currency;
+        }
+
+        const instance = new window.Razorpay(options);
+        instance.on("payment.failed", (event) => {
+          reject(new Error(event?.error?.description || "Payment failed"));
+        });
+        instance.open();
+      });
+    }
+
+    async function startCheckout(idToken) {
+      setLoading("Opening secure checkout…", true);
+      const checkout = await apiFetch("/api/billing/v1/checkout/", {
+        method: "POST",
+        body: { tier: config.plan },
+        token: idToken,
+      });
+      if (checkout.provider !== "razorpay") {
+        throw new Error("Only Razorpay checkout is supported here.");
+      }
+      await openRazorpay(checkout, idToken);
+      setLoading("", false);
+      showBanner("success", "Payment successful. You can return to the Curator app — your plan will update shortly.");
+      payBtn.hidden = true;
+    }
+
+    async function boot() {
+      if (config.status === "success") {
+        setLoading("", false);
+        showBanner("success", "Payment successful. Return to the Curator app.");
+        return;
+      }
+
+      if (config.fromApp) {
+        showBanner("info", `Continuing from the app — ${config.plan} plan selected.`);
+      }
+
+      try {
+        let idToken = await signInFromHandoff();
+        if (!idToken && config.firebase.apiKey) {
+          const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js");
+          const { getAuth, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
+          const app = initializeApp(config.firebase);
+          const auth = getAuth(app);
+          idToken = await new Promise((resolve) => {
+            onAuthStateChanged(auth, async (user) => {
+              if (user) resolve(await user.getIdToken());
+            });
+            setTimeout(() => resolve(null), 1200);
+          });
+        }
+
+        if (!idToken) {
+          setLoading("", false);
+          payBtn.hidden = false;
+          showBanner("error", "Sign-in required. Open checkout from the Curator app or sign in on the website first.");
+          payBtn.textContent = "Retry checkout";
+          payBtn.onclick = () => boot();
+          return;
+        }
+
+        if (config.autoCheckout) {
+          await startCheckout(idToken);
+          return;
+        }
+
+        setLoading("", false);
+        payBtn.hidden = false;
+        payBtn.textContent = `Pay for ${config.plan}`;
+        payBtn.onclick = () => startCheckout(idToken).catch(handleError);
+      } catch (error) {
+        handleError(error);
+      }
+    }
+
+    function handleError(error) {
+      setLoading("", false);
+      payBtn.hidden = false;
+      payBtn.textContent = "Try again";
+      payBtn.onclick = () => boot();
+      const message = error instanceof Error ? error.message : "Checkout failed.";
+      showBanner("error", message);
+    }
+
+    boot().catch(handleError);
+  </script>
+</body>
+</html>

@@ -2,6 +2,7 @@ import { Redirect, Stack } from "expo-router";
 
 import { usePushNotifications } from "../../src/hooks/use-push-notifications";
 import { useAuth } from "../../src/providers/auth-provider";
+import { skipAuthGate } from "../../src/lib/dev-flags";
 import { useTheme } from "../../src/providers/theme-provider";
 import { AudioMiniPlayer } from "../../src/ui/audio-mini-player";
 import { LoadingScreen } from "../../src/ui/loading-screen";
@@ -11,18 +12,20 @@ export default function AppLayout() {
   const { palette } = useTheme();
   const { session, status } = useAuth();
 
-  if (status === "loading") {
-    return (
-      <LoadingScreen message="We're syncing your account before opening the app." />
-    );
-  }
+  if (!skipAuthGate) {
+    if (status === "loading") {
+      return (
+        <LoadingScreen message="We're syncing your account before opening the app." />
+      );
+    }
 
-  if (status === "signed-out" || !session) {
-    return <Redirect href="/(auth)/welcome" />;
-  }
+    if (status === "signed-out" || !session) {
+      return <Redirect href="/(auth)/welcome" />;
+    }
 
-  if (!session.onboarding.isCompleted) {
-    return <Redirect href="/(auth)/onboarding" />;
+    if (!session.onboarding.isCompleted) {
+      return <Redirect href="/(auth)/onboarding" />;
+    }
   }
 
   const modalOptions = {

@@ -148,7 +148,7 @@ class VerifyCheckoutView(APIView):
 
         try:
 
-            razorpay_service.verify_checkout_signature(request.data)
+            razorpay_service.verify_checkout_signature(request.data, expected_user=request.user)
 
         except RazorpayNotConfigured:
 
@@ -291,7 +291,23 @@ class CreateOrderView(APIView):
             currency = str(request.data.get("currency") or "").strip() or None
             receipt = str(request.data.get("receipt") or "")
             notes = request.data.get("notes") if isinstance(request.data.get("notes"), dict) else {}
-            notes = {**notes, "user_id": str(request.user.id)}
+            tier = str(notes.get("tier") or request.data.get("tier") or "").strip().lower()
+            if tier not in _ALLOWED_TIERS:
+                return Response(
+                    {"detail": "tier is required for custom orders (basic, premium, or lifetime)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            expected_amount = (
+                razorpay_service._lifetime_amount()
+                if tier == SubscriptionTier.LIFETIME
+                else razorpay_service._amount_for_tier(tier)
+            )
+            if amount != expected_amount:
+                return Response(
+                    {"detail": f"amount must be {expected_amount} paise for tier '{tier}'."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            notes = {**notes, "user_id": str(request.user.id), "tier": tier}
             order = razorpay_service.create_standard_order(
                 amount=amount,
                 currency=currency,
@@ -338,7 +354,7 @@ class VerifyPaymentView(APIView):
             )
 
         try:
-            razorpay_service.verify_checkout_signature(request.data)
+            razorpay_service.verify_checkout_signature(request.data, expected_user=request.user)
         except RazorpayNotConfigured:
             return Response(
                 {"detail": "Payments are not configured."},
@@ -354,6 +370,62 @@ class VerifyPaymentView(APIView):
             )
 
         return Response({"success": True, "verified": True})
+
+
+
+
+class MobileHandoffCreateView(APIView):
+
+    permission_classes = [IsAuthenticated]
+
+
+
+    def post(self, request):
+
+        plan = str(request.data.get("plan", "")).strip().lower() or None
+
+        try:
+
+            from billing import handoff
+
+            payload = handoff.build_mobile_donate_handoff(request.user, plan)
+
+        except RazorpayServiceError as exc:
+
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(payload)
+
+
+
+
+class MobileHandoffExchangeView(APIView):
+
+    authentication_classes = []
+
+    permission_classes = [AllowAny]
+
+    throttle_classes = [ScopedRateThrottle]
+
+    throttle_scope = "webhooks"
+
+
+
+    def post(self, request):
+
+        token = str(request.data.get("handoffToken", "")).strip()
+
+        try:
+
+            from billing import handoff
+
+            custom_token = handoff.exchange_mobile_handoff(token)
+
+        except RazorpayServiceError as exc:
+
+            return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response({"customToken": custom_token})
 
 
 

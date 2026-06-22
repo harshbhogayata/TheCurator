@@ -30,7 +30,23 @@ export function usePushNotifications() {
       return;
     }
 
-    if (status !== "signed-in" || !session?.preferences.pushEnabled) {
+    if (status === "signed-out" || !session) {
+      let cancelled = false;
+      AsyncStorage.getItem(DEVICE_ID_KEY)
+        .then((deviceId) => {
+          if (!deviceId || cancelled) {
+            return;
+          }
+          return unregisterDevice(deviceId)
+            .catch(() => {})
+            .finally(() => AsyncStorage.removeItem(DEVICE_ID_KEY));
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
+
+    if (!session.preferences.pushEnabled) {
       let cancelled = false;
       AsyncStorage.getItem(DEVICE_ID_KEY)
         .then((deviceId) => {
@@ -63,8 +79,8 @@ export function usePushNotifications() {
         let finalStatus = existingStatus;
 
         if (existingStatus !== "granted") {
-          const { status } = await Notifications.requestPermissionsAsync();
-          finalStatus = status;
+          const { status: permissionStatus } = await Notifications.requestPermissionsAsync();
+          finalStatus = permissionStatus;
         }
 
         if (finalStatus !== "granted") {
@@ -73,7 +89,7 @@ export function usePushNotifications() {
 
         const projectId =
           Constants?.expoConfig?.extra?.eas?.projectId ?? Constants?.easConfig?.projectId;
-        
+
         if (!projectId) {
           console.warn("Project ID not found in app.json. Push notifications need an EAS project ID.");
           return;
@@ -110,5 +126,5 @@ export function usePushNotifications() {
     return () => {
       isMounted = false;
     };
-  }, [status, session?.preferences.pushEnabled]);
+  }, [status, session, session?.preferences.pushEnabled]);
 }

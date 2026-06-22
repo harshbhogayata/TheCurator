@@ -3,6 +3,8 @@ import * as WebBrowser from "expo-web-browser";
 import { Platform } from "react-native";
 
 import type { CheckoutPayload, RazorpaySuccessResponse } from "./billing-api";
+import { createMobileDonateHandoff } from "./billing-api";
+import { buildMobileDonateUrl } from "../lib/resolve-mobile-donate-url";
 
 const RAZORPAY_KEY_ID = process.env.EXPO_PUBLIC_RAZORPAY_KEY_ID ?? "";
 
@@ -106,8 +108,18 @@ export async function openStandardRazorpayOrderCheckout(input: {
 
 /** Complete payment on the web app (Android / Expo Go), then refresh entitlement. */
 export async function openWebDonateCheckout(plan: string): Promise<void> {
-  const siteUrl = (process.env.EXPO_PUBLIC_SITE_URL ?? "http://localhost:5173").replace(/\/$/, "");
-  await WebBrowser.openBrowserAsync(`${siteUrl}/donate?plan=${encodeURIComponent(plan)}`, {
+  let url = buildMobileDonateUrl({ plan, source: "app", auto: "1" });
+
+  try {
+    const handoff = await createMobileDonateHandoff(
+      plan as "basic" | "premium" | "lifetime",
+    );
+    url = handoff.donateUrl;
+  } catch {
+    // Handoff optional — unsigned URL still works if user signs in on the page.
+  }
+
+  await WebBrowser.openBrowserAsync(url, {
     presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
     enableBarCollapsing: true,
   });

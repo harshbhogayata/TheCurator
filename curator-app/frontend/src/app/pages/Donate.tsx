@@ -1,11 +1,17 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { ArrowLeft, Heart, Check, CreditCard, Crown, Sparkles, Star } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { AppShell } from '../components/AppShell';
 import { useSubscription } from '../context/SubscriptionContext';
+import { useAuth } from '../context/AuthContext';
 import { queryKeys } from '../../lib/query-keys';
 import { isMockBackend, isMockPremium } from '../../lib/dev-mode';
+import {
+  exchangeMobileHandoff,
+  parseDonatePlan,
+  type DonatePlanId,
+} from '../../lib/mobile-handoff';
 
 interface SubscriptionPlan {
   id: 'basic' | 'premium' | 'lifetime';
@@ -23,10 +29,18 @@ export function Donate() {
   const [searchParams, setSearchParams] = useSearchParams();
   const queryClient = useQueryClient();
   const { tier: currentTier, upgradeTier } = useSubscription();
-  const [selectedPlan, setSelectedPlan] = useState<string>('premium');
+  const { isAuthenticated, authStatus } = useAuth();
+  const fromApp = searchParams.get('source') === 'app';
+  const [selectedPlan, setSelectedPlan] = useState<string>(
+    () => parseDonatePlan(searchParams.get('plan')) ?? 'premium',
+  );
   const [showThankYou, setShowThankYou] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
+  const [handoffStatus, setHandoffStatus] = useState<'exchanging' | 'ready' | 'error'>(() =>
+    searchParams.get('handoff') ? 'exchanging' : 'ready',
+  );
+  const autoStartedRef = useRef(false);
 
   // Returning from checkout (?status=success) — Stripe redirect or Razorpay callback URL.
   useEffect(() => {
@@ -43,6 +57,37 @@ export function Donate() {
       return () => clearTimeout(timer);
     }
   }, [searchParams, setSearchParams, queryClient, navigate]);
+
+  // Pre-select plan from ?plan= (mobile deep link).
+  useEffect(() => {
+    const parsed = parseDonatePlan(searchParams.get('plan'));
+    if (parsed) setSelectedPlan(parsed);
+  }, [searchParams]);
+
+  // Mobile → web auth handoff (?handoff=).
+  useEffect(() => {
+    const handoff = searchParams.get('handoff');
+    if (!handoff) return;
+
+    let cancelled = false;
+    setHandoffStatus('exchanging');
+
+    void exchangeMobileHandoff(handoff)
+      .then(() => {
+        if (cancelled) return;
+        setHandoffStatus('ready');
+        const next = new URLSearchParams(searchParams);
+        next.delete('handoff');
+        setSearchParams(next, { replace: true });
+      })
+      .catch(() => {
+        if (!cancelled) setHandoffStatus('error');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [searchParams, setSearchParams]);
   
   const plans: SubscriptionPlan[] = [
     {
@@ -93,13 +138,21 @@ export function Donate() {
   ];
   
   const selectedPlanData = plans.find(p => p.id === selectedPlan);
+
+  const isCurrentOrLower = (planId: string) => {
+    if (currentTier === 'lifetime') return true;
+    if (currentTier === 'premium' && (planId === 'basic' || planId === 'premium')) return true;
+    if (currentTier === 'basic' && planId === 'basic') return true;
+    return false;
+  };
   
-  const handleSubscribe = async () => {
-    if (!selectedPlan || isRedirecting) return;
+  const handleSubscribe = async (planOverride?: DonatePlanId) => {
+    const plan = planOverride ?? (parseDonatePlan(selectedPlan) as DonatePlanId | null);
+    if (!plan || isRedirecting) return;
     setCheckoutError(null);
     setIsRedirecting(true);
     try {
-      await upgradeTier(selectedPlan as 'basic' | 'premium' | 'lifetime');
+      await upgradeTier(plan);
       if (isMockBackend || isMockPremium) {
         setShowThankYou(true);
         setTimeout(() => {
@@ -118,16 +171,33 @@ export function Donate() {
     } catch {
       setCheckoutError('Unable to start checkout right now. Please try again.');
       setIsRedirecting(false);
+      autoStartedRef.current = false;
     }
   };
-  
-  // Check if user already has this tier or better
-  const isCurrentOrLower = (planId: string) => {
-    if (currentTier === 'lifetime') return true;
-    if (currentTier === 'premium' && (planId === 'basic' || planId === 'premium')) return true;
-    if (currentTier === 'basic' && planId === 'basic') return true;
-    return false;
-  };
+
+  // Auto-open Razorpay when arriving from the app with ?auto=1.
+  useEffect(() => {
+    if (searchParams.get('auto') !== '1') return;
+    if (handoffStatus !== 'ready') return;
+    if (authStatus === 'loading' || !isAuthenticated) return;
+    if (autoStartedRef.current || isRedirecting || showThankYou) return;
+
+    const plan =
+      parseDonatePlan(searchParams.get('plan')) ?? parseDonatePlan(selectedPlan);
+    if (!plan || isCurrentOrLower(plan)) return;
+
+    autoStartedRef.current = true;
+    void handleSubscribe(plan);
+  }, [
+    handoffStatus,
+    authStatus,
+    isAuthenticated,
+    isRedirecting,
+    showThankYou,
+    searchParams,
+    selectedPlan,
+    currentTier,
+  ]);
   
   if (showThankYou) {
     return (
@@ -171,6 +241,28 @@ export function Donate() {
   return (
     <AppShell title="Support Us">
       <div className="space-y-8">
+        {/* Mobile app handoff */}
+        {fromApp && handoffStatus === 'exchanging' && (
+          <div className="mb-8 rounded-[30px] border border-outline-variant/15 bg-primary-container/50 p-4 text-center">
+            <p className="text-on-primary-container">Signing you in from the Curator app…</p>
+          </div>
+        )}
+        {handoffStatus === 'error' && (
+          <div className="mb-8 rounded-[30px] border border-error/30 bg-error-container/30 p-4 text-center">
+            <p className="text-on-error-container text-sm">
+              Could not complete app sign-in. Sign in on this page to continue checkout.
+            </p>
+          </div>
+        )}
+        {fromApp && handoffStatus === 'ready' && !isRedirecting && (
+          <div className="mb-8 rounded-[30px] border border-outline-variant/15 bg-primary-container/50 p-4 text-center">
+            <p className="text-on-primary-container text-sm">
+              Continuing from the Curator app — your{' '}
+              <strong className="capitalize">{selectedPlan}</strong> plan is pre-selected.
+            </p>
+          </div>
+        )}
+        
         {/* Current Subscription Badge */}
         {currentTier === 'basic' && (
           <div className="mb-8 bg-primary-container/50 border border-outline-variant/15 rounded-[30px] p-4 text-center">
@@ -267,7 +359,7 @@ export function Donate() {
         {/* Subscribe Button */}
         <div className="flex flex-col items-center gap-3">
           <button 
-            onClick={handleSubscribe}
+            onClick={() => void handleSubscribe()}
             disabled={!selectedPlan || isCurrentOrLower(selectedPlan) || isRedirecting}
             className="bg-inverse-surface text-white px-12 py-5 rounded-full uppercase tracking-widest transition-all shadow-xl hover:bg-primary active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-3 text-lg"
           >

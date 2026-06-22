@@ -74,3 +74,19 @@ export async function verifyRazorpayPayment(body: {
     body,
   });
 }
+
+export type MobileDonateHandoffResponse = {
+  handoffToken: string;
+  donateUrl: string;
+  expiresInSeconds: number;
+};
+
+/** POST /api/billing/v1/mobile-handoff/ — signed URL for web donate with auth. */
+export async function createMobileDonateHandoff(
+  plan: Exclude<SubscriptionTier, "free">,
+): Promise<MobileDonateHandoffResponse> {
+  return apiRequest<MobileDonateHandoffResponse>(`${BILLING_PREFIX}/mobile-handoff/`, {
+    method: "POST",
+    body: { plan },
+  });
+}

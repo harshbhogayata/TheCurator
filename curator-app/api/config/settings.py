@@ -241,6 +241,9 @@ SECURE_HSTS_PRELOAD = env.bool("SECURE_HSTS_PRELOAD", default=not DEBUG)
 SECURE_CONTENT_TYPE_NOSNIFF = True
 
 FIREBASE_PROJECT_ID = env("FIREBASE_PROJECT_ID", default="")
+FIREBASE_WEB_API_KEY = env("FIREBASE_WEB_API_KEY", default="")
+FIREBASE_WEB_AUTH_DOMAIN = env("FIREBASE_WEB_AUTH_DOMAIN", default="")
+FIREBASE_WEB_APP_ID = env("FIREBASE_WEB_APP_ID", default="")
 FIREBASE_CREDENTIALS_PATH = env("FIREBASE_CREDENTIALS_PATH", default="")
 FIREBASE_CREDENTIALS_JSON = env("FIREBASE_CREDENTIALS_JSON", default="")
 FIREBASE_CLOCK_SKEW_SECONDS = env.int("FIREBASE_CLOCK_SKEW_SECONDS", default=60)
@@ -317,6 +320,7 @@ RAZORPAY_SUBSCRIPTION_TOTAL_COUNT = env.int("RAZORPAY_SUBSCRIPTION_TOTAL_COUNT",
 
 # Public web app origin used for checkout/portal redirect URLs.
 WEB_BASE_URL = env("WEB_BASE_URL", default="http://localhost:3000" if DEBUG else "https://thecuratorgroup.org")
+MOBILE_DONATE_URL = env("MOBILE_DONATE_URL", default="")
 
 _parsed_web_base = urlparse(WEB_BASE_URL)
 if _parsed_web_base.scheme and _parsed_web_base.netloc:

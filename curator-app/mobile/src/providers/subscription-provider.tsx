@@ -36,6 +36,7 @@ import {
   shouldUseWebRazorpayCheckout,
 } from "../services/razorpay-checkout";
 import { getBillingProvider, usesRazorpayBilling, type BillingProvider } from "../lib/billing-provider";
+import { pollSubscriptionTierAfterPayment } from "../lib/poll-subscription-tier";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
 import { useAuth } from "./auth-provider";
 
@@ -279,7 +280,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
   useEffect(() => {
     if (!MOCK_BACKEND) {
-      if (status !== "signed-in") {
+      if (!session?.user?.id) {
         setTierState(MOCK_PREMIUM ? "premium" : "free");
         return;
       }
@@ -293,7 +294,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
         })
         .catch(() => {
           if (!cancelled) {
-            setTierState(MOCK_PREMIUM ? "premium" : "free");
+            // Keep current tier on transient refresh failures.
           }
         });
 
@@ -311,7 +312,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [session?.user?.id]);
 
   const setTier = useCallback((newTier: SubscriptionTier) => {
     setTierState(newTier);
@@ -353,12 +354,13 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     }
 
     setIsPurchasing(true);
+    const previousTier = tier;
     try {
       if (shouldUseWebRazorpayCheckout()) {
         await openWebDonateCheckout(selectedTier);
-        const resolved = await resolveSubscriptionTier();
+        const resolved = await pollSubscriptionTierAfterPayment(previousTier);
         setTierState(resolved);
-        return resolved !== "free";
+        return resolved !== "free" && resolved !== previousTier;
       }
 
       const checkout = await createCheckout(selectedTier);
@@ -369,22 +371,28 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       const runNativeCheckout = async () => {
         if (checkout.mode === "subscription" && checkout.subscriptionId) {
           const response = await openRazorpayCheckout(checkout);
-          await verifyRazorpayCheckout({
+          const verified = await verifyRazorpayCheckout({
             razorpay_payment_id: response.razorpay_payment_id,
             razorpay_signature: response.razorpay_signature,
             razorpay_order_id: response.razorpay_order_id,
             razorpay_subscription_id: response.razorpay_subscription_id,
           });
+          if (!verified.verified) {
+            throw new Error("Payment verification failed.");
+          }
           return;
         }
 
         if (checkout.mode === "order" && checkout.orderId) {
           const response = await openRazorpayCheckout(checkout);
-          await verifyRazorpayCheckout({
+          const verified = await verifyRazorpayCheckout({
             razorpay_payment_id: response.razorpay_payment_id,
             razorpay_signature: response.razorpay_signature,
             razorpay_order_id: response.razorpay_order_id,
           });
+          if (!verified.verified) {
+            throw new Error("Payment verification failed.");
+          }
           return;
         }
 
@@ -413,17 +421,23 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
         if (message === "Payment cancelled") {
           return false;
         }
-        // Native Razorpay may fail on New Architecture — fall back to web checkout.
+        const checkoutUnavailable =
+          message.includes("unavailable") ||
+          message.includes("disabled on Android") ||
+          message.includes("development build");
+        if (!checkoutUnavailable) {
+          throw error;
+        }
         await openWebDonateCheckout(selectedTier);
       }
 
-      const resolved = await resolveSubscriptionTier();
+      const resolved = await pollSubscriptionTierAfterPayment(previousTier);
       setTierState(resolved);
-      return resolved !== "free";
+      return resolved !== "free" && resolved !== previousTier;
     } finally {
       setIsPurchasing(false);
     }
-  }, [isExpoGo, packages, purchasePackage]);
+  }, [isExpoGo, packages, purchasePackage, tier]);
 
   const features = TIER_FEATURES[tier];
 

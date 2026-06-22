@@ -11,6 +11,7 @@ from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.utils.text import slugify
 from rest_framework import exceptions, permissions, response, status, views
+from rest_framework.throttling import ScopedRateThrottle
 
 from common.errors import EntitlementRequired
 from common.etag import etag_response
@@ -926,6 +927,8 @@ class PrivacyExportDownloadView(views.APIView):
 class RevenueCatWebhookView(views.APIView):
     authentication_classes = []
     permission_classes = []
+    throttle_classes = [ScopedRateThrottle]
+    throttle_scope = "webhooks"
 
     def post(self, request):
         import hmac
@@ -944,13 +947,23 @@ class RevenueCatWebhookView(views.APIView):
 
 
 class PublicAudioFileView(views.APIView):
-    """Serve locally generated narration mp3 files (public CDN-style URLs)."""
+    """Serve locally stored narration files — premium subscribers only."""
 
-    authentication_classes = []
-    permission_classes = []
+    permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, storage_path):
         from mobileapi.audio_services import local_audio_root
+        from mobileapi.revenuecat import refresh_entitlement_from_revenuecat
+
+        entitlement = refresh_entitlement_from_revenuecat(
+            request.user,
+            _get_or_create_entitlement(request.user),
+        )
+        if entitlement.effective_tier not in {
+            SubscriptionTier.PREMIUM,
+            SubscriptionTier.LIFETIME,
+        }:
+            raise EntitlementRequired(SubscriptionTier.PREMIUM)
 
         root = local_audio_root().resolve()
         target = (root / storage_path).resolve()
@@ -962,5 +975,5 @@ class PublicAudioFileView(views.APIView):
         return FileResponse(
             open(target, "rb"),
             content_type="audio/mpeg",
-            headers={"Cache-Control": "public, max-age=31536000, immutable"},
+            headers={"Cache-Control": "private, max-age=3600"},
         )

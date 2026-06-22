@@ -6,12 +6,14 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import { fetchReadingStats, recordReadingEvent } from "../services/mobile-api";
 import { notifyReadingStatsRefresh, registerReadingStatsRefresh } from "../lib/stats-sync";
-import { useAuth } from "./auth-provider";
+import { createSaveMutationQueue } from "../lib/saved-articles-sync";
+import { useAuthUserId } from "../hooks/use-auth-user";
 
 interface DailyRecord {
   date: string; // YYYY-MM-DD
@@ -134,8 +136,9 @@ function calculateStreak(dailyHistory: DailyRecord[]): {
 const ReadingStatsContext = createContext<ReadingStatsContextValue | null>(null);
 
 export function ReadingStatsProvider({ children }: PropsWithChildren) {
-  const { status } = useAuth();
+  const userId = useAuthUserId();
   const [stats, setStats] = useState<ReadingStats>(DEFAULT_STATS);
+  const enqueueMutation = useRef(createSaveMutationQueue()).current;
 
   useEffect(() => {
     if (MOCK_BACKEND) {
@@ -162,10 +165,12 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
       };
     }
 
-    if (status !== "signed-in") {
+    if (!userId) {
       setStats(DEFAULT_STATS);
       return;
     }
+
+    setStats(DEFAULT_STATS);
 
     if (!MOCK_BACKEND) {
       void AsyncStorage.removeItem(STORAGE_KEY);
@@ -196,11 +201,11 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [userId]);
 
   useEffect(() => {
     const refresh = () => {
-      if (MOCK_BACKEND || status !== "signed-in") {
+      if (MOCK_BACKEND || !userId) {
         return;
       }
 
@@ -222,15 +227,17 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
     };
 
     return registerReadingStatsRefresh(refresh);
-  }, [status]);
+  }, [userId]);
 
   const recordArticleRead = useCallback(
     (readTimeMs: number, articleId?: string) => {
-      if (!MOCK_BACKEND && status === "signed-in") {
-        void recordReadingEvent({
-          articleId,
-          readTimeMs,
-        })
+      if (!MOCK_BACKEND && userId) {
+        void enqueueMutation(() =>
+          recordReadingEvent({
+            articleId,
+            readTimeMs,
+          }),
+        )
           .then((payload) => {
             setStats({
               totalArticlesRead: payload.totalArticlesRead,
@@ -293,11 +300,11 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
         return next;
       });
     },
-    [status],
+    [enqueueMutation, userId],
   );
 
   const recordSave = useCallback(() => {
-    if (!MOCK_BACKEND && status === "signed-in") {
+    if (!MOCK_BACKEND && userId) {
       return;
     }
 
@@ -311,7 +318,7 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
       }
       return next;
     });
-  }, [status]);
+  }, [userId]);
 
   const averageReadTimeMs = useMemo(() => {
     if (stats.totalArticlesRead === 0) return 0;

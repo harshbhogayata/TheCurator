@@ -165,7 +165,16 @@ export default function DonateScreen() {
         if (success) {
           showToast("success", `You're now a ${selectedPlan} member! Thank you for your support.`);
           router.back();
+          return;
         }
+        if (usesWebCheckout) {
+          showToast(
+            "info",
+            "Complete payment in the browser tab. When you're done, return here — your plan refreshes automatically.",
+          );
+          return;
+        }
+        showToast("info", "Payment was not completed.");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Payment failed.";
         showToast("error", message);

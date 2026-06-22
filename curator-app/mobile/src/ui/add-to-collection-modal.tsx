@@ -25,7 +25,7 @@ function AddToCollectionModalInner({
   articleId,
 }: AddToCollectionModalProps) {
   const { palette } = useTheme();
-  const { collections, addArticleToCollection } = useCollections();
+  const { collections, addArticleToCollections } = useCollections();
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const modalRef = useRef<BottomSheetModal>(null);
   const insets = useSafeAreaInsets();
@@ -56,12 +56,10 @@ function AddToCollectionModalInner({
   }, []);
 
   const handleAdd = useCallback(() => {
-    selectedIds.forEach((collectionId) => {
-      addArticleToCollection(collectionId, articleId);
-    });
+    addArticleToCollections([...selectedIds], articleId);
     setSelectedIds(new Set());
     onClose();
-  }, [selectedIds, addArticleToCollection, articleId, onClose]);
+  }, [selectedIds, addArticleToCollections, articleId, onClose]);
 
   const renderBackdrop = useCallback(
     (props: BottomSheetBackdropProps) => (

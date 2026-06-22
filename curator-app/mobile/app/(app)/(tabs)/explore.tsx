@@ -40,8 +40,8 @@ export default function ExploreScreen() {
 
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
-  const { data: articles = [], isLoading: isArticlesLoading, refetch } = useArticles();
-  const { data: apiCategories, isLoading: isCategoriesLoading } = useCategories();
+  const { data: articles = [], isLoading: isArticlesLoading, refetch: refetchArticles } = useArticles();
+  const { data: apiCategories, isLoading: isCategoriesLoading, refetch: refetchCategories } = useCategories();
   const categoryOptions = useMemo(() => {
     if (apiCategories && apiCategories.length > 0) {
       return [
@@ -71,8 +71,8 @@ export default function ExploreScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    void refetch().finally(() => setRefreshing(false));
-  }, [refetch]);
+    void Promise.all([refetchArticles(), refetchCategories()]).finally(() => setRefreshing(false));
+  }, [refetchArticles, refetchCategories]);
 
   const topNarratives =
     viewMode === "today" ? articles.slice(0, 2) : articles.slice(6, 8);

@@ -13,6 +13,7 @@ from content_pipeline.models import (
     DraftStatus,
     RawItemStatus,
     Source,
+    SourceLicenseStatus,
     StoryCluster,
     StoryClusterStatus,
 )
@@ -36,7 +37,10 @@ def fetch_due_sources():
     if not settings.PIPELINE_ENABLED:
         return 0
     fetched = 0
-    for source in Source.objects.filter(is_active=True):
+    for source in Source.objects.filter(
+        is_active=True,
+        license_status__in=[SourceLicenseStatus.LICENSED, SourceLicenseStatus.RSS_PERMITTED],
+    ):
         if source.is_due:
             fetch_source_safely(source)
             fetched += 1

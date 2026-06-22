@@ -4,20 +4,18 @@ import { Text, View } from "react-native";
 import { useAuth } from "../src/providers/auth-provider";
 import { useTheme } from "../src/providers/theme-provider";
 import { useUIStore } from "../src/lib/store";
+import { skipAuthGate } from "../src/lib/dev-flags";
 import { LoadingScreen } from "../src/ui/loading-screen";
 import { PrimaryButton } from "../src/ui/primary-button";
 import { Screen } from "../src/ui/screen";
 
-// Set EXPO_PUBLIC_DEV_BYPASS_AUTH=true in .env to skip auth locally.
-const DEV_BYPASS_AUTH = __DEV__ && process.env.EXPO_PUBLIC_DEV_BYPASS_AUTH === "true";
-
+// Set EXPO_PUBLIC_DEV_BYPASS_AUTH=true with EXPO_PUBLIC_MOCK_BACKEND=true to skip auth locally.
 export default function IndexScreen() {
   const { status, session, refreshSession, dismissSessionError } = useAuth();
   const { globalError: errorMessage } = useUIStore();
   const { palette } = useTheme();
 
-  // Dev bypass — skip auth entirely
-  if (DEV_BYPASS_AUTH) {
+  if (skipAuthGate) {
     return <Redirect href="/(app)/(tabs)" />;
   }
 

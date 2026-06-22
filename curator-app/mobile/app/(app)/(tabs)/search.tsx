@@ -35,7 +35,7 @@ export default function SearchScreen() {
   const { palette } = useTheme();
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
-  const { isArticleSaved } = useSavedArticles();
+  const { isArticleSaved, isHydrated } = useSavedArticles();
   const { recentArticleIds } = useReadingStats();
   const { q } = useLocalSearchParams<{ q?: string }>();
   const { data: articles = [] } = useArticles();
@@ -90,14 +90,19 @@ export default function SearchScreen() {
       if (selectedCategories.length > 0) {
         if (!selectedCategories.includes(normalizeCategory(article.category))) return false;
       }
+      if (readingStatus === "saved" || readingStatus === "unsaved") {
+        if (!isHydrated) {
+          return true;
+        }
+      }
       if (readingStatus === "saved") {
-        if (!isArticleSaved(article.id)) return false;
+        if (isArticleSaved(article.id) !== true) return false;
       } else if (readingStatus === "unsaved") {
-        if (isArticleSaved(article.id)) return false;
+        if (isArticleSaved(article.id) === true) return false;
       }
       return true;
     });
-  }, [articles, searchQuery, selectedCategories, readingStatus, isArticleSaved]);
+  }, [articles, searchQuery, selectedCategories, readingStatus, isArticleSaved, isHydrated]);
 
   const renderItem = useCallback(({ item }: { item: Article }) => (
     <View style={{ marginBottom: 16 }}>

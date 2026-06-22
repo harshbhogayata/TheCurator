@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -27,11 +27,16 @@ import { type } from "../../../src/ui/tokens/typography";
 export default function SavedScreen() {
   const { palette } = useTheme();
   const router = useRouter();
-  const { unsaveArticle, savedCount } = useSavedArticles();
+  const { unsaveArticle, unsaveArticles, savedCount, savedArticleIds, syncError, refreshSavedArticles } =
+    useSavedArticles();
   const { hasUnlimitedSaves, maxSaves } = useSubscription();
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
-  const { data: articles = [], isLoading } = useSavedArticlesList();
+  const { data: articles = [], isLoading, isFetching, isHydrated } = useSavedArticlesList();
+
+  const savedIdSet = useMemo(() => new Set(savedArticleIds), [savedArticleIds]);
+  const showSavedLoading =
+    !isHydrated || (savedCount > 0 && articles.length === 0 && (isLoading || isFetching));
 
   const [filterQuery, setFilterQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -39,8 +44,11 @@ export default function SavedScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  // Articles from API savedOnly query (refreshed when saves change).
-  const savedArticles = useMemo(() => articles, [articles]);
+  // Always intersect query rows with live saved IDs (guards stale cache).
+  const savedArticles = useMemo(
+    () => articles.filter((article) => savedIdSet.has(article.id)),
+    [articles, savedIdSet],
+  );
 
   const categoryChips = useMemo(() => {
     const cats = [...new Set(savedArticles.map((a) => a.category))];
@@ -89,10 +97,10 @@ export default function SavedScreen() {
 
   const bulkDelete = useCallback(() => {
     hapticMedium();
-    selectedIds.forEach((id) => unsaveArticle(id));
+    unsaveArticles(selectedIds);
     setSelectedIds([]);
     setSelectionMode(false);
-  }, [selectedIds, unsaveArticle]);
+  }, [selectedIds, unsaveArticles]);
 
   const toggleSelectionMode = useCallback(() => {
     if (selectionMode) {
@@ -112,6 +120,33 @@ export default function SavedScreen() {
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
       >
+        {syncError ? (
+          <Pressable
+            onPress={() => void refreshSavedArticles()}
+            style={{
+              marginHorizontal: contentPadding,
+              marginBottom: 12,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: palette.errorContainer,
+              borderWidth: 1,
+              borderColor: palette.error + "40",
+            }}
+          >
+            <Text style={[type.labelSm, { color: palette.onErrorContainer }]}>
+              {syncError}
+            </Text>
+            <Text
+              style={[
+                type.labelSm,
+                { color: palette.onErrorContainer, marginTop: 4, fontFamily: "Manrope_600SemiBold" },
+              ]}
+            >
+              Tap to retry
+            </Text>
+          </Pressable>
+        ) : null}
+
         {/* Storage limit banner (free users only) */}
         {!hasUnlimitedSaves && (
           <View
@@ -315,7 +350,7 @@ export default function SavedScreen() {
         </Pressable>
 
         {/* Saved articles list */}
-        {isLoading ? (
+        {showSavedLoading ? (
           <View style={{ paddingHorizontal: contentPadding, marginTop: 16, gap: 16 }}>
             <CompactCardSkeleton />
             <CompactCardSkeleton />

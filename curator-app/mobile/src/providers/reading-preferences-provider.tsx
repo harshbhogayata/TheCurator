@@ -64,7 +64,7 @@ const ReadingPreferencesContext =
   createContext<ReadingPreferencesContextValue | null>(null);
 
 export function ReadingPreferencesProvider({ children }: PropsWithChildren) {
-  const { session, status } = useAuth();
+  const { session } = useAuth();
   const [preferences, setPreferences] =
     useState<ReadingPreferences>(DEFAULT_PREFERENCES);
 
@@ -110,12 +110,8 @@ export function ReadingPreferencesProvider({ children }: PropsWithChildren) {
   );
 
   useEffect(() => {
-    if (status !== "signed-in") {
-      return;
-    }
-
     hydrateFontSize(session?.preferences.textSize);
-  }, [hydrateFontSize, session?.preferences.textSize, status]);
+  }, [hydrateFontSize, session?.preferences.textSize]);
 
   const setFontSize = useCallback(
     (size: TextSize) => {

@@ -70,6 +70,20 @@ def _currency() -> str:
     return (settings.RAZORPAY_CURRENCY or "INR").upper()
 
 
+def _resolve_tier_from_notes(notes: dict, *, order_amount: int | None = None) -> str:
+    """Resolve paid tier from Razorpay notes and optionally validate order amount."""
+    tier = str(notes.get("tier") or "").strip().lower()
+    if tier not in {SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.LIFETIME}:
+        raise RazorpayServiceError("Missing or invalid tier on payment order.")
+
+    if order_amount is not None:
+        expected = _lifetime_amount() if tier == SubscriptionTier.LIFETIME else _amount_for_tier(tier)
+        if int(order_amount) != int(expected):
+            raise RazorpayServiceError("Payment amount does not match the selected membership tier.")
+
+    return tier
+
+
 def _amount_for_tier(tier: str) -> int:
     amount_map = settings.RAZORPAY_TIER_AMOUNT_MAP or {}
     amount = amount_map.get(tier)
@@ -234,7 +248,15 @@ def verify_standard_payment(
         _map_razorpay_exception(exc)
 
 
-def verify_checkout_signature(payload: dict) -> User | None:
+def _assert_payment_user(user: User | None, expected_user: User | None) -> User:
+    if user is None:
+        raise RazorpayServiceError("Unable to resolve user for completed payment.")
+    if expected_user is not None and user.id != expected_user.id:
+        raise RazorpayServiceError("This payment belongs to a different account.")
+    return user
+
+
+def verify_checkout_signature(payload: dict, *, expected_user: User | None = None) -> User | None:
     """Verify client callback and upgrade entitlement when order notes include user/tier."""
     client = _client()
 
@@ -254,10 +276,8 @@ def verify_checkout_signature(payload: dict) -> User | None:
         )
         order = client.order.fetch(order_id)
         notes = order.get("notes") or {}
-        user = _resolve_user_from_notes(notes)
-        if user is None:
-            raise RazorpayServiceError("Unable to resolve user for completed order.")
-        tier = notes.get("tier") or SubscriptionTier.LIFETIME
+        user = _assert_payment_user(_resolve_user_from_notes(notes), expected_user)
+        tier = _resolve_tier_from_notes(notes, order_amount=order.get("amount"))
         _apply_paid_entitlement(
             user,
             tier=tier,
@@ -278,10 +298,10 @@ def verify_checkout_signature(payload: dict) -> User | None:
         )
         subscription = client.subscription.fetch(subscription_id)
         notes = subscription.get("notes") or {}
-        user = _resolve_user_from_notes(notes)
-        if user is None:
-            raise RazorpayServiceError("Unable to resolve user for completed subscription.")
-        tier = notes.get("tier") or _tier_for_plan_id(subscription.get("plan_id", ""))
+        user = _assert_payment_user(_resolve_user_from_notes(notes), expected_user)
+        tier = str(notes.get("tier") or "").strip().lower()
+        if tier not in {SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.LIFETIME}:
+            tier = _tier_for_plan_id(subscription.get("plan_id", ""))
         _apply_paid_entitlement(
             user,
             tier=tier,
@@ -392,7 +412,11 @@ def _apply_payment_captured(payment: dict) -> User | None:
         return None
 
     notes = payment.get("notes") or {}
-    tier = notes.get("tier") or SubscriptionTier.LIFETIME
+    try:
+        tier = _resolve_tier_from_notes(notes, order_amount=payment.get("amount"))
+    except RazorpayServiceError:
+        logger.warning("Razorpay payment.captured without valid tier: %s", payment.get("id"))
+        return None
     _apply_paid_entitlement(
         user,
         tier=tier,

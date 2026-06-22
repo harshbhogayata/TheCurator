@@ -6,10 +6,12 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
 import type { Collection } from "../lib/types";
+import { Alert } from "react-native";
 import {
   addArticleToCollectionRemote,
   createCollectionRemote,
@@ -18,8 +20,11 @@ import {
   removeArticleFromCollectionRemote,
   updateCollectionRemote,
 } from "../services/mobile-api";
+import { useAuthUserId, useCanSyncUserData } from "../hooks/use-auth-user";
 import { invalidateArticlesByIdsQueries } from "../lib/query-client";
-import { useAuth } from "./auth-provider";
+import { createSaveMutationQueue, subscribeArticlesUnsaved } from "../lib/saved-articles-sync";
+import { useSubscription } from "./subscription-provider";
+import { useToast } from "./toast-provider";
 
 interface CollectionsContextValue {
   collections: Collection[];
@@ -33,6 +38,7 @@ interface CollectionsContextValue {
   updateCollection: (id: string, updates: Partial<Pick<Collection, "name" | "description" | "color" | "icon">>) => void;
   deleteCollection: (id: string) => void;
   addArticleToCollection: (collectionId: string, articleId: string) => void;
+  addArticleToCollections: (collectionIds: string[], articleId: string) => void;
   removeArticleFromCollection: (collectionId: string, articleId: string) => void;
   getCollection: (id: string) => Collection | undefined;
 }
@@ -47,15 +53,34 @@ function generateId(): string {
 const CollectionsContext = createContext<CollectionsContextValue | null>(null);
 
 export function CollectionsProvider({ children }: PropsWithChildren) {
-  const { status } = useAuth();
+  const userId = useAuthUserId();
+  const canSync = useCanSyncUserData();
+  const { hasCollections, maxCollections } = useSubscription();
+  const { showToast } = useToast();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  useEffect(() => {
-    setIsLoading(true);
+  const collectionsRef = useRef(collections);
+  collectionsRef.current = collections;
 
+  const enqueueMutation = useRef(createSaveMutationQueue()).current;
+  const pendingTempAddsRef = useRef<Map<string, string[]>>(new Map());
+
+  useEffect(() => {
+    return subscribeArticlesUnsaved((articleIds) => {
+      setCollections((current) =>
+        current.map((collection) => ({
+          ...collection,
+          articleIds: collection.articleIds.filter((id) => !articleIds.includes(id)),
+        })),
+      );
+    });
+  }, []);
+
+  useEffect(() => {
     if (MOCK_BACKEND) {
       let cancelled = false;
+      setIsLoading(true);
       AsyncStorage.getItem(STORAGE_KEY).then((value) => {
         if (!cancelled) {
           if (value) {
@@ -68,17 +93,21 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
           setIsLoading(false);
         }
       });
-
       return () => {
         cancelled = true;
       };
     }
 
-    if (status !== "signed-in") {
+    if (!userId) {
       setCollections([]);
       setIsLoading(false);
+      pendingTempAddsRef.current.clear();
       return;
     }
+
+    setCollections([]);
+    setIsLoading(true);
+    pendingTempAddsRef.current.clear();
 
     if (!MOCK_BACKEND) {
       void AsyncStorage.removeItem(STORAGE_KEY);
@@ -95,6 +124,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       .catch(() => {
         if (!cancelled) {
           setCollections([]);
+          showToast("error", "Couldn't load collections. Try again later.");
         }
       })
       .finally(() => {
@@ -106,7 +136,40 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
-  }, [status]);
+  }, [userId]);
+
+  const persistMock = useCallback((next: Collection[]) => {
+    void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+  }, []);
+
+  const flushPendingAdds = useCallback(
+    (tempId: string, serverCollection: Collection) => {
+      const pending = pendingTempAddsRef.current.get(tempId) ?? [];
+      pendingTempAddsRef.current.delete(tempId);
+      if (pending.length === 0 || MOCK_BACKEND || !canSync) {
+        return;
+      }
+
+      void enqueueMutation(async () => {
+        let latest = serverCollection;
+        for (const articleId of pending) {
+          if (!latest.articleIds.includes(articleId)) {
+            latest = await addArticleToCollectionRemote(latest.id, articleId);
+          }
+        }
+        return latest;
+      }).then((result) => {
+        if (!result) {
+          return;
+        }
+        setCollections((prev) =>
+          prev.map((collection) => (collection.id === result.id ? result : collection)),
+        );
+        invalidateArticlesByIdsQueries();
+      });
+    },
+    [canSync, enqueueMutation],
+  );
 
   const createCollection = useCallback(
     (
@@ -115,6 +178,43 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       color = "#6366f1",
       icon = "folder",
     ): Collection => {
+      if (!hasCollections) {
+        Alert.alert(
+          "Upgrade Required",
+          "Collections are available on Basic and above. Upgrade to organize your reading.",
+          [{ text: "OK" }],
+        );
+        return {
+          id: "",
+          name,
+          description,
+          color,
+          icon,
+          articleIds: [],
+          createdAt: new Date().toISOString(),
+        };
+      }
+
+      if (
+        Number.isFinite(maxCollections) &&
+        collectionsRef.current.length >= maxCollections
+      ) {
+        Alert.alert(
+          "Limit Reached",
+          `You've reached the limit of ${maxCollections} collections on your current tier.`,
+          [{ text: "OK" }],
+        );
+        return {
+          id: "",
+          name,
+          description,
+          color,
+          icon,
+          articleIds: [],
+          createdAt: new Date().toISOString(),
+        };
+      }
+
       const newCollection: Collection = {
         id: generateId(),
         name,
@@ -128,12 +228,12 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       setCollections((prev) => {
         const next = [newCollection, ...prev];
         if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          persistMock(next);
         }
         return next;
       });
 
-      if (!MOCK_BACKEND && status === "signed-in") {
+      if (!MOCK_BACKEND && canSync) {
         void createCollectionRemote({ name, description, color, icon })
           .then((serverCollection) => {
             setCollections((prev) =>
@@ -141,133 +241,188 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
                 current.id === newCollection.id ? serverCollection : current,
               ),
             );
+            flushPendingAdds(newCollection.id, serverCollection);
           })
           .catch(() => {
+            pendingTempAddsRef.current.delete(newCollection.id);
             setCollections((prev) =>
               prev.filter((current) => current.id !== newCollection.id),
             );
+            showToast("error", "Couldn't create collection. Try again.");
           });
       }
 
       return newCollection;
     },
-    [status],
+    [canSync, flushPendingAdds, hasCollections, maxCollections, persistMock],
   );
 
   const updateCollection = useCallback(
     (id: string, updates: Partial<Pick<Collection, "name" | "description" | "color" | "icon">>) => {
+      const previous = collectionsRef.current.find((collection) => collection.id === id);
+      if (!previous) {
+        return;
+      }
+
       setCollections((prev) => {
         const next = prev.map((collection) =>
           collection.id === id ? { ...collection, ...updates } : collection,
         );
         if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          persistMock(next);
         }
         return next;
       });
 
-      if (!MOCK_BACKEND && status === "signed-in" && !id.startsWith("temp-")) {
-        void updateCollectionRemote(id, updates)
+      if (!MOCK_BACKEND && canSync && !id.startsWith("temp-")) {
+        void enqueueMutation(() => updateCollectionRemote(id, updates))
           .then((serverCollection) => {
             setCollections((prev) =>
-              prev.map((collection) =>
-                collection.id === id ? serverCollection : collection,
-              ),
+              prev.map((collection) => (collection.id === id ? serverCollection : collection)),
             );
           })
           .catch(() => {
-            // Keep optimistic state on transient failures.
+            setCollections((prev) =>
+              prev.map((collection) => (collection.id === id ? previous : collection)),
+            );
+            showToast("error", "Couldn't update collection. Try again.");
           });
       }
     },
-    [status],
+    [canSync, enqueueMutation, persistMock],
   );
 
   const deleteCollection = useCallback(
     (id: string) => {
+      const previous = collectionsRef.current;
       setCollections((prev) => {
         const next = prev.filter((collection) => collection.id !== id);
         if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          persistMock(next);
         }
         return next;
       });
+      pendingTempAddsRef.current.delete(id);
 
-      if (!MOCK_BACKEND && status === "signed-in" && !id.startsWith("temp-")) {
-        void deleteCollectionRemote(id).catch(() => {
-          // Keep optimistic state on transient failures.
+      if (!MOCK_BACKEND && canSync && !id.startsWith("temp-")) {
+        void enqueueMutation(() => deleteCollectionRemote(id).then(() => id)).catch(() => {
+          setCollections(previous);
+          showToast("error", "Couldn't delete collection. Try again.");
         });
       }
     },
-    [status],
+    [canSync, enqueueMutation, persistMock],
   );
 
   const addArticleToCollection = useCallback(
     (collectionId: string, articleId: string) => {
+      if (!hasCollections) {
+        Alert.alert(
+          "Upgrade Required",
+          "Collections are available on Basic and above.",
+          [{ text: "OK" }],
+        );
+        return;
+      }
+
+      const target = collectionsRef.current.find((collection) => collection.id === collectionId);
+      if (target?.articleIds.includes(articleId)) {
+        return;
+      }
+
       setCollections((prev) => {
         const next = prev.map((collection) => {
           if (collection.id !== collectionId || collection.articleIds.includes(articleId)) {
             return collection;
           }
-
           return { ...collection, articleIds: [...collection.articleIds, articleId] };
         });
         if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          persistMock(next);
         }
         return next;
       });
 
-      if (!MOCK_BACKEND && status === "signed-in" && !collectionId.startsWith("temp-")) {
-        void addArticleToCollectionRemote(collectionId, articleId)
-          .then((serverCollection) => {
-            setCollections((prev) =>
-              prev.map((collection) =>
-                collection.id === collectionId ? serverCollection : collection,
-              ),
-            );
-            invalidateArticlesByIdsQueries();
-          })
-          .catch(() => {
-            setCollections((prev) =>
-              prev.map((collection) => {
-                if (collection.id !== collectionId) {
-                  return collection;
-                }
+      if (MOCK_BACKEND || !canSync) {
+        return;
+      }
 
-                return {
-                  ...collection,
-                  articleIds: collection.articleIds.filter((id) => id !== articleId),
-                };
-              }),
-            );
-          });
+      if (collectionId.startsWith("temp-")) {
+        const pending = pendingTempAddsRef.current.get(collectionId) ?? [];
+        pendingTempAddsRef.current.set(collectionId, [...pending, articleId]);
+        return;
+      }
+
+      void enqueueMutation(() => addArticleToCollectionRemote(collectionId, articleId))
+        .then((serverCollection) => {
+          setCollections((prev) =>
+            prev.map((collection) =>
+              collection.id === collectionId ? serverCollection : collection,
+            ),
+          );
+          invalidateArticlesByIdsQueries();
+        })
+        .catch(() => {
+          setCollections((prev) =>
+            prev.map((collection) => {
+              if (collection.id !== collectionId) {
+                return collection;
+              }
+              return {
+                ...collection,
+                articleIds: collection.articleIds.filter((id) => id !== articleId),
+              };
+            }),
+          );
+          showToast("error", "Couldn't add to collection. Try again.");
+        });
+    },
+    [canSync, enqueueMutation, hasCollections, persistMock, showToast],
+  );
+
+  const addArticleToCollections = useCallback(
+    (collectionIds: string[], articleId: string) => {
+      const uniqueIds = [...new Set(collectionIds.filter(Boolean))];
+      for (const collectionId of uniqueIds) {
+        addArticleToCollection(collectionId, articleId);
       }
     },
-    [status],
+    [addArticleToCollection],
   );
 
   const removeArticleFromCollection = useCallback(
     (collectionId: string, articleId: string) => {
+      const previous = collectionsRef.current.find((collection) => collection.id === collectionId);
+      if (!previous) {
+        return;
+      }
+
       setCollections((prev) => {
         const next = prev.map((collection) => {
           if (collection.id !== collectionId) {
             return collection;
           }
-
           return {
             ...collection,
             articleIds: collection.articleIds.filter((id) => id !== articleId),
           };
         });
         if (MOCK_BACKEND) {
-          void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+          persistMock(next);
         }
         return next;
       });
 
-      if (!MOCK_BACKEND && status === "signed-in" && !collectionId.startsWith("temp-")) {
-        void removeArticleFromCollectionRemote(collectionId, articleId)
+      if (collectionId.startsWith("temp-")) {
+        const pending = pendingTempAddsRef.current.get(collectionId) ?? [];
+        pendingTempAddsRef.current.set(
+          collectionId,
+          pending.filter((id) => id !== articleId),
+        );
+      }
+
+      if (!MOCK_BACKEND && canSync && !collectionId.startsWith("temp-")) {
+        void enqueueMutation(() => removeArticleFromCollectionRemote(collectionId, articleId))
           .then((serverCollection) => {
             setCollections((prev) =>
               prev.map((collection) =>
@@ -278,27 +433,17 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
           })
           .catch(() => {
             setCollections((prev) =>
-              prev.map((collection) => {
-                if (collection.id !== collectionId || collection.articleIds.includes(articleId)) {
-                  return collection;
-                }
-
-                return {
-                  ...collection,
-                  articleIds: [...collection.articleIds, articleId],
-                };
-              }),
+              prev.map((collection) => (collection.id === collectionId ? previous : collection)),
             );
+            showToast("error", "Couldn't remove from collection. Try again.");
           });
       }
     },
-    [status],
+    [canSync, enqueueMutation, persistMock, showToast],
   );
 
   const getCollection = useCallback(
-    (id: string): Collection | undefined => {
-      return collections.find((c) => c.id === id);
-    },
+    (id: string): Collection | undefined => collections.find((c) => c.id === id),
     [collections],
   );
 
@@ -310,6 +455,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       updateCollection,
       deleteCollection,
       addArticleToCollection,
+      addArticleToCollections,
       removeArticleFromCollection,
       getCollection,
     }),
@@ -320,15 +466,14 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       updateCollection,
       deleteCollection,
       addArticleToCollection,
+      addArticleToCollections,
       removeArticleFromCollection,
       getCollection,
     ],
   );
 
   return (
-    <CollectionsContext.Provider value={value}>
-      {children}
-    </CollectionsContext.Provider>
+    <CollectionsContext.Provider value={value}>{children}</CollectionsContext.Provider>
   );
 }
 

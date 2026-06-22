@@ -1,8 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
 
 import type { Article } from "../data/articles";
 import { queryKeys } from "../lib/query-keys";
-import { fetchAllArticles, fetchArticle, fetchArticles, fetchArticlesByIds } from "../services/mobile-api";
+import { useSavedArticles } from "../providers/saved-articles-provider";
+import { fetchArticle, fetchArticles, fetchArticlesByIds } from "../services/mobile-api";
 
 async function fetchArticlesQuery(filters?: Record<string, unknown>): Promise<Article[]> {
   return fetchArticles(filters);
@@ -34,19 +36,37 @@ export function useArticle(id: string) {
 }
 
 export function useArticlesByIds(ids: string[]) {
-  const stableIds = [...ids].sort();
+  const stableKey = [...ids].sort().join(",");
   return useQuery({
-    queryKey: ["articles", "byIds", stableIds],
+    queryKey: ["articles", "byIds", stableKey],
     queryFn: () => fetchArticlesByIds(ids),
     enabled: ids.length > 0,
     staleTime: 5 * 60 * 1000,
   });
 }
 
+/** Saved tab + collection picker — IDs from context, rows always filtered to match. */
 export function useSavedArticlesList() {
-  return useQuery({
-    queryKey: queryKeys.saved.list(),
-    queryFn: () => fetchAllArticles({ savedOnly: true }),
+  const { savedArticleIds, isHydrated } = useSavedArticles();
+  const orderedIds = useMemo(() => [...savedArticleIds].reverse(), [savedArticleIds]);
+  const idSet = useMemo(() => new Set(savedArticleIds), [savedArticleIds]);
+  const stableKey = [...orderedIds].sort().join(",");
+
+  const query = useQuery({
+    queryKey: ["articles", "byIds", stableKey],
+    queryFn: () => fetchArticlesByIds(orderedIds),
+    enabled: orderedIds.length > 0 && isHydrated,
     staleTime: 5 * 60 * 1000,
   });
+
+  const articles = useMemo(
+    () => (query.data ?? []).filter((article) => idSet.has(article.id)),
+    [idSet, query.data],
+  );
+
+  return {
+    ...query,
+    data: articles,
+    isHydrated,
+  };
 }
