@@ -3,6 +3,7 @@ from datetime import UTC, datetime, time
 from django.utils import timezone
 from rest_framework import serializers
 
+from mobileapi.source_links import resolve_source_links
 from onboarding.models import UserPreference
 from mobileapi.models import (
     Article,
@@ -44,7 +45,7 @@ class ArticleSerializer(serializers.ModelSerializer):
     audioDurationSec = serializers.SerializerMethodField()
     hasAudioAvailable = serializers.SerializerMethodField()
     relatedArticleIds = serializers.SerializerMethodField()
-    sourceLinks = serializers.JSONField(source="source_links", read_only=True)
+    sourceLinks = serializers.SerializerMethodField()
     topics = serializers.JSONField(read_only=True)
 
     class Meta:
@@ -95,6 +96,9 @@ class ArticleSerializer(serializers.ModelSerializer):
         if obj.audio_url:
             return True
         return bool((obj.content or obj.excerpt or "").strip())
+
+    def get_sourceLinks(self, obj):
+        return resolve_source_links(obj.source_links, obj.sources)
 
     def get_relatedArticleIds(self, obj):
         # Prefer related articles precomputed from embeddings at publish time.

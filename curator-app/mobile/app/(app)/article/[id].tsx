@@ -7,10 +7,10 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
-  Linking,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
+import { openExternalUrl } from "../../../src/lib/open-url";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -496,9 +496,7 @@ export default function ArticleScreen() {
                   accessibilityRole="link"
                   accessibilityLabel={`Open source ${source.label}`}
                   onPress={() => {
-                    void Linking.openURL(source.url).catch(() => {
-                      Alert.alert("Unable to open link", "This source link could not be opened.");
-                    });
+                    void openExternalUrl(source.url, "source");
                   }}
                 >
                   {pill}

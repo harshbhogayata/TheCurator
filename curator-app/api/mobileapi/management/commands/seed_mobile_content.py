@@ -1,10 +1,13 @@
-from datetime import date
+from datetime import date, timedelta
+
 from django.core.management.base import BaseCommand
 from django.db import transaction
 from django.utils.text import slugify
 
 from mobileapi.category_catalog import CONTENT_CATEGORY_CATALOG
+from mobileapi.editorial_catalog import EXTRA_ARTICLES, hydrate_article_payload
 from mobileapi.models import Article, Brief, Category
+from mobileapi.source_links import resolve_source_links
 
 # Article copy uses editorial labels that are not 1:1 with the curated catalog
 # slugs. Map those labels onto an existing catalog category.
@@ -407,21 +410,31 @@ ARTICLES = [
 
 BRIEFS = [
     {
-        "title": "Middle Eastern Geopolitics & Central African Ebola Briefing",
-        "summary": "Diplomatic efforts escalate to secure a U.S.-Iran ceasefire in the Strait of Hormuz, while the WHO declares a public health emergency over a new Ebola outbreak in the DRC.",
-        "duration_minutes": 6,
-        "published_at": date(2026, 5, 24),
+        "title": "Today's Curator Brief: Power Grids, Policy, and Markets",
+        "summary": (
+            "In today's edition: Japan's summer grid strain revives nuclear restart politics; the EU expands Digital Markets Act "
+            "reviews into public-sector cloud bundles; U.S. hiring cools through fewer openings rather than layoffs; and copper "
+            "tightness collides with AI data-center construction timelines. We also track avian influenza surveillance updates "
+            "after expanded farm-worker screening, and Brazil's enforcement push against illegal Amazon airstrips. "
+            "Each segment connects the headline to what readers should watch in the week ahead."
+        ),
+        "duration_minutes": 8,
         "category": "Daily Brief",
         "image_url": "https://images.unsplash.com/photo-1495020689067-958852a7765e?auto=format&fit=crop&w=1200&q=80",
         "audio_url": "",
-        "insights": 4,
+        "insights": 6,
     },
     {
-        "title": "SpaceX Starship Launch & OpenAI Breakthrough Analysis",
-        "summary": "Analyzing the key structural upgrades of SpaceX's Starship V3 megarocket launch and the profound geometric deductions of OpenAI's reasoning mathematical AI.",
-        "duration_minutes": 6,
-        "published_at": date(2026, 5, 24),
-        "category": "Science & Tech",
+        "title": "Yesterday's Curator Brief: Health, Tech, and Climate Enforcement",
+        "summary": (
+            "Yesterday we covered WHO guidance after rising avian influenza seropositivity in poultry regions, Apple's enterprise "
+            "Vision Pro pilots in field service, Cannes documentary attention on climate litigation storytelling, and Saudi "
+            "Arabia's dual-track energy strategy of solar auctions plus maintained oil capacity. We close with Vietnam's rise as a "
+            "consumer-electronics assembly hub and NATO exercises simulating GPS denial in the Baltic region—stories that show how "
+            "security, supply chains, and climate enforcement intersect in a single news cycle."
+        ),
+        "duration_minutes": 8,
+        "category": "Daily Brief",
         "image_url": "https://images.unsplash.com/photo-1518770660439-4636190af475?auto=format&fit=crop&w=1200&q=80",
         "audio_url": "",
         "insights": 6,
@@ -463,12 +476,19 @@ class Command(BaseCommand):
 
         article_count = 0
         brief_count = 0
+        today = date.today()
+        yesterday = today - timedelta(days=1)
 
-        for rank, payload in enumerate(ARTICLES):
+        all_articles = [hydrate_article_payload(item) for item in ARTICLES] + list(EXTRA_ARTICLES)
+
+        for rank, payload in enumerate(all_articles):
             defaults = dict(payload)
             defaults["category"] = resolve_category(payload["category"])
             defaults["rank"] = rank
             defaults["is_active"] = True
+            defaults["published_at"] = today if rank % 2 == 0 else yesterday
+            if not defaults.get("source_links"):
+                defaults["source_links"] = resolve_source_links(None, defaults.get("sources"))
             _, created = Article.objects.update_or_create(
                 title=payload["title"],
                 defaults=defaults,
@@ -481,6 +501,7 @@ class Command(BaseCommand):
             defaults = dict(payload)
             defaults["rank"] = rank
             defaults["is_active"] = True
+            defaults["published_at"] = today if rank == 0 else yesterday
             _, created = Brief.objects.update_or_create(
                 title=payload["title"],
                 defaults=defaults,

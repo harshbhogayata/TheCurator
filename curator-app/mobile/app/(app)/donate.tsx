@@ -16,6 +16,12 @@ import {
 import { useTheme } from "../../src/providers/theme-provider";
 import { useSubscription, type SubscriptionTier } from "../../src/providers/subscription-provider";
 import { usesRazorpayBilling } from "../../src/lib/billing-provider";
+import {
+  formatPlanPriceParts,
+  subscribeCtaSubtitle,
+  subscribeCtaTitle,
+  type PlanId,
+} from "../../src/lib/plan-pricing";
 import { shouldUseWebRazorpayCheckout } from "../../src/services/razorpay-checkout";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
@@ -24,7 +30,7 @@ import type { PurchasesPackage } from "react-native-purchases";
 import Constants from "expo-constants";
 
 interface Plan {
-  id: "free" | "basic" | "premium" | "lifetime";
+  id: PlanId;
   name: string;
   price: number;
   period: string;
@@ -213,6 +219,13 @@ export default function DonateScreen() {
     }
   };
 
+  const selectedPriceParts = formatPlanPriceParts(
+    selectedPlanData.id,
+    selectedPlanData.price,
+    selectedPlanData.period,
+    { razorpayBilling, storePackage: selectedPackage },
+  );
+
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
       <PillPageHeader title="Support Us" />
@@ -321,13 +334,10 @@ export default function DonateScreen() {
             const isSelected = selectedPlan === plan.id;
             const isCurrent = tier === plan.id;
             const storePackage = findPackageForPlan(packages, plan.id);
-            const priceLabel = razorpayBilling
-              ? plan.id === "free"
-                ? "₹0"
-                : plan.id === "lifetime"
-                  ? `₹${plan.price.toLocaleString("en-IN")} one-time`
-                  : `₹${plan.price.toLocaleString("en-IN")}${plan.period}`
-              : storePackage?.product.priceString ?? `$${plan.price}${plan.period || " one-time"}`;
+            const priceParts = formatPlanPriceParts(plan.id, plan.price, plan.period, {
+              razorpayBilling,
+              storePackage,
+            });
 
             return (
               <Pressable
@@ -408,7 +418,7 @@ export default function DonateScreen() {
                   >
                     <Icon size={22} color={palette.onPrimaryContainer} />
                   </View>
-                  <View>
+                  <View style={{ flex: 1, minWidth: 0, paddingRight: plan.popular || isCurrent ? 72 : 0 }}>
                     <Text
                       style={{
                         fontFamily: "Newsreader_700Bold",
@@ -430,7 +440,7 @@ export default function DonateScreen() {
                   </View>
                 </View>
 
-                <View style={{ flexDirection: "row", alignItems: "baseline", marginBottom: 14 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-end", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
                   <Text
                     style={{
                       fontFamily: "Manrope_700Bold",
@@ -438,31 +448,20 @@ export default function DonateScreen() {
                       color: palette.onSurface,
                     }}
                   >
-                    {plan.id === "free" ? (razorpayBilling ? "₹0" : "$0") : priceLabel.replace(plan.period, "")}
+                    {priceParts.amount}
                   </Text>
-                  {plan.id !== "free" && storePackage?.product.priceString ? null : plan.period ? (
+                  {priceParts.suffix ? (
                     <Text
                       style={{
-                        fontFamily: "Manrope_400Regular",
-                        fontSize: 14,
+                        fontFamily: "Manrope_500Medium",
+                        fontSize: 15,
                         color: palette.onSurfaceVariant,
-                        marginLeft: 4,
+                        marginBottom: 4,
                       }}
                     >
-                      {plan.period}
+                      {plan.id === "lifetime" || !plan.period ? priceParts.suffix : `/${priceParts.suffix}`}
                     </Text>
-                  ) : (
-                    <Text
-                      style={{
-                        fontFamily: "Manrope_400Regular",
-                        fontSize: 14,
-                        color: palette.onSurfaceVariant,
-                        marginLeft: 4,
-                      }}
-                    >
-                      one-time
-                    </Text>
-                  )}
+                  ) : null}
                 </View>
 
                 <View style={{ gap: 8 }}>
@@ -499,7 +498,6 @@ export default function DonateScreen() {
             shadowOpacity: 0.28,
             shadowRadius: 24,
             elevation: 14,
-            overflow: "hidden",
           }}
         >
           <Pressable
@@ -508,65 +506,55 @@ export default function DonateScreen() {
             disabled={isPurchasing}
             style={({ pressed }) => ({
               width: "100%",
-              minHeight: 96,
-              paddingHorizontal: 24,
+              paddingHorizontal: 20,
+              paddingVertical: 18,
               flexDirection: "row",
               alignItems: "center",
-              gap: 16,
+              gap: 14,
               opacity: pressed || isPurchasing ? 0.92 : 1,
             })}
           >
             <View
               style={{
-                width: 52,
-                height: 52,
-                borderRadius: 26,
-                backgroundColor: palette.primaryForeground + "26", // 15% opacity white/black
+                width: 48,
+                height: 48,
+                borderRadius: 24,
+                backgroundColor: palette.primaryForeground + "26",
                 alignItems: "center",
                 justifyContent: "center",
+                flexShrink: 0,
               }}
             >
-              <CreditCard size={24} color={palette.primaryForeground} />
+              <CreditCard size={22} color={palette.primaryForeground} />
             </View>
 
-            <View style={{ flex: 1, minWidth: 0 }}>
+            <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
               <Text
-                numberOfLines={1}
                 style={{
                   fontFamily: "Manrope_700Bold",
-                  fontSize: 19,
+                  fontSize: 18,
                   color: palette.primaryForeground,
                   letterSpacing: 0.2,
                 }}
               >
-                {isPurchasing
-                  ? "Processing..."
-                  : selectedPlan === "free" && tier !== "free"
-                    ? "Switch to Free"
-                    : `Subscribe to ${selectedPlanData.name}`}
+                {subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
               </Text>
               <Text
-                numberOfLines={1}
+                numberOfLines={2}
                 style={{
-                  fontFamily: "Manrope_400Regular",
+                  fontFamily: "Manrope_500Medium",
                   fontSize: 14,
-                  color: palette.primaryForeground + "C7", // ~78% opacity
+                  color: palette.primaryForeground + "CC",
                   marginTop: 4,
                 }}
               >
-                {selectedPlanData.price === 0
-                  ? tier !== "free"
-                    ? "Cancel paid plan"
-                    : "Always free"
-                  : razorpayBilling
-                    ? selectedPlanData.id === "lifetime"
-                      ? `₹${selectedPlanData.price.toLocaleString("en-IN")} one-time`
-                      : `₹${selectedPlanData.price.toLocaleString("en-IN")}${selectedPlanData.period}`
-                    : selectedPackage?.product.priceString ?? `$${selectedPlanData.price}${selectedPlanData.period || " one-time"}`}
+                {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
               </Text>
             </View>
 
-            <ChevronRight size={22} color={palette.primaryForeground} />
+            <View style={{ flexShrink: 0 }}>
+              <ChevronRight size={22} color={palette.primaryForeground} />
+            </View>
           </Pressable>
         </View>
 
