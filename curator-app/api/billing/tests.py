@@ -257,6 +257,8 @@ class MobileDonateHandoffTests(TestCase):
             format="json",
         )
         self.assertEqual(exchange_resp.status_code, 200)
+        self.assertIn("checkoutToken", exchange_resp.data)
+        self.assertIn("customToken", exchange_resp.data)
         self.assertEqual(exchange_resp.data["customToken"], "firebase-custom-token")
         mock_token.assert_called_once_with("handoff-uid")
 

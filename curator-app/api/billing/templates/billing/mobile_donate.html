@@ -187,25 +187,17 @@
       });
     }
 
-    async function signInFromHandoff() {
+    async function exchangeHandoff() {
       if (!config.handoffToken) return null;
       setLoading("Signing you in from the app…", true);
-      const { customToken } = await apiFetch("/api/billing/v1/mobile-handoff/exchange/", {
+      const payload = await apiFetch("/api/billing/v1/mobile-handoff/exchange/", {
         method: "POST",
         body: { handoffToken: config.handoffToken },
       });
-      if (!config.firebase.apiKey) {
-        throw new Error("Checkout sign-in is not configured on the server.");
-      }
-      const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js");
-      const { getAuth, signInWithCustomToken } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
-      const app = initializeApp(config.firebase);
-      const auth = getAuth(app);
-      await signInWithCustomToken(auth, customToken);
-      return auth.currentUser.getIdToken();
+      return payload.checkoutToken || null;
     }
 
-    async function openRazorpay(checkout, idToken) {
+    async function openRazorpay(checkout, authToken) {
       await loadRazorpay();
       const key = config.razorpayKeyId || checkout.keyId;
       if (!key) throw new Error("Razorpay is not configured.");
@@ -227,7 +219,7 @@
                     razorpay_signature: response.razorpay_signature,
                     razorpay_subscription_id: response.razorpay_subscription_id,
                   },
-                  token: idToken,
+                  token: authToken,
                 });
               } else {
                 await apiFetch("/api/verify-payment", {
@@ -237,7 +229,7 @@
                     razorpay_payment_id: response.razorpay_payment_id,
                     razorpay_signature: response.razorpay_signature,
                   },
-                  token: idToken,
+                  token: authToken,
                 });
               }
               resolve(response);
@@ -264,17 +256,17 @@
       });
     }
 
-    async function startCheckout(idToken) {
+    async function startCheckout(authToken) {
       setLoading("Opening secure checkout…", true);
       const checkout = await apiFetch("/api/billing/v1/checkout/", {
         method: "POST",
-        body: { tier: config.plan },
-        token: idToken,
+        body: { tier: config.plan, mode: "order" },
+        token: authToken,
       });
       if (checkout.provider !== "razorpay") {
         throw new Error("Only Razorpay checkout is supported here.");
       }
-      await openRazorpay(checkout, idToken);
+      await openRazorpay(checkout, authToken);
       setLoading("", false);
       showBanner("success", "Payment successful. You can return to the Curator app — your plan will update shortly.");
       payBtn.hidden = true;
@@ -292,38 +284,29 @@
       }
 
       try {
-        let idToken = await signInFromHandoff();
-        if (!idToken && config.firebase.apiKey) {
-          const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js");
-          const { getAuth, onAuthStateChanged } = await import("https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js");
-          const app = initializeApp(config.firebase);
-          const auth = getAuth(app);
-          idToken = await new Promise((resolve) => {
-            onAuthStateChanged(auth, async (user) => {
-              if (user) resolve(await user.getIdToken());
-            });
-            setTimeout(() => resolve(null), 1200);
-          });
-        }
+        let authToken = await exchangeHandoff();
 
-        if (!idToken) {
+        if (!authToken) {
           setLoading("", false);
           payBtn.hidden = false;
-          showBanner("error", "Sign-in required. Open checkout from the Curator app or sign in on the website first.");
-          payBtn.textContent = "Retry checkout";
+          showBanner(
+            "error",
+            "Open checkout from the Curator app so we can verify your account. If you already did, try again — the link may have expired.",
+          );
+          payBtn.textContent = "Retry";
           payBtn.onclick = () => boot();
           return;
         }
 
         if (config.autoCheckout) {
-          await startCheckout(idToken);
+          await startCheckout(authToken);
           return;
         }
 
         setLoading("", false);
         payBtn.hidden = false;
         payBtn.textContent = `Pay for ${config.plan}`;
-        payBtn.onclick = () => startCheckout(idToken).catch(handleError);
+        payBtn.onclick = () => startCheckout(authToken).catch(handleError);
       } catch (error) {
         handleError(error);
       }

@@ -14,6 +14,7 @@ from django.conf import settings
 from django.db import transaction
 
 from billing.models import RazorpayWebhookEvent
+from billing.mobile_checkout import mobile_donate_page_url
 from mobileapi.models import SubscriptionTier, UserEntitlement
 from users.models import User
 
@@ -164,7 +165,7 @@ def create_standard_order(
 
 def _create_order_checkout(user: User, tier: str) -> dict:
     """Order-based Standard Checkout payload for a subscription tier."""
-    site_url = settings.WEB_BASE_URL.rstrip("/")
+    success_url = f"{mobile_donate_page_url()}?status=success"
     amount = _lifetime_amount() if tier == SubscriptionTier.LIFETIME else _amount_for_tier(tier)
     order = create_standard_order(
         amount=amount,
@@ -185,16 +186,16 @@ def _create_order_checkout(user: User, tier: str) -> dict:
         },
         "name": "The Curator",
         "description": f"{tier.title()} membership",
-        "callbackUrl": f"{site_url}/donate?status=success",
+        "callbackUrl": success_url,
     }
 
 
-def create_checkout_payload(user: User, tier: str) -> dict:
+def create_checkout_payload(user: User, tier: str, *, prefer_order: bool = False) -> dict:
     """Build Razorpay Checkout options for the web client."""
     if tier not in {SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.LIFETIME}:
         raise RazorpayServiceError(f"Unsupported tier '{tier}'.")
 
-    if not _subscription_available_for_tier(tier):
+    if prefer_order or not _subscription_available_for_tier(tier):
         return _create_order_checkout(user, tier)
 
     client = _client()
@@ -204,14 +205,22 @@ def create_checkout_payload(user: User, tier: str) -> dict:
         "name": user.display_name or user.email or "",
     }
 
-    subscription = client.subscription.create(
-        {
-            "plan_id": _plan_id_for_tier(tier),
-            "customer_notify": 1,
-            "total_count": settings.RAZORPAY_SUBSCRIPTION_TOTAL_COUNT,
-            "notes": _user_notes(user, tier),
-        }
-    )
+    try:
+        subscription = client.subscription.create(
+            {
+                "plan_id": _plan_id_for_tier(tier),
+                "customer_notify": 1,
+                "total_count": settings.RAZORPAY_SUBSCRIPTION_TOTAL_COUNT,
+                "notes": _user_notes(user, tier),
+            }
+        )
+    except Exception:
+        logger.warning(
+            "Razorpay subscription checkout failed for tier %s; falling back to order checkout.",
+            tier,
+            exc_info=True,
+        )
+        return _create_order_checkout(user, tier)
     return {
         "provider": "razorpay",
         "mode": "subscription",

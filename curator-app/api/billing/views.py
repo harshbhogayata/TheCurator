@@ -66,6 +66,8 @@ class CheckoutSessionView(APIView):
 
 
 
+        prefer_order = str(request.data.get("mode", "")).strip().lower() == "order"
+
         provider = get_web_billing_provider()
 
         if provider is None:
@@ -84,7 +86,11 @@ class CheckoutSessionView(APIView):
 
             if provider == "razorpay":
 
-                payload = razorpay_service.create_checkout_payload(request.user, tier)
+                payload = razorpay_service.create_checkout_payload(
+                    request.user,
+                    tier,
+                    prefer_order=prefer_order,
+                )
 
                 return Response(payload)
 
@@ -425,7 +431,7 @@ class MobileHandoffExchangeView(APIView):
 
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        return Response({"customToken": custom_token})
+        return Response(custom_token)
 
 
 

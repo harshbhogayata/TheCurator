@@ -8,6 +8,7 @@ from django.conf import settings
 from django.core import signing
 
 from billing.mobile_checkout import mobile_donate_page_url
+from billing.authentication import create_checkout_handoff_token
 from billing.razorpay_service import RazorpayServiceError
 from mobileapi.models import SubscriptionTier
 from users.models import User
@@ -40,7 +41,7 @@ def build_mobile_donate_handoff(user: User, plan: str | None = None) -> dict:
     }
 
 
-def exchange_mobile_handoff(token: str) -> str:
+def exchange_mobile_handoff(token: str) -> dict[str, str]:
     if not token:
         raise RazorpayServiceError("Missing handoff token.")
 
@@ -57,4 +58,8 @@ def exchange_mobile_handoff(token: str) -> str:
     if user is None or not user.firebase_uid:
         raise RazorpayServiceError("Unable to sign in for checkout.")
 
-    return create_custom_token(user.firebase_uid)
+    plan = str(payload.get("plan") or "")
+    return {
+        "checkoutToken": create_checkout_handoff_token(user, plan),
+        "customToken": create_custom_token(user.firebase_uid),
+    }
