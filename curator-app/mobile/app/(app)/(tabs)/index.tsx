@@ -19,7 +19,7 @@ import { useTheme } from "../../../src/providers/theme-provider";
 import { useSubscription } from "../../../src/providers/subscription-provider";
 import { useAudio } from "../../../src/providers/audio-provider";
 import { useBriefs } from "../../../src/hooks/use-briefs";
-import { useHeaderOffset } from "../../../src/lib/layout";
+import { useTabScrollPaddingTop, TAB_HERO_GAP } from "../../../src/lib/layout";
 import { shape } from "../../../src/ui/tokens/spacing";
 import { Header } from "../../../src/ui/header";
 
@@ -41,7 +41,7 @@ export default function BriefsScreen() {
   const { playBrief, state, currentBriefId, pause, resume } = useAudio();
   const { data: briefs = [], isFetching, isLoading, refetch, isError } = useBriefs();
   const { showToast } = useToast();
-  const headerOffset = useHeaderOffset();
+  const scrollPaddingTop = useTabScrollPaddingTop();
 
   const displayBriefs = briefs;
 
@@ -101,7 +101,7 @@ export default function BriefsScreen() {
         showsVerticalScrollIndicator={false}
         removeClippedSubviews
         contentContainerStyle={{
-          paddingTop: headerOffset,
+          paddingTop: scrollPaddingTop,
           paddingBottom: 150,
           paddingHorizontal: 16,
         }}
@@ -189,7 +189,7 @@ export default function BriefsScreen() {
         ) : (
           <>
             {/* Featured Brief */}
-        <View style={{ marginBottom: 40 }}>
+        <View style={{ marginBottom: TAB_HERO_GAP }}>
           <View
             style={[
               styles.featuredCard,
@@ -289,7 +289,7 @@ export default function BriefsScreen() {
         {!hasAdFree && <AdBanner position="inline" />}
 
         {/* More Briefs */}
-        <View style={{ marginTop: 24, paddingHorizontal: 4 }}>
+        <View style={{ paddingHorizontal: 4 }}>
           <Text
             style={[
               styles.moreBriefsTitle,

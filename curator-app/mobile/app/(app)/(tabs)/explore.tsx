@@ -11,7 +11,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { FlashList } from "@shopify/flash-list";
 import { Search as SearchIcon } from "lucide-react-native";
 import { select as hapticSelect } from "../../../src/lib/haptics";
-import { useHeaderOffset, useLayout } from "../../../src/lib/layout";
+import { useLayout, useTabScrollPaddingTop, TAB_HERO_GAP } from "../../../src/lib/layout";
 import { type } from "../../../src/ui/tokens/typography";
 
 import { useTheme } from "../../../src/providers/theme-provider";
@@ -38,7 +38,7 @@ export default function ExploreScreen() {
   const { palette } = useTheme();
   const { hasAdFree } = useSubscription();
 
-  const headerOffset = useHeaderOffset();
+  const scrollPaddingTop = useTabScrollPaddingTop();
   const { contentPadding } = useLayout();
   const { data: articles = [], isLoading: isArticlesLoading, refetch: refetchArticles } = useArticles();
   const { data: apiCategories, isLoading: isCategoriesLoading, refetch: refetchCategories } = useCategories();
@@ -249,7 +249,7 @@ export default function ExploreScreen() {
         ListEmptyComponent={listEmpty}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
-          paddingTop: headerOffset,
+          paddingTop: scrollPaddingTop,
           paddingBottom: 128,
           paddingHorizontal: contentPadding,
         }}
@@ -267,7 +267,7 @@ export default function ExploreScreen() {
 
 const styles = StyleSheet.create({
   narrativesHeader: {
-    marginBottom: 32,
+    marginBottom: TAB_HERO_GAP,
     paddingHorizontal: 4,
     flexDirection: "row",
     alignItems: "center",
