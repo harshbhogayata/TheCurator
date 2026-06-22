@@ -8,7 +8,6 @@ import {
   Crown,
   Star,
   Check,
-  CreditCard,
   ChevronRight,
   Rss,
 } from "lucide-react-native";
@@ -18,6 +17,7 @@ import { useSubscription, type SubscriptionTier } from "../../src/providers/subs
 import { usesRazorpayBilling } from "../../src/lib/billing-provider";
 import {
   formatPlanPriceParts,
+  planCardPriceSuffix,
   subscribeCtaSubtitle,
   subscribeCtaTitle,
   type PlanId,
@@ -227,12 +227,12 @@ export default function DonateScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={["top"]}>
       <PillPageHeader title="Support Us" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -338,6 +338,7 @@ export default function DonateScreen() {
               razorpayBilling,
               storePackage,
             });
+            const cardSuffix = planCardPriceSuffix(plan.id, plan.period, priceParts);
 
             return (
               <Pressable
@@ -405,7 +406,7 @@ export default function DonateScreen() {
                   </View>
                 )}
 
-                <View style={{ flexDirection: "row", alignItems: "center", gap: 12, marginBottom: 12 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
                   <View
                     style={{
                       width: 44,
@@ -414,6 +415,7 @@ export default function DonateScreen() {
                       backgroundColor: palette.primaryContainer,
                       alignItems: "center",
                       justifyContent: "center",
+                      flexShrink: 0,
                     }}
                   >
                     <Icon size={22} color={palette.onPrimaryContainer} />
@@ -433,35 +435,39 @@ export default function DonateScreen() {
                         fontFamily: "Manrope_400Regular",
                         fontSize: 13,
                         color: palette.onSurfaceVariant,
+                        marginTop: 2,
                       }}
                     >
                       {plan.description}
                     </Text>
                   </View>
-                </View>
-
-                <View style={{ flexDirection: "row", alignItems: "flex-end", flexWrap: "wrap", gap: 6, marginBottom: 14 }}>
-                  <Text
-                    style={{
-                      fontFamily: "Manrope_700Bold",
-                      fontSize: 32,
-                      color: palette.onSurface,
-                    }}
-                  >
-                    {priceParts.amount}
-                  </Text>
-                  {priceParts.suffix ? (
+                  <View style={{ alignItems: "flex-end", flexShrink: 0, maxWidth: 120, paddingTop: 2 }}>
                     <Text
+                      adjustsFontSizeToFit
+                      numberOfLines={1}
                       style={{
-                        fontFamily: "Manrope_500Medium",
-                        fontSize: 15,
-                        color: palette.onSurfaceVariant,
-                        marginBottom: 4,
+                        fontFamily: "Manrope_700Bold",
+                        fontSize: 18,
+                        color: palette.onSurface,
+                        textAlign: "right",
                       }}
                     >
-                      {plan.id === "lifetime" || !plan.period ? priceParts.suffix : `/${priceParts.suffix}`}
+                      {priceParts.amount}
                     </Text>
-                  ) : null}
+                    {cardSuffix ? (
+                      <Text
+                        style={{
+                          fontFamily: "Manrope_500Medium",
+                          fontSize: 12,
+                          color: palette.onSurfaceVariant,
+                          marginTop: 2,
+                          textAlign: "right",
+                        }}
+                      >
+                        {cardSuffix === "one-time" ? "one-time" : `per ${cardSuffix}`}
+                      </Text>
+                    ) : null}
+                  </View>
                 </View>
 
                 <View style={{ gap: 8 }}>
@@ -487,77 +493,6 @@ export default function DonateScreen() {
           })}
         </View>
 
-        {/* Subscribe Button — the most important CTA in the app */}
-        <View
-          style={{
-            backgroundColor: palette.primary,
-            borderRadius: 28,
-            marginBottom: 16,
-            shadowColor: palette.primary,
-            shadowOffset: { width: 0, height: 10 },
-            shadowOpacity: 0.28,
-            shadowRadius: 24,
-            elevation: 14,
-          }}
-        >
-          <Pressable
-            onPress={handleSubscribe}
-            android_ripple={{ color: "rgba(255,255,255,0.12)" }}
-            disabled={isPurchasing}
-            style={({ pressed }) => ({
-              width: "100%",
-              paddingHorizontal: 20,
-              paddingVertical: 18,
-              flexDirection: "row",
-              alignItems: "center",
-              gap: 14,
-              opacity: pressed || isPurchasing ? 0.92 : 1,
-            })}
-          >
-            <View
-              style={{
-                width: 48,
-                height: 48,
-                borderRadius: 24,
-                backgroundColor: palette.primaryForeground + "26",
-                alignItems: "center",
-                justifyContent: "center",
-                flexShrink: 0,
-              }}
-            >
-              <CreditCard size={22} color={palette.primaryForeground} />
-            </View>
-
-            <View style={{ flex: 1, minWidth: 0, paddingRight: 4 }}>
-              <Text
-                style={{
-                  fontFamily: "Manrope_700Bold",
-                  fontSize: 18,
-                  color: palette.primaryForeground,
-                  letterSpacing: 0.2,
-                }}
-              >
-                {subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
-              </Text>
-              <Text
-                numberOfLines={2}
-                style={{
-                  fontFamily: "Manrope_500Medium",
-                  fontSize: 14,
-                  color: palette.primaryForeground + "CC",
-                  marginTop: 4,
-                }}
-              >
-                {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
-              </Text>
-            </View>
-
-            <View style={{ flexShrink: 0 }}>
-              <ChevronRight size={22} color={palette.primaryForeground} />
-            </View>
-          </Pressable>
-        </View>
-
         {/* Impact */}
         <View
           style={{
@@ -566,6 +501,7 @@ export default function DonateScreen() {
             padding: 20,
             borderWidth: 1,
             borderColor: palette.outlineVariant + "26",
+            marginBottom: 8,
           }}
         >
           <Text
@@ -582,6 +518,70 @@ export default function DonateScreen() {
           </Text>
         </View>
       </ScrollView>
+
+      {/* Sticky subscribe bar — centered copy, no cramped icon row */}
+      <SafeAreaView
+        edges={["bottom"]}
+        style={{
+          paddingHorizontal: 20,
+          paddingTop: 12,
+          backgroundColor: palette.background,
+          borderTopWidth: 1,
+          borderTopColor: palette.outlineVariant + "33",
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: palette.primary,
+            borderRadius: 999,
+            shadowColor: palette.primary,
+            shadowOffset: { width: 0, height: 6 },
+            shadowOpacity: 0.22,
+            shadowRadius: 16,
+            elevation: 10,
+          }}
+        >
+          <Pressable
+            onPress={handleSubscribe}
+            android_ripple={{ color: "rgba(255,255,255,0.12)" }}
+            disabled={isPurchasing}
+            style={({ pressed }) => ({
+              minHeight: 58,
+              paddingHorizontal: 22,
+              paddingVertical: 14,
+              opacity: pressed || isPurchasing ? 0.92 : 1,
+            })}
+          >
+            <View style={{ flexDirection: "row", alignItems: "center" }}>
+              <View style={{ width: 22 }} />
+              <View style={{ flex: 1, alignItems: "center", paddingHorizontal: 8 }}>
+                <Text
+                  style={{
+                    fontFamily: "Manrope_700Bold",
+                    fontSize: 17,
+                    color: palette.primaryForeground,
+                    textAlign: "center",
+                  }}
+                >
+                  {subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
+                </Text>
+                <Text
+                  style={{
+                    fontFamily: "Manrope_500Medium",
+                    fontSize: 13,
+                    color: palette.primaryForeground + "CC",
+                    marginTop: 3,
+                    textAlign: "center",
+                  }}
+                >
+                  {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
+                </Text>
+              </View>
+              <ChevronRight size={20} color={palette.primaryForeground} />
+            </View>
+          </Pressable>
+        </View>
+      </SafeAreaView>
     </SafeAreaView>
   );
 }

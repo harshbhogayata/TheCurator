@@ -68,5 +68,18 @@ export function subscribeCtaSubtitle(
   if (selectedPlan === "free") {
     return tier !== "free" ? "Cancel paid plan" : "Always free";
   }
+  if (selectedPlan === "lifetime" || priceParts.suffix === "one-time") {
+    return priceParts.line;
+  }
+  if (priceParts.suffix) {
+    return `${priceParts.amount} per ${priceParts.suffix}`;
+  }
   return priceParts.line;
+}
+
+export function planCardPriceSuffix(planId: PlanId, period: string, priceParts: PlanPriceParts): string {
+  if (planId === "free") return "";
+  if (!priceParts.suffix) return "";
+  if (planId === "lifetime" || !period) return "one-time";
+  return period.replace("/", "") || "mo";
 }
