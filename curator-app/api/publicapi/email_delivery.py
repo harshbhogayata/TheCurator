@@ -7,6 +7,15 @@ from django.core.mail import send_mail
 logger = logging.getLogger(__name__)
 
 
+def email_delivery_configured() -> bool:
+    """True when production email can be sent (Resend or explicit SMTP)."""
+    if getattr(settings, "RESEND_API_KEY", "").strip():
+        return True
+    if settings.DEBUG:
+        return True
+    return bool(getattr(settings, "EMAIL_HOST", "").strip())
+
+
 def deliver_email(
     *,
     subject: str,

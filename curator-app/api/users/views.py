@@ -194,7 +194,12 @@ class PasswordResetRequestView(views.APIView):
         try:
             sent = send_password_reset_email(email=email)
         except (ImproperlyConfigured, FirebaseError, ValueError) as exc:
-            logger.warning("Password reset email failed for %s: %s", email, exc)
+            logger.warning(
+                "Password reset email failed for %s: %s",
+                email,
+                exc,
+                exc_info=True,
+            )
             return response.Response(
                 {
                     "detail": "We couldn't send a reset email right now.",

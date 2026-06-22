@@ -2,15 +2,17 @@ import logging
 from urllib.parse import parse_qs, urlencode, urlparse
 
 from django.conf import settings
-from firebase_admin import auth as firebase_auth
 from firebase_admin.auth import UserNotFoundError
 
-from publicapi.email_delivery import deliver_email
+from publicapi.email_delivery import deliver_email, email_delivery_configured
 from publicapi.email_templates import build_curator_email_body, build_curator_email_html
 from users.auth_page_urls import mobile_reset_password_page_url
-from users.services.verification_email import VERIFY_QUERY_KEYS
+from users.services.firebase_action_links import generate_password_reset_admin_link
 
 logger = logging.getLogger(__name__)
+
+# Params required on our click-to-act pages (server confirms; no browser Firebase SDK).
+ACTION_QUERY_KEYS = ("mode", "oobCode")
 
 
 def build_click_to_reset_url(admin_link: str) -> str:
@@ -18,7 +20,7 @@ def build_click_to_reset_url(admin_link: str) -> str:
     parsed = urlparse(admin_link)
     query = parse_qs(parsed.query, keep_blank_values=True)
     flat = {key: values[0] for key, values in query.items() if values}
-    params = {key: flat[key] for key in VERIFY_QUERY_KEYS if flat.get(key)}
+    params = {key: flat[key] for key in ACTION_QUERY_KEYS if flat.get(key)}
     if not params.get("oobCode") or params.get("mode") != "resetPassword":
         raise ValueError("Firebase password reset link is missing action parameters.")
 
@@ -27,15 +29,12 @@ def build_click_to_reset_url(admin_link: str) -> str:
 
 
 def send_password_reset_email(*, email: str) -> bool:
-    page_url = mobile_reset_password_page_url()
-    continue_url = f"{page_url}?status=done"
-    action_settings = firebase_auth.ActionCodeSettings(
-        url=continue_url,
-        handle_code_in_app=False,
-    )
+    if not email_delivery_configured():
+        logger.error("Password reset requested but email delivery is not configured")
+        return False
 
     try:
-        admin_link = firebase_auth.generate_password_reset_link(email, action_settings)
+        admin_link = generate_password_reset_admin_link(email)
     except UserNotFoundError:
         # Do not reveal whether the account exists.
         return True

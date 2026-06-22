@@ -26,6 +26,16 @@ def _firebase_admin_status() -> str:
         return "error"
 
 
+def _email_delivery_status() -> str:
+    from publicapi.email_delivery import email_delivery_configured
+
+    return "ok" if email_delivery_configured() else "not_configured"
+
+
+def _firebase_web_api_key_status() -> str:
+    return "ok" if (settings.FIREBASE_WEB_API_KEY or "").strip() else "not_configured"
+
+
 class LivenessView(views.APIView):
     """Minimal probe for platform deploy healthchecks (no DB/Redis)."""
 
@@ -66,6 +76,8 @@ class HealthView(views.APIView):
             "database": database_status,
             "redis": redis_status,
             "firebase": _firebase_admin_status(),
+            "email_delivery": _email_delivery_status(),
+            "firebase_web_api_key": _firebase_web_api_key_status(),
         }
         return response.Response(payload, status=status_code)
 

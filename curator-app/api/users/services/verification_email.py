@@ -1,16 +1,16 @@
 import logging
 from urllib.parse import parse_qs, urlencode, urlparse
 
-from django.conf import settings
-from firebase_admin import auth as firebase_auth
-
-from publicapi.email_delivery import deliver_email
+from publicapi.email_delivery import deliver_email, email_delivery_configured
 from publicapi.email_templates import build_curator_email_body, build_curator_email_html
 from users.auth_page_urls import mobile_verify_email_page_url
+from users.services.firebase_action_links import generate_email_verification_admin_link
+from users.services.password_reset_email import ACTION_QUERY_KEYS
 
 logger = logging.getLogger(__name__)
 
-VERIFY_QUERY_KEYS = ("mode", "oobCode", "apiKey", "lang", "continueUrl")
+# Backwards-compatible alias for tests importing VERIFY_QUERY_KEYS.
+VERIFY_QUERY_KEYS = ACTION_QUERY_KEYS + ("apiKey", "lang", "continueUrl")
 
 
 def build_click_to_verify_url(admin_link: str) -> str:
@@ -18,7 +18,7 @@ def build_click_to_verify_url(admin_link: str) -> str:
     parsed = urlparse(admin_link)
     query = parse_qs(parsed.query, keep_blank_values=True)
     flat = {key: values[0] for key, values in query.items() if values}
-    params = {key: flat[key] for key in VERIFY_QUERY_KEYS if flat.get(key)}
+    params = {key: flat[key] for key in ACTION_QUERY_KEYS if flat.get(key)}
     if not params.get("oobCode") or not params.get("mode"):
         raise ValueError("Firebase verification link is missing action parameters.")
 
@@ -27,12 +27,11 @@ def build_click_to_verify_url(admin_link: str) -> str:
 
 
 def send_verification_email(*, email: str) -> bool:
-    continue_url = f"{mobile_verify_email_page_url()}?status=done"
-    action_settings = firebase_auth.ActionCodeSettings(
-        url=continue_url,
-        handle_code_in_app=False,
-    )
-    admin_link = firebase_auth.generate_email_verification_link(email, action_settings)
+    if not email_delivery_configured():
+        logger.error("Verification email requested but email delivery is not configured")
+        return False
+
+    admin_link = generate_email_verification_admin_link(email)
     verify_url = build_click_to_verify_url(admin_link)
 
     subject = "Verify your email for The Curator"

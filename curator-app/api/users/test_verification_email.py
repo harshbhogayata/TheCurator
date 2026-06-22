@@ -25,7 +25,7 @@ class VerificationEmailUrlTests(TestCase):
     )
     self.assertIn("mode=verifyEmail", url)
     self.assertIn("oobCode=abc123", url)
-    self.assertIn("apiKey=key456", url)
+    self.assertNotIn("continueUrl=", url)
 
   def test_rejects_link_without_oob_code(self):
     with self.assertRaises(ValueError):
