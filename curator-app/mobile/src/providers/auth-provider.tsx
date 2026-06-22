@@ -411,7 +411,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
         try {
-          await apiRequest<{ detail?: string }>(`${AUTH_API_PREFIX}/auth/password-reset`, {
+          await apiRequest<{ detail?: string }>("/api/mobile/v1/auth/password-reset", {
             method: "POST",
             body: { email: email.trim() },
           });

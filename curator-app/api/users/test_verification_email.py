@@ -17,7 +17,7 @@ class VerificationEmailUrlTests(TestCase):
       "&continueUrl=https%3A%2F%2Fthecuratorgroup.org%2Fverify-email%3Fstatus%3Ddone"
     )
     url = build_click_to_verify_url(admin_link)
-    self.assertTrue(url.startswith("https://thecuratorgroup.org/verify-email.html?"))
+    self.assertTrue(url.startswith("https://thecuratorgroup.org/verify-email?"))
     self.assertIn("mode=verifyEmail", url)
     self.assertIn("oobCode=abc123", url)
     self.assertIn("apiKey=key456", url)

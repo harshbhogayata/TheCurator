@@ -7,7 +7,14 @@ from django.core.mail import send_mail
 logger = logging.getLogger(__name__)
 
 
-def deliver_email(*, subject: str, message: str, recipients: list[str], from_email: str | None = None) -> bool:
+def deliver_email(
+    *,
+    subject: str,
+    message: str,
+    recipients: list[str],
+    from_email: str | None = None,
+    html_message: str | None = None,
+) -> bool:
     """Send via Resend when configured, otherwise Django SMTP/console."""
     to = [r.strip() for r in recipients if r and r.strip()]
     if not to:
@@ -17,7 +24,14 @@ def deliver_email(*, subject: str, message: str, recipients: list[str], from_ema
     api_key = getattr(settings, "RESEND_API_KEY", "").strip()
 
     if api_key:
-        return _send_resend(api_key=api_key, sender=sender, to=to, subject=subject, message=message)
+        return _send_resend(
+            api_key=api_key,
+            sender=sender,
+            to=to,
+            subject=subject,
+            message=message,
+            html_message=html_message,
+        )
 
     sent = send_mail(
         subject=subject,
@@ -25,24 +39,37 @@ def deliver_email(*, subject: str, message: str, recipients: list[str], from_ema
         from_email=sender,
         recipient_list=to,
         fail_silently=False,
+        html_message=html_message,
     )
     return sent > 0
 
 
-def _send_resend(*, api_key: str, sender: str, to: list[str], subject: str, message: str) -> bool:
+def _send_resend(
+    *,
+    api_key: str,
+    sender: str,
+    to: list[str],
+    subject: str,
+    message: str,
+    html_message: str | None = None,
+) -> bool:
     try:
+        payload: dict = {
+            "from": sender,
+            "to": to,
+            "subject": subject,
+            "text": message,
+        }
+        if html_message:
+            payload["html"] = html_message
+
         response = requests.post(
             "https://api.resend.com/emails",
             headers={
                 "Authorization": f"Bearer {api_key}",
                 "Content-Type": "application/json",
             },
-            json={
-                "from": sender,
-                "to": to,
-                "subject": subject,
-                "text": message,
-            },
+            json=payload,
             timeout=15,
         )
         if response.ok:

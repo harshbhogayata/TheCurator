@@ -3,10 +3,11 @@ from urllib.parse import parse_qs, urlencode, urlparse
 
 from django.conf import settings
 from firebase_admin import auth as firebase_auth
+from firebase_admin.auth import UserNotFoundError
 
 from publicapi.email_delivery import deliver_email
-from publicapi.email_templates import build_curator_email_body
-from users.services.verification_email import VERIFY_QUERY_KEYS, build_click_to_verify_url
+from publicapi.email_templates import build_curator_email_body, build_curator_email_html
+from users.services.verification_email import VERIFY_QUERY_KEYS
 
 logger = logging.getLogger(__name__)
 
@@ -30,19 +31,31 @@ def send_password_reset_email(*, email: str) -> bool:
         url=continue_url,
         handle_code_in_app=False,
     )
-    admin_link = firebase_auth.generate_password_reset_link(email, action_settings)
+
+    try:
+        admin_link = firebase_auth.generate_password_reset_link(email, action_settings)
+    except UserNotFoundError:
+        # Do not reveal whether the account exists.
+        return True
+
     reset_url = build_click_to_reset_url(admin_link)
+    paragraphs = [
+        "We received a request to reset the password for your Curator account.",
+        "Tap the button below, then choose a new password on the next page.",
+        "Use only the newest reset email. Older links stop working once you request another.",
+    ]
 
     message = build_curator_email_body(
         greeting="Hello,",
-        paragraphs=[
-            "We received a request to reset the password for your Curator account.",
-            "Open the link below, then tap the button on the page to choose a new password.",
-            "Email apps sometimes open links automatically — using the button on our page",
-            "keeps the reset link valid until you are ready.",
-            "This link expires after a short time. If it has expired, request a new reset",
-            "from the app and use only the newest email.",
-        ],
+        paragraphs=paragraphs,
+        action_label="Reset your password",
+        action_url=reset_url,
+        footer="If you did not ask to reset your password, you can ignore this email.",
+    )
+    html_message = build_curator_email_html(
+        headline="Reset your password",
+        greeting="Hello,",
+        paragraphs=paragraphs,
         action_label="Reset your password",
         action_url=reset_url,
         footer="If you did not ask to reset your password, you can ignore this email.",
@@ -51,6 +64,7 @@ def send_password_reset_email(*, email: str) -> bool:
     sent = deliver_email(
         subject="Reset your Curator password",
         message=message,
+        html_message=html_message,
         recipients=[email],
     )
     if not sent:

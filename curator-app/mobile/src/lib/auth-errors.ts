@@ -85,9 +85,12 @@ export function getAuthErrorMessage(error: unknown, action: AuthAction): string 
     return messageForFirebaseCode(firebaseCode, action);
   }
 
-  if (error instanceof ApiError) {
+    if (error instanceof ApiError) {
     if (error.status === 0) {
       return "Curator could not reach the account service. Check your connection and try again.";
+    }
+    if (error.status === 503 && /email delivery|reset email/i.test(error.message)) {
+      return "Password reset email is not configured on the server yet. Try again later or contact support.";
     }
     if (error.status === 404 && (action === "sign-up" || action === "sign-in" || action === "session")) {
       return "The account service on this API is out of date. Redeploy the backend or point the app at a current API URL.";
