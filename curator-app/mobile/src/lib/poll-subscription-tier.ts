@@ -13,6 +13,7 @@ function sleep(ms: number): Promise<void> {
 export async function pollSubscriptionTierAfterPayment(
   previousTier: SubscriptionTier,
   maxAttempts = 8,
+  delayMs = 1500,
 ): Promise<SubscriptionTier> {
   let latest: SubscriptionTier = MOCK_PREMIUM ? "premium" : "free";
 
@@ -26,7 +27,9 @@ export async function pollSubscriptionTierAfterPayment(
     } catch {
       // Keep polling on transient errors.
     }
-    await sleep(1500 * (attempt + 1));
+    if (attempt < maxAttempts - 1) {
+      await sleep(delayMs);
+    }
   }
 
   return latest;

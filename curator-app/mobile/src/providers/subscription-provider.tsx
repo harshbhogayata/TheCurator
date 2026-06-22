@@ -26,6 +26,7 @@ import { fetchEntitlement } from "../services/mobile-api";
 import {
   createCheckout,
   createRazorpayOrder,
+  cancelBillingSubscription,
   verifyRazorpayCheckout,
   verifyRazorpayPayment,
 } from "../services/billing-api";
@@ -58,6 +59,8 @@ interface SubscriptionContextValue {
   packages: PurchasesPackage[];
   purchasePackage: (pkg: PurchasesPackage) => Promise<boolean>;
   purchaseTier: (tier: Exclude<SubscriptionTier, "free">) => Promise<boolean>;
+  downgradeToFree: () => Promise<string>;
+  refreshTier: () => Promise<void>;
   isPurchasing: boolean;
 }
 
@@ -357,8 +360,12 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     const previousTier = tier;
     try {
       if (shouldUseWebRazorpayCheckout()) {
-        await openWebDonateCheckout(selectedTier);
-        const resolved = await pollSubscriptionTierAfterPayment(previousTier);
+        const browserResult = await openWebDonateCheckout(selectedTier);
+        setIsPurchasing(false);
+        if (browserResult.type === "cancel") {
+          return false;
+        }
+        const resolved = await pollSubscriptionTierAfterPayment(previousTier, 3, 1000);
         setTierState(resolved);
         return resolved !== "free" && resolved !== previousTier;
       }
@@ -431,13 +438,43 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
         await openWebDonateCheckout(selectedTier);
       }
 
-      const resolved = await pollSubscriptionTierAfterPayment(previousTier);
+      const resolved = await pollSubscriptionTierAfterPayment(previousTier, 4, 1000);
       setTierState(resolved);
       return resolved !== "free" && resolved !== previousTier;
     } finally {
       setIsPurchasing(false);
     }
   }, [isExpoGo, packages, purchasePackage, tier]);
+
+  const refreshTier = useCallback(async () => {
+    const resolved = await resolveSubscriptionTier();
+    setTierState(resolved);
+  }, []);
+
+  const downgradeToFree = useCallback(async () => {
+    if (MOCK_BACKEND) {
+      setTierState("free");
+      return "You are now on the free plan.";
+    }
+
+    if (!usesRazorpayBilling()) {
+      throw new Error("Manage your subscription in the App Store or Google Play.");
+    }
+
+    setIsPurchasing(true);
+    try {
+      const result = await cancelBillingSubscription();
+      await refreshTier();
+      return (
+        result.message ??
+        (result.status === "cancel_scheduled"
+          ? "Your subscription will end at the close of this billing period."
+          : "You are now on the free plan.")
+      );
+    } finally {
+      setIsPurchasing(false);
+    }
+  }, [refreshTier]);
 
   const features = TIER_FEATURES[tier];
 
@@ -458,9 +495,11 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       packages,
       purchasePackage,
       purchaseTier,
+      downgradeToFree,
+      refreshTier,
       isPurchasing,
     }),
-    [tier, setTier, features, packages, purchasePackage, purchaseTier, isPurchasing],
+    [tier, setTier, features, packages, purchasePackage, purchaseTier, downgradeToFree, refreshTier, isPurchasing],
   );
 
   return (

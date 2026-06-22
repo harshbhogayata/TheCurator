@@ -1,3 +1,8 @@
+export interface ArticleSourceLink {
+  name: string;
+  url?: string;
+}
+
 export interface Article {
   id: string;
   title: string;
@@ -9,6 +14,7 @@ export interface Article {
   publishedAt?: string;
   author: string;
   sources: string[];
+  sourceLinks?: ArticleSourceLink[];
   imageQuery: string;
   imageUrl?: string;
   imageSourceUrl?: string;

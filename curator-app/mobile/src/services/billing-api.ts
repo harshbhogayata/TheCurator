@@ -90,3 +90,16 @@ export async function createMobileDonateHandoff(
     body: { plan },
   });
 }
+
+export type CancelSubscriptionResponse = {
+  provider?: string;
+  status: "already_free" | "cancel_scheduled" | "downgraded";
+  message?: string;
+};
+
+/** POST /api/billing/v1/portal/ — cancel recurring billing or downgrade order-based plans. */
+export async function cancelBillingSubscription(): Promise<CancelSubscriptionResponse> {
+  return apiRequest<CancelSubscriptionResponse>(`${BILLING_PREFIX}/portal/`, {
+    method: "POST",
+  });
+}

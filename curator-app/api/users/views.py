@@ -4,10 +4,11 @@ from django.core.exceptions import ImproperlyConfigured
 from django.utils import timezone
 from firebase_admin.auth import UserNotFoundError
 from firebase_admin.exceptions import FirebaseError
-from rest_framework import generics, permissions, response, status, views
+from rest_framework import generics, permissions, response, status, views, serializers
 
 from users.serializers import AccountUpdateSerializer, SessionSerializer
 from users.services.firebase import delete_firebase_user, get_firebase_user
+from users.services.password_reset_email import send_password_reset_email
 from users.services.provisioning import sync_user_identities_from_firebase_user
 from users.services.verification_email import send_verification_email
 
@@ -173,3 +174,47 @@ class VerificationEmailView(views.APIView):
             )
 
         return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+
+class PasswordResetRequestSerializer(serializers.Serializer):
+    email = serializers.EmailField()
+
+
+class PasswordResetRequestView(views.APIView):
+    """Send a click-to-reset password email (avoids Firebase auto-consuming links)."""
+
+    permission_classes = [permissions.AllowAny]
+    throttle_scope = "sensitive"
+
+    def post(self, request):
+        serializer = PasswordResetRequestSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        email = serializer.validated_data["email"].strip().lower()
+
+        try:
+            sent = send_password_reset_email(email=email)
+        except (ImproperlyConfigured, FirebaseError, ValueError) as exc:
+            logger.warning("Password reset email failed for %s: %s", email, exc)
+            return response.Response(
+                {
+                    "detail": "We couldn't send a reset email right now.",
+                    "code": "service_unavailable",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not sent:
+            return response.Response(
+                {
+                    "detail": "Email delivery is not configured. Try again later.",
+                    "code": "email_unavailable",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return response.Response(
+            {
+                "detail": "If that email is registered, a secure reset link is on the way.",
+            },
+            status=status.HTTP_200_OK,
+        )

@@ -107,7 +107,7 @@ export async function openStandardRazorpayOrderCheckout(input: {
 }
 
 /** Complete payment on the web app (Android / Expo Go), then refresh entitlement. */
-export async function openWebDonateCheckout(plan: string): Promise<void> {
+export async function openWebDonateCheckout(plan: string): Promise<WebBrowser.WebBrowserResult> {
   let url = buildMobileDonateUrl({ plan, source: "app", auto: "1" });
 
   try {
@@ -119,7 +119,7 @@ export async function openWebDonateCheckout(plan: string): Promise<void> {
     // Handoff optional — unsigned URL still works if user signs in on the page.
   }
 
-  await WebBrowser.openBrowserAsync(url, {
+  return WebBrowser.openBrowserAsync(url, {
     presentationStyle: WebBrowser.WebBrowserPresentationStyle.FULL_SCREEN,
     enableBarCollapsing: true,
   });

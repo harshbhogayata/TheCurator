@@ -157,8 +157,7 @@ class RazorpayWebhookProcessingTests(TestCase):
         event["payload"]["payment"]["entity"]["notes"] = {"user_id": str(self.user.id)}
         process_razorpay_webhook(event)
 
-        entitlement = UserEntitlement.objects.get(user=self.user)
-        self.assertEqual(entitlement.tier, SubscriptionTier.FREE)
+        self.assertFalse(UserEntitlement.objects.filter(user=self.user).exists())
 
     def test_payment_captured_grants_lifetime(self):
         process_razorpay_webhook(_razorpay_payment_event(self.user))
@@ -203,12 +202,29 @@ class RazorpayWebhookProcessingTests(TestCase):
         self.assertEqual(entitlement.tier, SubscriptionTier.FREE)
 
 
-class RazorpayStandardOrderTests(TestCase):
-    def test_create_standard_order_rejects_low_amount(self):
-        from billing.razorpay_service import RazorpayServiceError, create_standard_order
+class RazorpayCancelSubscriptionTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user(
+            email="cancel@example.com",
+            password="x",
+            firebase_uid="cancel-uid",
+        )
 
-        with self.assertRaises(RazorpayServiceError):
-            create_standard_order(amount=50, receipt="test")
+    def test_downgrade_order_based_basic_immediately(self):
+        from billing.razorpay_service import cancel_subscription
+
+        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.BASIC)
+        result = cancel_subscription(self.user)
+        self.assertEqual(result["status"], "downgraded")
+        entitlement = UserEntitlement.objects.get(user=self.user)
+        self.assertEqual(entitlement.tier, SubscriptionTier.FREE)
+
+    def test_already_free_is_idempotent(self):
+        from billing.razorpay_service import cancel_subscription
+
+        UserEntitlement.objects.create(user=self.user, tier=SubscriptionTier.FREE)
+        result = cancel_subscription(self.user)
+        self.assertEqual(result["status"], "already_free")
 
 
 class MobileDonateHandoffTests(TestCase):

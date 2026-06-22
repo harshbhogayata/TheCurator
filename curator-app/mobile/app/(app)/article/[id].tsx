@@ -7,6 +7,7 @@ import {
   ScrollView,
   StyleSheet,
   Alert,
+  Linking,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
@@ -90,6 +91,19 @@ export default function ArticleScreen() {
     () => articleContent.split("\n\n").filter((p) => p.trim().length > 0),
     [articleContent],
   );
+
+  const sourceItems = useMemo(() => {
+    if (!article) return [];
+    if (article.sourceLinks?.length) {
+      return article.sourceLinks
+        .map((link) => ({
+          label: link.name?.trim() || "Source",
+          url: link.url?.trim() || "",
+        }))
+        .filter((item) => item.label);
+    }
+    return article.sources.map((name) => ({ label: name, url: "" }));
+  }, [article]);
 
   // Reading session tracking + optional auto-save after meaningful read time
   useEffect(() => {
@@ -445,27 +459,52 @@ export default function ArticleScreen() {
             SOURCES
           </Text>
           <View style={styles.sourcesRow}>
-            {article.sources.map((source, index) => (
-              <View
-                key={`${source}-${index}`}
-                style={[
-                  styles.sourcePill,
-                  {
-                    backgroundColor: palette.surfaceContainerLow,
-                    borderColor: palette.outlineVariant + "26",
-                  },
-                ]}
-              >
-                <Text
+            {sourceItems.map((source, index) => {
+              const canOpen = Boolean(source.url);
+              const pill = (
+                <View
                   style={[
-                    styles.sourceText,
-                    { color: palette.onSurfaceVariant },
+                    styles.sourcePill,
+                    {
+                      backgroundColor: palette.surfaceContainerLow,
+                      borderColor: palette.outlineVariant + "26",
+                    },
                   ]}
                 >
-                  {source}
-                </Text>
-              </View>
-            ))}
+                  <Text
+                    style={[
+                      styles.sourceText,
+                      { color: canOpen ? palette.primary : palette.onSurfaceVariant },
+                    ]}
+                  >
+                    {source.label}
+                  </Text>
+                </View>
+              );
+
+              if (!canOpen) {
+                return (
+                  <View key={`${source.label}-${index}`}>
+                    {pill}
+                  </View>
+                );
+              }
+
+              return (
+                <Pressable
+                  key={`${source.label}-${index}`}
+                  accessibilityRole="link"
+                  accessibilityLabel={`Open source ${source.label}`}
+                  onPress={() => {
+                    void Linking.openURL(source.url).catch(() => {
+                      Alert.alert("Unable to open link", "This source link could not be opened.");
+                    });
+                  }}
+                >
+                  {pill}
+                </Pressable>
+              );
+            })}
           </View>
         </View>
 

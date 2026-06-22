@@ -340,19 +340,45 @@ def verify_checkout_signature(payload: dict, *, expected_user: User | None = Non
 
 
 def cancel_subscription(user: User) -> dict:
-    """Cancel an active Razorpay subscription at the end of the billing cycle."""
-    client = _client()
+    """Downgrade to free — cancel recurring billing or end a one-time order entitlement."""
     entitlement = _get_or_create_entitlement(user)
-    if not entitlement.razorpay_subscription_id:
-        raise RazorpayServiceError("No Razorpay subscription on file for this account.")
+    effective = entitlement.effective_tier
 
-    client.subscription.cancel(
-        entitlement.razorpay_subscription_id,
-        {"cancel_at_cycle_end": 1},
-    )
+    if effective == SubscriptionTier.FREE:
+        return {
+            "status": "already_free",
+            "message": "You are already on the free plan.",
+        }
+
+    if effective == SubscriptionTier.LIFETIME:
+        raise RazorpayServiceError(
+            "Lifetime memberships cannot be cancelled online. Contact support if you need help."
+        )
+
+    if entitlement.razorpay_subscription_id:
+        client = _client()
+        client.subscription.cancel(
+            entitlement.razorpay_subscription_id,
+            {"cancel_at_cycle_end": 1},
+        )
+        entitlement.will_renew = False
+        entitlement.save(update_fields=["will_renew", "updated_at"])
+        return {
+            "status": "cancel_scheduled",
+            "message": (
+                "Your subscription will not renew. You keep your current plan until "
+                "the end of this billing period, then move to Free."
+            ),
+        }
+
+    entitlement.tier = SubscriptionTier.FREE
     entitlement.will_renew = False
-    entitlement.save(update_fields=["will_renew", "updated_at"])
-    return {"status": "cancel_scheduled"}
+    entitlement.expires_at = None
+    entitlement.save(update_fields=["tier", "will_renew", "expires_at", "updated_at"])
+    return {
+        "status": "downgraded",
+        "message": "You are now on the free plan.",
+    }
 
 
 def verify_webhook(body: bytes, signature_header: str) -> dict:

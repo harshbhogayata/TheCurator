@@ -12,7 +12,6 @@ import {
   createUserWithEmailAndPassword,
   onIdTokenChanged,
   sendEmailVerification,
-  sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
   updateProfile,
@@ -412,8 +411,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
         try {
-          const auth = getFirebaseAuth();
-          await sendPasswordResetEmail(auth, email.trim());
+          await apiRequest<{ detail?: string }>(`${AUTH_API_PREFIX}/auth/password-reset`, {
+            method: "POST",
+            body: { email: email.trim() },
+          });
         } catch (error) {
           throw new Error(getAuthErrorMessage(error, "password-reset"), { cause: error });
         }

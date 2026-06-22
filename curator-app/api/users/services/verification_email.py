@@ -5,6 +5,7 @@ from django.conf import settings
 from firebase_admin import auth as firebase_auth
 
 from publicapi.email_delivery import deliver_email
+from publicapi.email_templates import build_curator_email_body
 
 logger = logging.getLogger(__name__)
 
@@ -34,11 +35,18 @@ def send_verification_email(*, email: str) -> bool:
     verify_url = build_click_to_verify_url(admin_link)
 
     subject = "Verify your email for The Curator"
-    message = (
-        "Thanks for signing up for The Curator.\n\n"
-        "Open this link, then tap the verify button on the page (do not rely on link previews):\n\n"
-        f"{verify_url}\n\n"
-        "If you did not create an account, you can ignore this email.\n"
+    message = build_curator_email_body(
+        greeting="Welcome to The Curator.",
+        paragraphs=[
+            "Thanks for creating an account.",
+            "Open the link below, then tap Verify on the page to confirm your email.",
+            "Some email apps open links in the background — using the button on our page",
+            "stops the link from being used before you are ready.",
+            "If a link says it expired or was already used, tap Resend in the app and open",
+            "only the newest message.",
+        ],
+        action_label="Verify your email",
+        action_url=verify_url,
     )
 
     sent = deliver_email(

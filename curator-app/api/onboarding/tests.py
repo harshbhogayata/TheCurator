@@ -1,9 +1,11 @@
 from django.test import TestCase
 from rest_framework.test import APIClient
 
-from common.constants import CATEGORY_OPTION_KEYS
+from common.constants import CATEGORY_OPTIONS
 from onboarding.models import OnboardingStep, UserOnboarding
 from users.models import User
+
+CATEGORY_SLUGS = [key for key, _ in CATEGORY_OPTIONS]
 
 
 class OnboardingFlowTests(TestCase):
@@ -30,7 +32,7 @@ class OnboardingFlowTests(TestCase):
     def test_categories_patch_requires_three(self):
         response = self.client.patch(
             "/api/mobile/v1/onboarding/categories",
-            {"categories": CATEGORY_OPTION_KEYS[:2]},
+            {"categories": CATEGORY_SLUGS[:2]},
             format="json",
         )
         self.assertEqual(response.status_code, 400)
@@ -38,7 +40,7 @@ class OnboardingFlowTests(TestCase):
     def test_categories_patch_advances_step(self):
         response = self.client.patch(
             "/api/mobile/v1/onboarding/categories",
-            {"categories": CATEGORY_OPTION_KEYS[:3]},
+            {"categories": CATEGORY_SLUGS[:3]},
             format="json",
         )
         self.assertEqual(response.status_code, 200)

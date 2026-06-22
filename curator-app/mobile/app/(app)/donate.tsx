@@ -133,7 +133,7 @@ function findPackageForPlan(packages: PurchasesPackage[], planId: Plan["id"]): P
 
 export default function DonateScreen() {
   const { palette } = useTheme();
-  const { tier, setTier, packages, purchasePackage, purchaseTier, isPurchasing } = useSubscription();
+  const { tier, setTier, packages, purchasePackage, purchaseTier, downgradeToFree, isPurchasing } = useSubscription();
   const razorpayBilling = usesRazorpayBilling();
   const usesWebCheckout = razorpayBilling && shouldUseWebRazorpayCheckout();
   const { showToast } = useToast();
@@ -155,8 +155,25 @@ export default function DonateScreen() {
     }
 
     if (selectedPlan === "free") {
-       showToast("info", "You are already on the free plan.");
-       return;
+      if (tier === "free") {
+        showToast("info", "You are already on the free plan.");
+        return;
+      }
+
+      if (tier === "lifetime") {
+        showToast("info", "Lifetime plans cannot be cancelled online. Contact support if you need help.");
+        return;
+      }
+
+      try {
+        const message = await downgradeToFree();
+        showToast("success", message);
+        router.back();
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Unable to switch plans right now.";
+        showToast("error", message);
+      }
+      return;
     }
 
     if (razorpayBilling) {
@@ -522,7 +539,11 @@ export default function DonateScreen() {
                   letterSpacing: 0.2,
                 }}
               >
-                {isPurchasing ? "Processing..." : `Subscribe to ${selectedPlanData.name}`}
+                {isPurchasing
+                  ? "Processing..."
+                  : selectedPlan === "free" && tier !== "free"
+                    ? "Switch to Free"
+                    : `Subscribe to ${selectedPlanData.name}`}
               </Text>
               <Text
                 numberOfLines={1}
@@ -534,7 +555,9 @@ export default function DonateScreen() {
                 }}
               >
                 {selectedPlanData.price === 0
-                  ? "Always free"
+                  ? tier !== "free"
+                    ? "Cancel paid plan"
+                    : "Always free"
                   : razorpayBilling
                     ? selectedPlanData.id === "lifetime"
                       ? `₹${selectedPlanData.price.toLocaleString("en-IN")} one-time`

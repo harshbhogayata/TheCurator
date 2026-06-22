@@ -106,7 +106,7 @@ export default function ForgotPasswordScreen() {
               onPress={handleSubmit(async (values) => {
                 await requestPasswordReset(values.email);
                 setSuccessMessage(
-                  "If that email is registered, a secure reset link is on the way.",
+                  "If that email is registered, check your inbox. Open the link, tap the button on the page, then choose a new password.",
                 );
               })}
             />

@@ -91,7 +91,6 @@ export default function ExploreScreen() {
     if (isLoading) {
       return (
         <View style={{ gap: 32, paddingTop: 8 }}>
-          {!hasAdFree && <AdBanner position="top" />}
           <ArticleCardSkeleton />
           <ArticleCardSkeleton />
         </View>
@@ -100,12 +99,6 @@ export default function ExploreScreen() {
 
     return (
       <>
-        {!hasAdFree && (
-          <View style={{ marginBottom: 16 }}>
-            <AdBanner position="top" />
-          </View>
-        )}
-
         {/* Top Narratives Header */}
         <View style={styles.narrativesHeader}>
           <Text
@@ -168,11 +161,6 @@ export default function ExploreScreen() {
         {topNarratives.map((article, i) => (
           <View key={`top-${article.id}`} style={{ marginBottom: 48 }}>
             <ArticleCard article={article} variant={i === 0 ? "featured" : "default"} />
-            {i === 0 && !hasAdFree && (
-              <View style={{ marginTop: 32 }}>
-                <AdBanner position="inline" />
-              </View>
-            )}
           </View>
         ))}
 
@@ -224,11 +212,16 @@ export default function ExploreScreen() {
     );
   }, [isLoading, hasAdFree, viewMode, selectedCategory, topNarratives, filteredExploreArticles.length, categoryOptions, palette]);
 
-  const renderItem = useCallback(({ item }: { item: Article }) => (
+  const renderItem = useCallback(({ item, index }: { item: Article; index: number }) => (
     <View style={{ marginBottom: 32 }}>
       <ArticleCard article={item} variant="default" />
+      {!hasAdFree && index % 2 === 1 ? (
+        <View style={{ marginTop: 24 }}>
+          <AdBanner position="feed" />
+        </View>
+      ) : null}
     </View>
-  ), []);
+  ), [hasAdFree]);
 
   const listEmpty = useMemo(() => (
     isLoading ? null : (

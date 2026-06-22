@@ -5,6 +5,7 @@ from users.views import (
     CurrentSessionView,
     IdentityListView,
     IdentitySyncView,
+    PasswordResetRequestView,
     VerificationEmailView,
 )
 
@@ -23,5 +24,10 @@ urlpatterns = [
         "auth/verification-email",
         VerificationEmailView.as_view(),
         name="verification-email",
+    ),
+    path(
+        "auth/password-reset",
+        PasswordResetRequestView.as_view(),
+        name="password-reset",
     ),
 ]
