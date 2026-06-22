@@ -572,16 +572,20 @@ export default function DonateScreen() {
               alignItems: "center",
               paddingHorizontal: 16,
               paddingVertical: 12,
-              gap: 4,
+              gap: 8,
+              minHeight: 68,
               opacity: pressed || isPurchasing ? 0.92 : 1,
             })}
           >
-            <View style={{ flex: 1, gap: 4 }}>
+            <View style={{ flex: 1, minWidth: 0, gap: 3 }}>
               <Text
                 numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
                 style={{
-                  fontFamily: "Manrope_500Medium",
-                  fontSize: 12,
+                  fontFamily: "Manrope_700Bold",
+                  fontSize: 16,
+                  lineHeight: 20,
                   color: palette.primaryForeground,
                 }}
               >
@@ -589,9 +593,12 @@ export default function DonateScreen() {
               </Text>
               <Text
                 numberOfLines={1}
+                adjustsFontSizeToFit
+                minimumFontScale={0.85}
                 style={{
-                  fontFamily: "Manrope_400Regular",
-                  fontSize: 10,
+                  fontFamily: "Manrope_500Medium",
+                  fontSize: 13,
+                  lineHeight: 17,
                   color: palette.primaryForeground + "CC",
                 }}
               >
