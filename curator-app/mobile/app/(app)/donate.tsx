@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
   Heart,
@@ -144,6 +144,9 @@ export default function DonateScreen() {
   const usesWebCheckout = razorpayBilling && shouldUseWebRazorpayCheckout();
   const { showToast } = useToast();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
+  const footerBottom = Math.max(insets.bottom + 16, 24);
+  const footerClearance = footerBottom + 92;
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
   const selectedPlanData = plans.find((plan) => plan.id === selectedPlan) ?? plans[2];
   const selectedPackage = findPackageForPlan(packages, selectedPlan);
@@ -232,7 +235,7 @@ export default function DonateScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: footerClearance }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -529,74 +532,88 @@ export default function DonateScreen() {
         </View>
       </ScrollView>
 
-      {/* Floating subscribe pill */}
-      <SafeAreaView
-        edges={["bottom"]}
+      {/* Floating subscribe bar — matched to audio mini player shell */}
+      <View
         pointerEvents="box-none"
         style={{
           position: "absolute",
-          left: 0,
-          right: 0,
-          bottom: 0,
-          paddingHorizontal: 16,
-          paddingBottom: 10,
-          paddingTop: 16,
+          left: 16,
+          right: 16,
+          bottom: footerBottom,
+          zIndex: 40,
         }}
       >
         <View
           style={{
-            backgroundColor: palette.primary,
-            borderRadius: 32,
-            shadowColor: "#000000",
-            shadowOffset: { width: 0, height: 12 },
-            shadowOpacity: 0.22,
-            shadowRadius: 28,
-            elevation: 18,
+            overflow: "hidden",
             borderWidth: 1,
-            borderColor: palette.primaryForeground + "18",
+            borderRadius: 999,
+            borderColor: palette.outlineVariant + "26",
+            backgroundColor: palette.primary,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.12,
+            shadowRadius: 16,
+            elevation: 8,
           }}
         >
+          <View
+            style={{
+              height: 3,
+              backgroundColor: palette.primaryForeground + "33",
+            }}
+          />
           <Pressable
             onPress={handleSubscribe}
             android_ripple={{ color: "rgba(255,255,255,0.12)" }}
             disabled={isPurchasing}
             style={({ pressed }) => ({
-              minHeight: 76,
-              paddingHorizontal: 24,
-              paddingVertical: 18,
+              flexDirection: "row",
+              alignItems: "center",
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              gap: 4,
               opacity: pressed || isPurchasing ? 0.92 : 1,
             })}
           >
-            <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 24 }} />
-              <View style={{ flex: 1, alignItems: "center", paddingHorizontal: 8 }}>
-                <Text
-                  style={{
-                    fontFamily: "Manrope_700Bold",
-                    fontSize: 18,
-                    color: palette.primaryForeground,
-                    textAlign: "center",
-                  }}
-                >
-                  {subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
-                </Text>
-                <Text
-                  style={{
-                    fontFamily: "Manrope_500Medium",
-                    fontSize: 14,
-                    color: palette.primaryForeground + "CC",
-                    marginTop: 5,
-                    textAlign: "center",
-                  }}
-                >
-                  {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
-                </Text>
-              </View>
-              <ChevronRight size={22} color={palette.primaryForeground} />
+            <View style={{ flex: 1, gap: 4 }}>
+              <Text
+                numberOfLines={1}
+                style={{
+                  fontFamily: "Manrope_500Medium",
+                  fontSize: 12,
+                  color: palette.primaryForeground,
+                }}
+              >
+                {subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
+              </Text>
+              <Text
+                numberOfLines={1}
+                style={{
+                  fontFamily: "Manrope_400Regular",
+                  fontSize: 10,
+                  color: palette.primaryForeground + "CC",
+                }}
+              >
+                {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
+              </Text>
+            </View>
+
+            <View
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 999,
+                alignItems: "center",
+                justifyContent: "center",
+                backgroundColor: palette.primaryForeground + "22",
+              }}
+            >
+              <ChevronRight size={18} color={palette.primaryForeground} />
             </View>
           </Pressable>
         </View>
-      </SafeAreaView>
+      </View>
     </SafeAreaView>
   );
 }
