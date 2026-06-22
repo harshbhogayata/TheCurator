@@ -1,6 +1,12 @@
 from django.urls import path
 
-from users.views import AccountView, CurrentSessionView, IdentityListView, IdentitySyncView
+from users.views import (
+    AccountView,
+    CurrentSessionView,
+    IdentityListView,
+    IdentitySyncView,
+    VerificationEmailView,
+)
 
 app_name = "users"
 
@@ -12,5 +18,10 @@ urlpatterns = [
         "account/identities/sync",
         IdentitySyncView.as_view(),
         name="identities-sync",
+    ),
+    path(
+        "auth/verification-email",
+        VerificationEmailView.as_view(),
+        name="verification-email",
     ),
 ]

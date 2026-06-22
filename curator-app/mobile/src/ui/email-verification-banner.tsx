@@ -34,7 +34,7 @@ export function EmailVerificationBanner({ compact = false }: EmailVerificationBa
   const handleRefresh = async () => {
     try {
       await refreshSession();
-      showToast("success", "Account status refreshed.");
+      showToast("success", "Account status refreshed. If you verified by email, the banner should disappear.");
     } catch {
       showToast("error", "Could not refresh your account status.");
     }
@@ -60,7 +60,8 @@ export function EmailVerificationBanner({ compact = false }: EmailVerificationBa
             Verify your email
           </Text>
           <Text style={[type.labelSm, { fontFamily: "Manrope_400Regular", color: palette.onSecondaryContainer }]}>
-            We sent a link to {session.user.email}. Verify it to secure your account before launch.
+            We sent a link to {session.user.email}. Use only the newest email. If the link says it expired or was
+            already used, tap Resend, then I verified after opening the fresh link.
           </Text>
         </View>
       </View>

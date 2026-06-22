@@ -28,6 +28,7 @@ import { deleteAccountRemote, updateAccount } from "../services/mobile-api";
 import { firebaseConfigured, getFirebaseAuth } from "../services/firebase";
 import { AUTH_API_PREFIX } from "../lib/api-routes";
 import { resetQueryCache } from "../lib/query-client";
+import { buildEmailVerificationSettings } from "../lib/firebase-email-verification";
 import { useTheme } from "./theme-provider";
 import { getAuthErrorMessage } from "../lib/auth-errors";
 
@@ -258,6 +259,25 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [applySession],
   );
 
+  const deliverVerificationEmail = useCallback(async () => {
+    const auth = getFirebaseAuth();
+    const currentUser = auth.currentUser;
+    if (!currentUser) {
+      throw new Error("You need to be signed in to resend the verification email.");
+    }
+    if (currentUser.emailVerified) {
+      return;
+    }
+
+    try {
+      await apiRequest<void>(`${AUTH_API_PREFIX}/auth/verification-email`, {
+        method: "POST",
+      });
+    } catch {
+      await sendEmailVerification(currentUser, buildEmailVerificationSettings());
+    }
+  }, []);
+
   const signInWithEmail = useCallback(
     async (email: string, password: string) =>
       runBusy(async () => {
@@ -329,7 +349,9 @@ export function AuthProvider({ children }: PropsWithChildren) {
           }
 
           if (!credential.user.emailVerified) {
-            await sendEmailVerification(credential.user);
+            await exchangeSession(credential.user);
+            await deliverVerificationEmail();
+            return;
           }
 
           await exchangeSession(credential.user);
@@ -337,7 +359,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
           throw new Error(getAuthErrorMessage(error, "sign-up"), { cause: error });
         }
       }),
-    [applySession, exchangeSession, runBusy],
+    [applySession, deliverVerificationEmail, exchangeSession, runBusy],
   );
 
   const requestPasswordReset = useCallback(
@@ -365,20 +387,12 @@ export function AuthProvider({ children }: PropsWithChildren) {
           return;
         }
         try {
-          const auth = getFirebaseAuth();
-          const currentUser = auth.currentUser;
-          if (!currentUser) {
-            throw new Error("You need to be signed in to resend the verification email.");
-          }
-          if (currentUser.emailVerified) {
-            return;
-          }
-          await sendEmailVerification(currentUser);
+          await deliverVerificationEmail();
         } catch (error) {
           throw new Error(getAuthErrorMessage(error, "sign-up"), { cause: error });
         }
       }),
-    [runBusy],
+    [deliverVerificationEmail, runBusy],
   );
 
   const updateProfileCore = useCallback(

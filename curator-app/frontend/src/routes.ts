@@ -18,6 +18,7 @@ export default [
   route("terms", "routes/public/terms.tsx"),
   route("support", "routes/public/support.tsx"),
   route("account-deletion", "routes/public/account-deletion.tsx"),
+  route("verify-email", "routes/public/verify-email.tsx"),
 
   // SEO resource routes.
   route("sitemap.xml", "routes/seo/sitemap.ts"),

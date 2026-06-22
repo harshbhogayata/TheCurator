@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Verify email · The Curator</title>
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #fbf9f3;
+        --surface: #ffffff;
+        --text: #31332b;
+        --muted: #5e6056;
+        --accent: #0e0e0b;
+        --accent-fg: #e9e8e3;
+        --error: #9a4f4f;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        font-family: Georgia, "Times New Roman", serif;
+        background: var(--bg);
+        color: var(--text);
+        display: grid;
+        place-items: center;
+        padding: 24px;
+      }
+      main {
+        width: min(100%, 480px);
+        background: var(--surface);
+        border-radius: 28px;
+        padding: 32px 28px;
+        box-shadow: 0 24px 60px rgba(14, 14, 11, 0.08);
+      }
+      h1 {
+        margin: 0 0 12px;
+        font-size: 1.75rem;
+        font-weight: 500;
+      }
+      p {
+        margin: 0 0 16px;
+        line-height: 1.55;
+        color: var(--muted);
+        font-family: system-ui, sans-serif;
+        font-size: 0.95rem;
+      }
+      button {
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 14px 18px;
+        font-size: 0.95rem;
+        font-weight: 600;
+        font-family: system-ui, sans-serif;
+        background: var(--accent);
+        color: var(--accent-fg);
+        cursor: pointer;
+      }
+      button:disabled {
+        opacity: 0.55;
+        cursor: wait;
+      }
+      .status {
+        margin-top: 16px;
+        font-family: system-ui, sans-serif;
+        font-size: 0.92rem;
+      }
+      .status.error { color: var(--error); }
+      .status.ok { color: #3f6d4a; }
+      a { color: inherit; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <h1>Verify your email</h1>
+      <p id="lede">
+        Tap the button below to confirm your email for The Curator. This extra step stops email apps from
+        using the link before you do.
+      </p>
+      <button id="verify-btn" type="button">Verify email</button>
+      <p class="status" id="status" hidden></p>
+    </main>
+    <script type="module">
+      import { initializeApp } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-app.js";
+      import { getAuth, applyActionCode } from "https://www.gstatic.com/firebasejs/12.11.0/firebase-auth.js";
+
+      const params = new URLSearchParams(window.location.search);
+      const status = params.get("status");
+      const mode = params.get("mode");
+      const oobCode = params.get("oobCode");
+      const apiKey = params.get("apiKey");
+      const button = document.getElementById("verify-btn");
+      const statusEl = document.getElementById("status");
+      const lede = document.getElementById("lede");
+
+      function showStatus(message, kind) {
+        statusEl.hidden = false;
+        statusEl.textContent = message;
+        statusEl.className = `status ${kind}`;
+      }
+
+      if (status === "done") {
+        lede.textContent = "Your email is verified. Return to The Curator app and tap I verified on your profile.";
+        button.hidden = true;
+        showStatus("You can close this tab.", "ok");
+      } else if (!oobCode || mode !== "verifyEmail") {
+        lede.textContent = "This verification link is incomplete or invalid. In the app, tap Resend email and open the newest message.";
+        button.hidden = true;
+        showStatus("Missing verification code.", "error");
+      } else {
+        const app = initializeApp({
+          apiKey: apiKey || "",
+          authDomain: "thecuratorin.firebaseapp.com",
+          projectId: "thecuratorin",
+        });
+        const auth = getAuth(app);
+
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            await applyActionCode(auth, oobCode);
+            showStatus("Email verified. Return to the app and tap I verified.", "ok");
+            button.hidden = true;
+            lede.textContent = "All set — your email address is confirmed.";
+          } catch (error) {
+            button.disabled = false;
+            const code = error && typeof error === "object" && "code" in error ? String(error.code) : "";
+            if (code.includes("invalid-action-code") || code.includes("expired-action-code")) {
+              showStatus(
+                "This link expired or was already used. In the app, tap Resend email and use only the newest link.",
+                "error",
+              );
+            } else {
+              showStatus("Could not verify right now. Try Resend email in the app.", "error");
+            }
+          }
+        });
+      }
+    </script>
+  </body>
+</html>

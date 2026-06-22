@@ -9,6 +9,7 @@ from rest_framework import generics, permissions, response, status, views
 from users.serializers import AccountUpdateSerializer, SessionSerializer
 from users.services.firebase import delete_firebase_user, get_firebase_user
 from users.services.provisioning import sync_user_identities_from_firebase_user
+from users.services.verification_email import send_verification_email
 
 
 logger = logging.getLogger(__name__)
@@ -22,6 +23,9 @@ def _sync_identities_for_user(user, *, fail_silently):
     try:
         firebase_user = get_firebase_user(firebase_uid)
         sync_user_identities_from_firebase_user(user, firebase_user)
+        if getattr(firebase_user, "email_verified", False) and not user.email_verified_at:
+            user.email_verified_at = timezone.now()
+            user.save(update_fields=["email_verified_at"])
         return True
     except (ImproperlyConfigured, FirebaseError) as exc:
         logger.warning("Unable to sync Firebase identities for user %s: %s", user.id, exc)
@@ -136,3 +140,36 @@ class IdentitySyncView(views.APIView):
                 status=status.HTTP_503_SERVICE_UNAVAILABLE,
             )
         return response.Response(SessionSerializer(request.user).data)
+
+
+class VerificationEmailView(views.APIView):
+    permission_classes = [permissions.IsAuthenticated]
+    throttle_scope = "sensitive"
+
+    def post(self, request):
+        user = request.user
+        if user.email_verified_at:
+            return response.Response(status=status.HTTP_204_NO_CONTENT)
+
+        try:
+            sent = send_verification_email(email=user.email)
+        except (ImproperlyConfigured, FirebaseError, ValueError) as exc:
+            logger.warning("Verification email failed for user %s: %s", user.id, exc)
+            return response.Response(
+                {
+                    "detail": "We couldn't send a verification email right now.",
+                    "code": "service_unavailable",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        if not sent:
+            return response.Response(
+                {
+                    "detail": "Email delivery is not configured. Try again later.",
+                    "code": "email_unavailable",
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
+
+        return response.Response(status=status.HTTP_204_NO_CONTENT)
