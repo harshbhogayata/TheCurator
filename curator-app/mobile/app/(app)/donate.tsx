@@ -232,7 +232,7 @@ export default function DonateScreen() {
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 16 }}
+        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 120 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}
@@ -350,63 +350,66 @@ export default function DonateScreen() {
                   borderWidth: 2,
                   borderColor: isSelected ? palette.primary : palette.outlineVariant + "26",
                   padding: 20,
-                  position: "relative",
-                  overflow: "hidden",
                 }}
               >
-                {plan.popular && (
+                {(plan.popular || isCurrent) && (
                   <View
                     style={{
-                      position: "absolute",
-                      top: 12,
-                      right: 12,
-                      backgroundColor: palette.primary,
-                      borderRadius: 999,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
+                      flexDirection: "row",
+                      justifyContent: "flex-end",
+                      flexWrap: "wrap",
+                      gap: 6,
+                      marginBottom: 12,
                     }}
                   >
-                    <Text
-                      style={{
-                        fontFamily: "Manrope_600SemiBold",
-                        fontSize: 10,
-                        color: "#ffffff",
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Popular
-                    </Text>
+                    {isCurrent && (
+                      <View
+                        style={{
+                          backgroundColor: palette.secondaryContainer,
+                          borderRadius: 999,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: "Manrope_600SemiBold",
+                            fontSize: 10,
+                            color: palette.onSecondaryContainer,
+                            textTransform: "uppercase",
+                            letterSpacing: 1,
+                          }}
+                        >
+                          Current
+                        </Text>
+                      </View>
+                    )}
+                    {plan.popular && (
+                      <View
+                        style={{
+                          backgroundColor: palette.primary,
+                          borderRadius: 999,
+                          paddingHorizontal: 10,
+                          paddingVertical: 4,
+                        }}
+                      >
+                        <Text
+                          style={{
+                            fontFamily: "Manrope_600SemiBold",
+                            fontSize: 10,
+                            color: "#ffffff",
+                            textTransform: "uppercase",
+                            letterSpacing: 1,
+                          }}
+                        >
+                          Popular
+                        </Text>
+                      </View>
+                    )}
                   </View>
                 )}
 
-                {isCurrent && (
-                  <View
-                    style={{
-                      position: "absolute",
-                      top: 12,
-                      right: plan.popular ? 80 : 12,
-                      backgroundColor: palette.secondaryContainer,
-                      borderRadius: 999,
-                      paddingHorizontal: 10,
-                      paddingVertical: 4,
-                    }}
-                  >
-                    <Text
-                      style={{
-                        fontFamily: "Manrope_600SemiBold",
-                        fontSize: 10,
-                        color: palette.onSecondaryContainer,
-                        textTransform: "uppercase",
-                        letterSpacing: 1,
-                      }}
-                    >
-                      Current
-                    </Text>
-                  </View>
-                )}
-
-                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 14 }}>
+                <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 12, marginBottom: 10 }}>
                   <View
                     style={{
                       width: 44,
@@ -420,8 +423,9 @@ export default function DonateScreen() {
                   >
                     <Icon size={22} color={palette.onPrimaryContainer} />
                   </View>
-                  <View style={{ flex: 1, minWidth: 0, paddingRight: plan.popular || isCurrent ? 72 : 0 }}>
+                  <View style={{ flex: 1, minWidth: 0 }}>
                     <Text
+                      numberOfLines={1}
                       style={{
                         fontFamily: "Newsreader_700Bold",
                         fontSize: 20,
@@ -436,38 +440,44 @@ export default function DonateScreen() {
                         fontSize: 13,
                         color: palette.onSurfaceVariant,
                         marginTop: 2,
+                        lineHeight: 18,
                       }}
                     >
                       {plan.description}
                     </Text>
                   </View>
-                  <View style={{ alignItems: "flex-end", flexShrink: 0, maxWidth: 120, paddingTop: 2 }}>
+                </View>
+
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "baseline",
+                    justifyContent: "flex-end",
+                    gap: 6,
+                    marginBottom: 14,
+                    paddingLeft: 56,
+                  }}
+                >
+                  <Text
+                    style={{
+                      fontFamily: "Manrope_700Bold",
+                      fontSize: 22,
+                      color: palette.onSurface,
+                    }}
+                  >
+                    {priceParts.amount}
+                  </Text>
+                  {cardSuffix ? (
                     <Text
-                      adjustsFontSizeToFit
-                      numberOfLines={1}
                       style={{
-                        fontFamily: "Manrope_700Bold",
-                        fontSize: 18,
-                        color: palette.onSurface,
-                        textAlign: "right",
+                        fontFamily: "Manrope_500Medium",
+                        fontSize: 13,
+                        color: palette.onSurfaceVariant,
                       }}
                     >
-                      {priceParts.amount}
+                      {cardSuffix === "one-time" ? "one-time" : `per ${cardSuffix}`}
                     </Text>
-                    {cardSuffix ? (
-                      <Text
-                        style={{
-                          fontFamily: "Manrope_500Medium",
-                          fontSize: 12,
-                          color: palette.onSurfaceVariant,
-                          marginTop: 2,
-                          textAlign: "right",
-                        }}
-                      >
-                        {cardSuffix === "one-time" ? "one-time" : `per ${cardSuffix}`}
-                      </Text>
-                    ) : null}
-                  </View>
+                  ) : null}
                 </View>
 
                 <View style={{ gap: 8 }}>
@@ -519,26 +529,31 @@ export default function DonateScreen() {
         </View>
       </ScrollView>
 
-      {/* Sticky subscribe bar — centered copy, no cramped icon row */}
+      {/* Floating subscribe pill */}
       <SafeAreaView
         edges={["bottom"]}
+        pointerEvents="box-none"
         style={{
-          paddingHorizontal: 20,
-          paddingTop: 12,
-          backgroundColor: palette.background,
-          borderTopWidth: 1,
-          borderTopColor: palette.outlineVariant + "33",
+          position: "absolute",
+          left: 0,
+          right: 0,
+          bottom: 0,
+          paddingHorizontal: 16,
+          paddingBottom: 10,
+          paddingTop: 16,
         }}
       >
         <View
           style={{
             backgroundColor: palette.primary,
-            borderRadius: 999,
-            shadowColor: palette.primary,
-            shadowOffset: { width: 0, height: 6 },
+            borderRadius: 32,
+            shadowColor: "#000000",
+            shadowOffset: { width: 0, height: 12 },
             shadowOpacity: 0.22,
-            shadowRadius: 16,
-            elevation: 10,
+            shadowRadius: 28,
+            elevation: 18,
+            borderWidth: 1,
+            borderColor: palette.primaryForeground + "18",
           }}
         >
           <Pressable
@@ -546,19 +561,19 @@ export default function DonateScreen() {
             android_ripple={{ color: "rgba(255,255,255,0.12)" }}
             disabled={isPurchasing}
             style={({ pressed }) => ({
-              minHeight: 58,
-              paddingHorizontal: 22,
-              paddingVertical: 14,
+              minHeight: 76,
+              paddingHorizontal: 24,
+              paddingVertical: 18,
               opacity: pressed || isPurchasing ? 0.92 : 1,
             })}
           >
             <View style={{ flexDirection: "row", alignItems: "center" }}>
-              <View style={{ width: 22 }} />
+              <View style={{ width: 24 }} />
               <View style={{ flex: 1, alignItems: "center", paddingHorizontal: 8 }}>
                 <Text
                   style={{
                     fontFamily: "Manrope_700Bold",
-                    fontSize: 17,
+                    fontSize: 18,
                     color: palette.primaryForeground,
                     textAlign: "center",
                   }}
@@ -568,16 +583,16 @@ export default function DonateScreen() {
                 <Text
                   style={{
                     fontFamily: "Manrope_500Medium",
-                    fontSize: 13,
+                    fontSize: 14,
                     color: palette.primaryForeground + "CC",
-                    marginTop: 3,
+                    marginTop: 5,
                     textAlign: "center",
                   }}
                 >
                   {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
                 </Text>
               </View>
-              <ChevronRight size={20} color={palette.primaryForeground} />
+              <ChevronRight size={22} color={palette.primaryForeground} />
             </View>
           </Pressable>
         </View>
