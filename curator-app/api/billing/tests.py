@@ -303,3 +303,20 @@ class MobileDonateHandoffTests(TestCase):
 
         create_payload = mock_client.order.create.call_args.args[0]
         self.assertLessEqual(len(create_payload["receipt"]), 40)
+
+    @patch("billing.razorpay_service.verify_checkout_signature")
+    def test_mobile_donate_callback_redirects_success(self, mock_verify):
+        from django.test import Client
+
+        client = Client()
+        response = client.post(
+            "/m/donate/callback",
+            {
+                "razorpay_payment_id": "pay_test",
+                "razorpay_order_id": "order_test",
+                "razorpay_signature": "sig_test",
+            },
+        )
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("status=success", response.url)
+        mock_verify.assert_called_once()

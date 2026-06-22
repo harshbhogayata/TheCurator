@@ -7,7 +7,7 @@ from urllib.parse import urlencode
 from django.conf import settings
 from django.core import signing
 
-from billing.mobile_checkout import mobile_donate_page_url
+from billing.donate_urls import mobile_donate_page_url
 from billing.authentication import create_checkout_handoff_token
 from billing.razorpay_service import RazorpayServiceError
 from mobileapi.models import SubscriptionTier

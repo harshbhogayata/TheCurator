@@ -3,23 +3,21 @@
 from __future__ import annotations
 
 import json
+import logging
 
+from billing.donate_urls import mobile_donate_callback_url, mobile_donate_page_url
 from django.conf import settings
+from django.http import HttpResponseRedirect
+from django.utils.decorators import method_decorator
+from django.views import View
+from django.views.decorators.csrf import csrf_exempt
 from django.views.generic import TemplateView
 
 from mobileapi.models import SubscriptionTier
 
+logger = logging.getLogger(__name__)
+
 _ALLOWED_PLANS = {SubscriptionTier.BASIC, SubscriptionTier.PREMIUM, SubscriptionTier.LIFETIME}
-
-
-def mobile_donate_page_url() -> str:
-    override = (getattr(settings, "MOBILE_DONATE_URL", "") or "").strip().rstrip("/")
-    if override:
-        return override
-    api_base = (settings.API_PUBLIC_BASE_URL or "").strip().rstrip("/")
-    if api_base:
-        return f"{api_base}/m/donate"
-    return f"{settings.WEB_BASE_URL.rstrip('/')}/donate"
 
 
 class MobileDonatePageView(TemplateView):
@@ -60,3 +58,28 @@ class MobileDonatePageView(TemplateView):
             }
         )
         return context
+
+
+@method_decorator(csrf_exempt, name="dispatch")
+class MobileDonateCallbackView(View):
+    """Razorpay POST redirect target — required for in-app browser / WebView checkout."""
+
+    def post(self, request):
+        from billing import razorpay_service
+        from billing.razorpay_service import RazorpayServiceError
+
+        payload = {
+            "razorpay_payment_id": request.POST.get("razorpay_payment_id", ""),
+            "razorpay_order_id": request.POST.get("razorpay_order_id", ""),
+            "razorpay_signature": request.POST.get("razorpay_signature", ""),
+        }
+        success_url = f"{mobile_donate_page_url()}?status=success&source=app"
+        failure_url = f"{mobile_donate_page_url()}?status=failed&source=app"
+
+        try:
+            razorpay_service.verify_checkout_signature(payload, expected_user=None)
+        except RazorpayServiceError as exc:
+            logger.warning("Mobile donate callback verification failed: %s", exc)
+            return HttpResponseRedirect(failure_url)
+
+        return HttpResponseRedirect(success_url)

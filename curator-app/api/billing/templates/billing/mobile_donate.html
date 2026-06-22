@@ -197,7 +197,7 @@
       return payload.checkoutToken || null;
     }
 
-    async function openRazorpay(checkout, authToken) {
+    async function openRazorpay(checkout) {
       await loadRazorpay();
       const key = config.razorpayKeyId || checkout.keyId;
       if (!key) throw new Error("Razorpay is not configured.");
@@ -209,34 +209,10 @@
           description: checkout.description || "Membership",
           prefill: checkout.prefill || {},
           theme: { color: "#31332b" },
-          handler: async (response) => {
-            try {
-              if (checkout.mode === "subscription" && checkout.subscriptionId) {
-                await apiFetch("/api/billing/v1/verify/", {
-                  method: "POST",
-                  body: {
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                    razorpay_subscription_id: response.razorpay_subscription_id,
-                  },
-                  token: authToken,
-                });
-              } else {
-                await apiFetch("/api/verify-payment", {
-                  method: "POST",
-                  body: {
-                    razorpay_order_id: response.razorpay_order_id,
-                    razorpay_payment_id: response.razorpay_payment_id,
-                    razorpay_signature: response.razorpay_signature,
-                  },
-                  token: authToken,
-                });
-              }
-              resolve(response);
-            } catch (error) {
-              reject(error);
-            }
-          },
+          // Handler does not work in in-app browsers (Chrome Custom Tabs / WebView).
+          // Razorpay redirects here after payment instead.
+          callback_url: `${config.apiBase}/m/donate/callback`,
+          redirect: true,
           modal: { ondismiss: () => reject(new Error("Payment cancelled")) },
         };
 
@@ -253,6 +229,7 @@
           reject(new Error(event?.error?.description || "Payment failed"));
         });
         instance.open();
+        resolve();
       });
     }
 
@@ -266,16 +243,23 @@
       if (checkout.provider !== "razorpay") {
         throw new Error("Only Razorpay checkout is supported here.");
       }
-      await openRazorpay(checkout, authToken);
-      setLoading("", false);
-      showBanner("success", "Payment successful. You can return to the Curator app — your plan will update shortly.");
-      payBtn.hidden = true;
+      await openRazorpay(checkout);
     }
 
     async function boot() {
       if (config.status === "success") {
         setLoading("", false);
-        showBanner("success", "Payment successful. Return to the Curator app.");
+        showBanner("success", "Payment successful. Return to the Curator app — your plan will update shortly.");
+        payBtn.hidden = true;
+        return;
+      }
+
+      if (config.status === "failed") {
+        setLoading("", false);
+        showBanner("error", "Payment could not be verified. Try again or use a domestic test card (5104 0155 5555 5558).");
+        payBtn.hidden = false;
+        payBtn.textContent = "Try again";
+        payBtn.onclick = () => boot();
         return;
       }
 

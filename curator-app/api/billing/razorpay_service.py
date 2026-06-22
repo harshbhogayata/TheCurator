@@ -14,7 +14,7 @@ from django.conf import settings
 from django.db import transaction
 
 from billing.models import RazorpayWebhookEvent
-from billing.mobile_checkout import mobile_donate_page_url
+from billing.donate_urls import mobile_donate_callback_url
 from mobileapi.models import SubscriptionTier, UserEntitlement
 from users.models import User
 
@@ -181,7 +181,6 @@ def create_standard_order(
 
 def _create_order_checkout(user: User, tier: str) -> dict:
     """Order-based Standard Checkout payload for a subscription tier."""
-    success_url = f"{mobile_donate_page_url()}?status=success"
     amount = _lifetime_amount() if tier == SubscriptionTier.LIFETIME else _amount_for_tier(tier)
     order = create_standard_order(
         amount=amount,
@@ -202,7 +201,7 @@ def _create_order_checkout(user: User, tier: str) -> dict:
         },
         "name": "The Curator",
         "description": f"{tier.title()} membership",
-        "callbackUrl": success_url,
+        "callbackUrl": mobile_donate_callback_url(),
     }
 
 
