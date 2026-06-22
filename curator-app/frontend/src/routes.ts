@@ -19,6 +19,7 @@ export default [
   route("support", "routes/public/support.tsx"),
   route("account-deletion", "routes/public/account-deletion.tsx"),
   route("verify-email", "routes/public/verify-email.tsx"),
+  route("reset-password", "routes/public/reset-password.tsx"),
 
   // SEO resource routes.
   route("sitemap.xml", "routes/seo/sitemap.ts"),
@@ -33,7 +34,6 @@ export default [
     route("sign-up", "routes/app/sign-up.tsx"),
     route("onboarding", "routes/app/onboarding.tsx"),
     route("forgot-password", "routes/app/forgot-password.tsx"),
-    route("reset-password", "routes/app/reset-password.tsx"),
     route("auth/callback", "routes/app/auth-callback.tsx"),
     route("home", "routes/app/home.tsx"),
     route("brief", "routes/app/brief.tsx"),

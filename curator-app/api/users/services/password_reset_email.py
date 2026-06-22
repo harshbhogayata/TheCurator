@@ -20,12 +20,12 @@ def build_click_to_reset_url(admin_link: str) -> str:
     if not params.get("oobCode") or params.get("mode") != "resetPassword":
         raise ValueError("Firebase password reset link is missing action parameters.")
 
-    base = settings.WEB_BASE_URL.rstrip("/") + "/reset-password.html"
+    base = settings.WEB_BASE_URL.rstrip("/") + "/reset-password"
     return f"{base}?{urlencode(params)}"
 
 
 def send_password_reset_email(*, email: str) -> bool:
-    continue_url = f"{settings.WEB_BASE_URL.rstrip('/')}/reset-password.html?status=done"
+    continue_url = f"{settings.WEB_BASE_URL.rstrip('/')}/reset-password?status=done"
     action_settings = firebase_auth.ActionCodeSettings(
         url=continue_url,
         handle_code_in_app=False,

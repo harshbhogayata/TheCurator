@@ -14,7 +14,7 @@ class PasswordResetEmailUrlTests(TestCase):
             "&continueUrl=https%3A%2F%2Fthecuratorgroup.org%2Freset-password.html%3Fstatus%3Ddone"
         )
         url = build_click_to_reset_url(admin_link)
-        self.assertTrue(url.startswith("https://thecuratorgroup.org/reset-password.html?"))
+        self.assertTrue(url.startswith("https://thecuratorgroup.org/reset-password?"))
         self.assertIn("mode=resetPassword", url)
         self.assertIn("oobCode=abc123", url)
         self.assertIn("apiKey=key456", url)
