@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, Text, View } from "react-native";
 import { SafeAreaView, useSafeAreaInsets } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
 import {
@@ -8,7 +8,6 @@ import {
   Crown,
   Star,
   Check,
-  ChevronRight,
   Rss,
 } from "lucide-react-native";
 
@@ -26,6 +25,10 @@ import { shouldUseWebRazorpayCheckout } from "../../src/services/razorpay-checko
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import {
+  DonateSubscribePill,
+  getDonateSubscribeScrollPadding,
+} from "../../src/ui/donate-subscribe-pill";
 import type { PurchasesPackage } from "react-native-purchases";
 import Constants from "expo-constants";
 
@@ -145,8 +148,7 @@ export default function DonateScreen() {
   const { showToast } = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
-  const footerBottom = Math.max(insets.bottom + 16, 24);
-  const scrollClearance = footerBottom + 96;
+  const scrollClearance = getDonateSubscribeScrollPadding(insets.bottom);
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
   const selectedPlanData = plans.find((plan) => plan.id === selectedPlan) ?? plans[2];
   const selectedPackage = findPackageForPlan(packages, selectedPlan);
@@ -532,102 +534,13 @@ export default function DonateScreen() {
         </View>
       </ScrollView>
 
-      {/* Subscribe footer — audio mini player shell; one press target, subscribe copy only */}
-      <View pointerEvents="box-none" style={[subscribeFooterStyles.shell, { bottom: footerBottom }]}>
-        <View
-          style={[
-            subscribeFooterStyles.inner,
-            {
-              backgroundColor: palette.primary,
-              borderColor: palette.outlineVariant + "26",
-            },
-          ]}
-        >
-          <View style={[subscribeFooterStyles.accent, { backgroundColor: palette.primaryForeground + "33" }]} />
-          <Pressable
-            testID="donate-subscribe-pill"
-            onPress={() => void handleSubscribe()}
-            disabled={isPurchasing}
-            android_ripple={{ color: "rgba(255,255,255,0.12)" }}
-            style={({ pressed }) => [
-              subscribeFooterStyles.row,
-              { opacity: pressed || isPurchasing ? 0.92 : 1 },
-            ]}
-          >
-            <View style={subscribeFooterStyles.copy}>
-              <Text
-                numberOfLines={1}
-                style={[subscribeFooterStyles.title, { color: palette.primaryForeground }]}
-              >
-                {subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
-              </Text>
-              <Text
-                numberOfLines={1}
-                style={[subscribeFooterStyles.subtitle, { color: palette.primaryForeground + "CC" }]}
-              >
-                {subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
-              </Text>
-            </View>
-            <View style={subscribeFooterStyles.chevronHit}>
-              <ChevronRight size={18} color={palette.primaryForeground} />
-            </View>
-          </Pressable>
-        </View>
-      </View>
+      <DonateSubscribePill
+        testID="donate-subscribe-pill"
+        title={subscribeCtaTitle(selectedPlan, selectedPlanData.name, tier, isPurchasing)}
+        subtitle={subscribeCtaSubtitle(selectedPlan, tier, selectedPriceParts)}
+        onPress={() => void handleSubscribe()}
+        disabled={isPurchasing}
+      />
     </SafeAreaView>
   );
 }
-
-/** Matches audio mini player float geometry — subscribe-only interior. */
-const subscribeFooterStyles = StyleSheet.create({
-  shell: {
-    position: "absolute",
-    left: 16,
-    right: 16,
-    zIndex: 40,
-  },
-  inner: {
-    overflow: "hidden",
-    borderWidth: 1,
-    borderRadius: 999,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.12,
-    shadowRadius: 16,
-    elevation: 8,
-  },
-  accent: {
-    height: 3,
-  },
-  row: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    gap: 8,
-  },
-  copy: {
-    flex: 1,
-    minWidth: 0,
-    gap: 3,
-    paddingRight: 4,
-  },
-  title: {
-    fontFamily: "Manrope_700Bold",
-    fontSize: 16,
-    lineHeight: 20,
-  },
-  subtitle: {
-    fontFamily: "Manrope_500Medium",
-    fontSize: 13,
-    lineHeight: 17,
-  },
-  chevronHit: {
-    width: 36,
-    height: 36,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-    flexShrink: 0,
-  },
-});
