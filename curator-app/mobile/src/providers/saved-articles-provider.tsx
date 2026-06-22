@@ -16,6 +16,8 @@ import {
   saveArticleById,
   unsaveArticleById,
 } from "../services/mobile-api";
+import { invalidateSavedArticlesQueries } from "../lib/query-client";
+import { notifyReadingStatsRefresh } from "../lib/stats-sync";
 import { useAuth } from "./auth-provider";
 import { useSubscription } from "./subscription-provider";
 
@@ -118,6 +120,8 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
       void saveArticleById(id)
         .then((ids) => {
           setSavedArticleIds(ids);
+          invalidateSavedArticlesQueries();
+          notifyReadingStatsRefresh();
         })
         .catch(() => {
           setSavedArticleIds((prev) => prev.filter((articleId) => articleId !== id));
@@ -147,6 +151,8 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
       void unsaveArticleById(id)
         .then((ids) => {
           setSavedArticleIds(ids);
+          invalidateSavedArticlesQueries();
+          notifyReadingStatsRefresh();
         })
         .catch(() => {
           setSavedArticleIds((prev) => (prev.includes(id) ? prev : [...prev, id]));
@@ -175,6 +181,8 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
     void clearSavedArticlesRemote()
       .then((ids) => {
         setSavedArticleIds(ids);
+        invalidateSavedArticlesQueries();
+        notifyReadingStatsRefresh();
       });
   }, [status]);
 

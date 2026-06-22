@@ -11,6 +11,7 @@ import {
 import {
   createUserWithEmailAndPassword,
   onIdTokenChanged,
+  sendEmailVerification,
   sendPasswordResetEmail,
   signInWithEmailAndPassword,
   signOut as firebaseSignOut,
@@ -44,6 +45,7 @@ function buildMockSession(overrides?: Partial<SessionPayload>): SessionPayload {
       avatarUrl: null,
       firebaseUid: "mock-user-id",
       memberSince: now,
+      emailVerified: true,
     },
     onboarding: {
       currentStep: "account",
@@ -81,6 +83,7 @@ interface AuthContextValue {
     displayName?: string;
   }) => Promise<void>;
   requestPasswordReset: (email: string) => Promise<void>;
+  resendVerificationEmail: () => Promise<void>;
   updateProfileDetails: (payload: ProfileStepPayload) => Promise<void>;
   updateProfileAvatar: (avatarUrl: string) => Promise<void>;
   updateOnboardingProfile: (payload: ProfileStepPayload) => Promise<void>;
@@ -161,12 +164,19 @@ export function AuthProvider({ children }: PropsWithChildren) {
 
       const promise = (async () => {
         try {
+          await activeUser.reload();
           const idToken = await activeUser.getIdToken();
           const payload = await apiRequest<SessionPayload>(`${AUTH_API_PREFIX}/auth/session`, {
             method: "POST",
             token: idToken,
           });
-          applySession(payload);
+          applySession({
+            ...payload,
+            user: {
+              ...payload.user,
+              emailVerified: payload.user.emailVerified ?? activeUser.emailVerified,
+            },
+          });
         } finally {
           activeExchangePromiseRef.current = null;
         }
@@ -260,6 +270,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
               avatarUrl: null,
               firebaseUid: "mock-user-id",
               memberSince: new Date().toISOString(),
+              emailVerified: true,
             },
             onboarding: {
               currentStep: "complete",
@@ -302,6 +313,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
               avatarUrl: null,
               firebaseUid: "mock-user-id",
               memberSince: new Date().toISOString(),
+              emailVerified: false,
             },
           });
           applySession(mock);
@@ -314,6 +326,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           if (displayName?.trim()) {
             await updateProfile(credential.user, { displayName: displayName.trim() });
             await credential.user.getIdToken(true);
+          }
+
+          if (!credential.user.emailVerified) {
+            await sendEmailVerification(credential.user);
           }
 
           await exchangeSession(credential.user);
@@ -341,6 +357,30 @@ export function AuthProvider({ children }: PropsWithChildren) {
     [runBusy],
   );
 
+  const resendVerificationEmail = useCallback(
+    async () =>
+      runBusy(async () => {
+        if (MOCK_BACKEND) {
+          await new Promise((resolve) => setTimeout(resolve, 400));
+          return;
+        }
+        try {
+          const auth = getFirebaseAuth();
+          const currentUser = auth.currentUser;
+          if (!currentUser) {
+            throw new Error("You need to be signed in to resend the verification email.");
+          }
+          if (currentUser.emailVerified) {
+            return;
+          }
+          await sendEmailVerification(currentUser);
+        } catch (error) {
+          throw new Error(getAuthErrorMessage(error, "sign-up"), { cause: error });
+        }
+      }),
+    [runBusy],
+  );
+
   const updateProfileCore = useCallback(
     async (payload: ProfileStepPayload) => {
       await withToken(`${AUTH_API_PREFIX}/onboarding/profile`, "PATCH", payload);
@@ -356,14 +396,15 @@ export function AuthProvider({ children }: PropsWithChildren) {
     async (payload: ProfileStepPayload) =>
       runBusy(async () => {
         if (MOCK_BACKEND) {
-          setSession((current) => {
-            const base = current ?? buildMockSession();
-            return {
-              ...base,
-              user: {
-                ...base.user,
-                displayName: payload.displayName.trim() || null,
-              },
+      setSession((current) => {
+        const base = current ?? buildMockSession();
+        return {
+          ...base,
+          user: {
+            ...base.user,
+            displayName: payload.displayName.trim() || null,
+            emailVerified: base.user.emailVerified ?? true,
+          },
             };
           });
           return;
@@ -564,6 +605,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       signInWithEmail,
       signUpWithEmail,
       requestPasswordReset,
+      resendVerificationEmail,
       updateProfileDetails,
       updateProfileAvatar,
       updateOnboardingProfile,
@@ -581,6 +623,7 @@ export function AuthProvider({ children }: PropsWithChildren) {
       isBusy,
       refreshSession,
       requestPasswordReset,
+      resendVerificationEmail,
       session,
       signInWithEmail,
       signOut,

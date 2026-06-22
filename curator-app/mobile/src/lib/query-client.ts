@@ -2,6 +2,7 @@ import { QueryClient } from "@tanstack/react-query";
 import { createAsyncStoragePersister } from "@tanstack/query-async-storage-persister";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
+import { queryKeys } from "./query-keys";
 export const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -24,4 +25,12 @@ export async function resetQueryCache(): Promise<void> {
     // Ignore persistence errors; fall through to in-memory clear.
   }
   queryClient.clear();
+}
+
+export function invalidateSavedArticlesQueries(): void {
+  void queryClient.invalidateQueries({ queryKey: queryKeys.saved.list() });
+}
+
+export function invalidateArticlesByIdsQueries(): void {
+  void queryClient.invalidateQueries({ queryKey: ["articles", "byIds"] });
 }

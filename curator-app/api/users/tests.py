@@ -87,6 +87,20 @@ class UserViewTests(TestCase):
             set(UserIdentity.objects.filter(user=self.user).values_list("provider", flat=True)),
             {IdentityProvider.EMAIL, IdentityProvider.GOOGLE},
         )
+        self.assertFalse(response.data["user"]["emailVerified"])
+
+    def test_current_session_reports_verified_email(self):
+        self.user.email_verified_at = timezone.now()
+        self.user.save(update_fields=["email_verified_at"])
+
+        request = self.factory.post("/api/mobile/auth/session")
+        force_authenticate(request, user=self.user)
+
+        with patch("users.views.get_firebase_user", side_effect=ImproperlyConfigured("skip")):
+            response = CurrentSessionView.as_view()(request)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(response.data["user"]["emailVerified"])
 
     def test_identity_sync_returns_service_unavailable_when_firebase_lookup_fails(self):
         request = self.factory.post("/api/mobile/account/identities/sync")

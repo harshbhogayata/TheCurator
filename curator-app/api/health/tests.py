@@ -18,6 +18,7 @@ class HealthViewTests(TestCase):
         self.assertEqual(response.json()["status"], "ok")
         self.assertEqual(response.json()["database"], "ok")
         self.assertEqual(response.json()["redis"], "ok")
+        self.assertIn("firebase", response.json())
         self.assertIn("version", response.json())
 
     @patch("health.views.redis.Redis.from_url")

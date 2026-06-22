@@ -27,8 +27,7 @@ import { type } from "../../../src/ui/tokens/typography";
 export default function SavedScreen() {
   const { palette } = useTheme();
   const router = useRouter();
-  const { savedArticleIds, isArticleSaved, unsaveArticle, savedCount } =
-    useSavedArticles();
+  const { unsaveArticle, savedCount } = useSavedArticles();
   const { hasUnlimitedSaves, maxSaves } = useSubscription();
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
@@ -40,10 +39,8 @@ export default function SavedScreen() {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
 
-  // Get saved articles from the backend saved-only article query.
-  const savedArticles = useMemo(() => {
-    return articles.filter((article) => isArticleSaved(article.id));
-  }, [articles, isArticleSaved]);
+  // Articles from API savedOnly query (refreshed when saves change).
+  const savedArticles = useMemo(() => articles, [articles]);
 
   const categoryChips = useMemo(() => {
     const cats = [...new Set(savedArticles.map((a) => a.category))];

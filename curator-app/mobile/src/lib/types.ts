@@ -30,6 +30,7 @@ export interface AppUser {
   avatarUrl: string | null;
   firebaseUid: string | null;
   memberSince: string;
+  emailVerified: boolean;
 }
 
 export interface UserPreferences {

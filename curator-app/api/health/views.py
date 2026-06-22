@@ -1,8 +1,29 @@
 import redis
 from django.conf import settings
+from django.core.exceptions import ImproperlyConfigured
 from django.db import connection
 from django.db.utils import Error as DatabaseError
 from rest_framework import permissions, response, views
+
+
+def _firebase_admin_status() -> str:
+    project_id = (settings.FIREBASE_PROJECT_ID or "").strip()
+    has_credentials = bool(
+        (settings.FIREBASE_CREDENTIALS_JSON or "").strip()
+        or (settings.FIREBASE_CREDENTIALS_PATH or "").strip()
+    )
+    if not project_id or not has_credentials:
+        return "not_configured"
+
+    try:
+        from users.services.firebase import get_firebase_app
+
+        get_firebase_app()
+        return "ok"
+    except ImproperlyConfigured:
+        return "not_configured"
+    except Exception:
+        return "error"
 
 
 class LivenessView(views.APIView):
@@ -44,6 +65,7 @@ class HealthView(views.APIView):
             "version": settings.APP_VERSION,
             "database": database_status,
             "redis": redis_status,
+            "firebase": _firebase_admin_status(),
         }
         return response.Response(payload, status=status_code)
 

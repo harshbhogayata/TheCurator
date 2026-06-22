@@ -45,7 +45,7 @@ export function useArticlesByIds(ids: string[]) {
 
 export function useSavedArticlesList() {
   return useQuery({
-    queryKey: ["articles", "saved"],
+    queryKey: queryKeys.saved.list(),
     queryFn: () => fetchAllArticles({ savedOnly: true }),
     staleTime: 5 * 60 * 1000,
   });

@@ -18,6 +18,7 @@ import {
   removeArticleFromCollectionRemote,
   updateCollectionRemote,
 } from "../services/mobile-api";
+import { invalidateArticlesByIdsQueries } from "../lib/query-client";
 import { useAuth } from "./auth-provider";
 
 interface CollectionsContextValue {
@@ -225,6 +226,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
                 collection.id === collectionId ? serverCollection : collection,
               ),
             );
+            invalidateArticlesByIdsQueries();
           })
           .catch(() => {
             setCollections((prev) =>
@@ -272,6 +274,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
                 collection.id === collectionId ? serverCollection : collection,
               ),
             );
+            invalidateArticlesByIdsQueries();
           })
           .catch(() => {
             setCollections((prev) =>

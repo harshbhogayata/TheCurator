@@ -14,5 +14,8 @@ export const queryKeys = {
     all: ["categories"] as const,
     list: () => ["categories", "list"] as const,
   },
+  saved: {
+    list: () => ["articles", "saved"] as const,
+  },
 } as const;
 

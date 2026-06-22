@@ -1,6 +1,14 @@
 import { ApiError } from "../services/api-client";
+import { firebaseApiKeyFingerprint, firebaseRuntimeHint, isExpoGo } from "./firebase-config";
 
 type AuthAction = "sign-in" | "sign-up" | "password-reset" | "session";
+
+const EXPO_GO_BLOCKED_CODES = new Set([
+  "auth/app-not-authorized",
+  "auth/invalid-api-key",
+  "auth/missing-client-identifier",
+  "auth/requests-from-refused-android-client",
+]);
 
 const FIREBASE_MESSAGES: Record<string, string> = {
   "auth/email-already-in-use": "An account already exists for this email. Sign in instead.",
@@ -16,6 +24,8 @@ const FIREBASE_MESSAGES: Record<string, string> = {
     "Firebase rejected this app build. Add your EAS Android SHA-1 to the API key in Google Cloud (see expo.dev → Credentials).",
   "auth/app-not-authorized":
     "This app is not authorized for Firebase. Add package com.curator.mobile and your EAS SHA-1 fingerprint in Google Cloud.",
+  "auth/requests-from-referer-<empty>-are-blocked.":
+    "This API key is set to HTTP referrers (websites), but the mobile app has no referrer. In Google Cloud, open the key ending …{fingerprint} and set Application restrictions to Android apps — or None to test.",
   "auth/unauthorized-domain": "This domain is not authorized in Firebase. Add it under Authentication → Settings → Authorized domains.",
   "auth/missing-android-pkg-name":
     "Firebase Android package mismatch. Confirm com.curator.mobile is registered in Firebase project settings.",
@@ -30,11 +40,23 @@ function readFirebaseCode(error: unknown): string | null {
 
 function readFirebaseCodeFromMessage(message: string): string | null {
   const match = message.match(/\(auth\/[^)]+\)/);
-  return match ? match[0].slice(1, -1) : null;
+  if (match) return match[0].slice(1, -1);
+  if (/auth\/requests-from-referer/i.test(message)) {
+    return "auth/requests-from-referer-<empty>-are-blocked.";
+  }
+  return null;
 }
 
 function messageForFirebaseCode(code: string, action: AuthAction): string {
-  if (code && FIREBASE_MESSAGES[code]) return FIREBASE_MESSAGES[code];
+  if (__DEV__ && isExpoGo() && EXPO_GO_BLOCKED_CODES.has(code)) {
+    return firebaseRuntimeHint() ?? FIREBASE_MESSAGES[code] ?? messageForFirebaseCode("", action);
+  }
+  if (code && FIREBASE_MESSAGES[code]) {
+    const message = FIREBASE_MESSAGES[code];
+    return message.includes("{fingerprint}")
+      ? message.replace("{fingerprint}", firebaseApiKeyFingerprint())
+      : message;
+  }
   if (code.startsWith("auth/")) {
     return `Authentication failed (${code}). Check Firebase Email/Password sign-in and API key SHA-1 restrictions.`;
   }
@@ -44,11 +66,22 @@ function messageForFirebaseCode(code: string, action: AuthAction): string {
   return "We could not sign you in. Check your details and try again.";
 }
 
+function logAuthFailure(error: unknown, action: AuthAction): void {
+  if (!__DEV__) return;
+  const code = readFirebaseCode(error);
+  console.warn(`[Curator auth:${action}]`, code ?? error);
+  const hint = firebaseRuntimeHint();
+  if (hint) {
+    console.warn(`[Curator auth] ${hint}`);
+  }
+}
+
 export function getAuthErrorMessage(error: unknown, action: AuthAction): string {
   const firebaseCode =
     readFirebaseCode(error) ??
     (error instanceof Error ? readFirebaseCodeFromMessage(error.message) : null);
   if (firebaseCode) {
+    logAuthFailure(error, action);
     return messageForFirebaseCode(firebaseCode, action);
   }
 

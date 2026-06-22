@@ -10,6 +10,7 @@ import {
 } from "react";
 
 import { fetchReadingStats, recordReadingEvent } from "../services/mobile-api";
+import { notifyReadingStatsRefresh, registerReadingStatsRefresh } from "../lib/stats-sync";
 import { useAuth } from "./auth-provider";
 
 interface DailyRecord {
@@ -195,6 +196,32 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
     return () => {
       cancelled = true;
     };
+  }, [status]);
+
+  useEffect(() => {
+    const refresh = () => {
+      if (MOCK_BACKEND || status !== "signed-in") {
+        return;
+      }
+
+      void fetchReadingStats()
+        .then((payload) => {
+          setStats({
+            totalArticlesRead: payload.totalArticlesRead,
+            totalReadTimeMs: payload.totalReadTimeMs,
+            totalSaved: payload.totalSaved,
+            currentStreak: payload.currentStreak,
+            longestStreak: payload.longestStreak,
+            dailyHistory: payload.dailyHistory,
+            recentArticleIds: payload.recentArticleIds,
+          });
+        })
+        .catch(() => {
+          // Keep current stats on transient failures.
+        });
+    };
+
+    return registerReadingStatsRefresh(refresh);
   }, [status]);
 
   const recordArticleRead = useCallback(

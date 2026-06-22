@@ -22,6 +22,7 @@ import { useSavedArticles } from "../../src/providers/saved-articles-provider";
 import { useReadingStats } from "../../src/providers/reading-stats-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { ProfileAvatar } from "../../src/ui/profile-avatar";
+import { EmailVerificationBanner } from "../../src/ui/email-verification-banner";
 import { Header } from "../../src/ui/header";
 import { userDisplayName } from "../../src/lib/user-display-name";
 import { type } from "../../src/ui/tokens/typography";
@@ -166,6 +167,7 @@ export default function ProfileScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
+          <EmailVerificationBanner />
           <View style={styles.heroSection}>
             <View style={[styles.avatarGlow, { backgroundColor: palette.surfaceContainerLowest + "B3" }]} />
             <Pressable onPress={handlePickImage} style={{ marginBottom: 20 }}>

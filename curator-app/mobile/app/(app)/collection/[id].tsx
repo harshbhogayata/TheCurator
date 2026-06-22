@@ -14,7 +14,6 @@ import {
 
 import { useTheme } from "../../../src/providers/theme-provider";
 import { useCollections } from "../../../src/providers/collections-provider";
-import { useSavedArticles } from "../../../src/providers/saved-articles-provider";
 import { useToast } from "../../../src/providers/toast-provider";
 import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { SwipeableArticleCard } from "../../../src/ui/swipeable-article-card";
@@ -32,7 +31,6 @@ export default function CollectionDetailScreen() {
     deleteCollection,
     isLoading: isCollectionsLoading,
   } = useCollections();
-  const { savedArticleIds } = useSavedArticles();
   const { showToast } = useToast();
   const router = useRouter();
 
@@ -91,7 +89,7 @@ export default function CollectionDetailScreen() {
 
   const collectionArticles = collectionArticleDetails.filter((a) => collection.articleIds.includes(a.id));
   const availableArticles = savedArticleDetails.filter(
-    (a) => savedArticleIds.includes(a.id) && !collection.articleIds.includes(a.id),
+    (article) => !collection.articleIds.includes(article.id),
   );
 
   const handleDeleteCollection = () => {

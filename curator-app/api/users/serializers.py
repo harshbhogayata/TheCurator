@@ -9,10 +9,14 @@ class UserProfileSerializer(serializers.ModelSerializer):
     avatarUrl = serializers.SerializerMethodField()
     firebaseUid = serializers.SerializerMethodField()
     memberSince = serializers.DateTimeField(source="member_since")
+    emailVerified = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ("id", "email", "displayName", "avatarUrl", "firebaseUid", "memberSince")
+        fields = ("id", "email", "displayName", "avatarUrl", "firebaseUid", "memberSince", "emailVerified")
+
+    def get_emailVerified(self, obj):
+        return bool(obj.email_verified_at)
 
     def get_displayName(self, obj):
         return obj.display_name or None

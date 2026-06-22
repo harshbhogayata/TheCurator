@@ -1,17 +1,8 @@
 import { type Auth } from "firebase/auth";
 
-function readConfigValue(value: string | undefined): string {
-  return String(value ?? "").trim().replace(/^['"]|['"]$/g, "");
-}
+import { buildFirebaseConfig } from "../lib/firebase-config";
 
-const firebaseConfig = {
-  apiKey: readConfigValue(process.env.EXPO_PUBLIC_FIREBASE_API_KEY),
-  authDomain: readConfigValue(process.env.EXPO_PUBLIC_FIREBASE_AUTH_DOMAIN),
-  projectId: readConfigValue(process.env.EXPO_PUBLIC_FIREBASE_PROJECT_ID),
-  storageBucket: readConfigValue(process.env.EXPO_PUBLIC_FIREBASE_STORAGE_BUCKET),
-  messagingSenderId: readConfigValue(process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID),
-  appId: readConfigValue(process.env.EXPO_PUBLIC_FIREBASE_APP_ID),
-};
+const firebaseConfig = buildFirebaseConfig();
 
 export const firebaseConfigured = Object.values(firebaseConfig).every(Boolean);
 
@@ -42,7 +33,7 @@ export function getFirebaseAuth(): Auth {
           persistence: getReactNativePersistence(AsyncStorage),
         });
       }
-    } catch (e) {
+    } catch {
       authInstance = getAuth(app);
     }
   }

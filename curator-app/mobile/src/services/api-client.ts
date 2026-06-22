@@ -3,6 +3,7 @@ import Constants from "expo-constants";
 import axiosRetry from "axios-retry";
 
 import { firebaseConfigured, getFirebaseAuth } from "./firebase";
+import { firebaseRuntimeHint } from "../lib/firebase-config";
 import { resolveApiBaseUrl } from "../lib/resolve-api-base-url";
 
 const configuredApiBaseUrl = resolveApiBaseUrl(
@@ -17,6 +18,10 @@ if (__DEV__) {
   console.log("[Curator] API base URL:", apiBaseUrl);
   if (process.env.EXPO_PUBLIC_MOCK_BACKEND === "true") {
     console.log("[Curator] Mock backend enabled — using bundled demo content for briefs/articles.");
+  }
+  const firebaseHint = firebaseRuntimeHint();
+  if (firebaseHint) {
+    console.warn(`[Curator] ${firebaseHint}`);
   }
 }
 if (!__DEV__ && !apiBaseUrl.startsWith("https://")) {
