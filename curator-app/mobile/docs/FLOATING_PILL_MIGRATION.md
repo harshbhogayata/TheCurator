@@ -1,11 +1,12 @@
-# Mobile UX plan — floating pills & settings cleanup
+# Mobile UX plan — floating pills, settings cleanup & email verification
 
-Two tracks in one doc. **Do not implement until you pick an item** and test the prior one.
+Three tracks in one doc. **Do not implement until you pick an item** and test the prior one.
 
 1. **Floating pills** — bottom CTAs → donate-style float (`#3` done, start testing at `#4`)
 2. **Settings cleanup** — remove redundant rows already reachable via tabs / menu / profile (`#S1`, planned only)
+3. **Email verification** — surface verify UX + hold back sensitive actions until verified (`#V1` onward, planned only)
 
-**Status:** Planning — floating pills start at **#4**; settings cleanup at **#S1** when you’re ready.
+**Status:** Planning — floating pills start at **#4**; settings at **#S1**; verification at **#V1** when you’re ready.
 
 ---
 
@@ -172,6 +173,11 @@ When picking up #N:
 | 17 | ⬜ | | | |
 | S1 | ⬜ | | | Settings Account section removal |
 | M1 | ⬜ | | | Optional menu nav dedup |
+| V1 | ⬜ | | | Global verify banner |
+| V2 | ⬜ | | | Feature gates |
+| V3 | ⬜ | | | Post-onboarding verify screen |
+| V4 | ⬜ | | | Optional verify float pill |
+| V5 | ⬜ | | | API enforcement |
 
 ---
 
@@ -230,6 +236,91 @@ When picking up #N:
 
 ---
 
+## Email verification — current state vs planned holds
+
+**Goal:** Email/password users verify **right away**. OAuth users (Google / Apple) are treated as verified. Unverified users can still **read**; sensitive actions show a clear verify prompt instead of failing silently.
+
+### What exists today (shipped)
+
+| Layer | Behavior |
+|-------|----------|
+| **Sign-up** | `auth-provider.tsx` → `deliverVerificationEmail()` after account creation (API `POST /auth/verification-email` via Resend, Firebase fallback) |
+| **Verify link** | Email → Railway `/m/verify-email` → `apply_email_verification` (API) |
+| **Session** | `session.user.emailVerified` from API (`email_verified_at` + Firebase token sync on session exchange) |
+| **Security (API)** | Unverified Firebase login **cannot** attach to an existing email account (`provisioning.py`) |
+| **Mobile UI** | `EmailVerificationBanner` on **Profile only** — Resend + “I verified” (calls `refreshSession`) |
+| **App gate** | **None** — unverified users complete onboarding and use the full app after sign-up |
+
+### What is *not* held back today
+
+Unverified email/password users can currently do everything, including:
+
+- Read briefs, explore, search, open articles
+- Save articles & use collections
+- Subscribe / Razorpay checkout
+- Change preferences, export data, delete account
+- Enable push notifications
+
+Only friction: easy to miss the banner because it lives on Profile.
+
+### Planned holds (proposed — #V2)
+
+Gate **only** when `session.user.emailVerified === false` **and** sign-in provider is email/password (not Google / Apple).
+
+| Tier | Action | Hold? | UX when blocked |
+|------|--------|-------|-----------------|
+| **Always allow** | Read briefs, explore, search, open articles | No | — |
+| **Soft** | Save article, add to collection, create collection | **Yes** | Toast + inline “Verify email” sheet |
+| **Hard** | Subscribe / donate / billing handoff | **Yes** | Paywall-style sheet → verify or resend |
+| **Hard** | Push notification opt-in | **Yes** | Explain verify first in settings toggles |
+| **Hard** | Data export request | **Yes** | Block with verify CTA |
+| **Hard** | Connected accounts / email change | **Yes** | Already account-sensitive |
+| **Optional** | Auto-save articles toggle | Defer | Low risk |
+
+OAuth users skip all holds (`emailVerified` true from provider).
+
+### Planned UX (#V1 → #V3)
+
+| ID | Work | File(s) | Notes |
+|----|------|---------|-------|
+| **V1** | **Global verify banner** | `app/(app)/_layout.tsx` or tab layout; reuse `email-verification-banner.tsx` | Show on Brief / Explore / Saved when unverified — not only Profile |
+| **V2** | **Action gates** | `saved-articles-provider`, `collections-provider`, `subscription-provider`, `data-export`, push toggle in `settings.tsx` | Shared helper: `requireVerifiedEmail(actionLabel)` → modal/bottom sheet |
+| **V3** | **Post-onboarding verify screen** | New screen or modal after `onboarding` complete for email users | One screen: “Check your inbox” + Resend + Open mail app + Continue reading |
+| **V4** | **Verify floating pill** (optional) | Dedicated `verify-email-pill.tsx` — **not** tied to donate or audio | Sticky “Verify email” pill until verified; stacks above tab bar; dismiss only after verify |
+| **V5** | **API enforcement** | `api/users/views.py`, billing endpoints | Mirror mobile holds server-side (403 `email_not_verified`) so gates can’t be bypassed |
+
+**Infrastructure already in place for V1/V5:**
+
+- `POST /api/mobile/v1/auth/verification-email`
+- `resendVerificationEmail()` + `refreshSession()` in `auth-provider.tsx`
+- `mobile_auth_pages.py` verify handler
+- `users/services/verification_email.py` (Resend branded mail)
+
+### #V1–#V3 manual tests
+
+- [ ] New email sign-up → verification email received (Resend)
+- [ ] Link opens `/m/verify-email` → success → “I verified” / session refresh clears banner
+- [ ] Expired link → Resend → new link works
+- [ ] Unverified: save article → blocked with verify CTA (after #V2)
+- [ ] Unverified: donate → blocked (after #V2)
+- [ ] Verified: all gates removed
+- [ ] Google sign-in: no banner, no blocks
+- [ ] Attempt to sign in unverified to existing verified email → API error (existing security test)
+
+### Email verification progress log
+
+| ID | Done | Commit | Notes |
+|----|------|--------|-------|
+| V1 | ⬜ | | Global banner on main tabs |
+| V2 | ⬜ | | Feature gates (save, pay, push, export) |
+| V3 | ⬜ | | Post-onboarding verify moment |
+| V4 | ⬜ | | Optional floating verify pill |
+| V5 | ⬜ | | API-side enforcement |
+
+**When ready:** say **“do #V1 verify banner”** — UI only, no holds yet. Do **#V2** after V1 is tested.
+
+---
+
 ## Z-index / stacking notes
 
 - Floating pills: `zIndex: 40`
@@ -247,3 +338,5 @@ When picking up #N:
 |-----|--------|
 | **“do #4 sign in pill”** | `sign-in.tsx` + `auth-sign-in-pill.tsx` only |
 | **“do #S1 settings cleanup”** | Remove redundant Account rows in `settings.tsx` only |
+| **“do #V1 verify banner”** | Show verify banner on main app surfaces (no feature holds yet) |
+| **“do #V2 verify gates”** | Hold save / pay / push / export until verified |
