@@ -269,3 +269,37 @@ class MobileDonateHandoffTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn(b"Support The Curator", response.content)
         self.assertIn(b"premium", response.content)
+
+    def test_short_receipt_respects_razorpay_limit(self):
+        from billing.razorpay_service import MAX_RECEIPT_LENGTH, _short_receipt
+
+        receipt = _short_receipt(self.user, SubscriptionTier.PREMIUM)
+        self.assertLessEqual(len(receipt), MAX_RECEIPT_LENGTH)
+        self.assertTrue(receipt.startswith("cur-p-"))
+
+    @patch("billing.razorpay_service._client")
+    def test_checkout_with_handoff_token_creates_order(self, mock_client_factory):
+        from billing.authentication import create_checkout_handoff_token
+        from rest_framework.test import APIClient
+
+        mock_client = mock_client_factory.return_value
+        mock_client.order.create.return_value = {
+            "id": "order_test_1",
+            "amount": 149900,
+            "currency": "INR",
+        }
+
+        token = create_checkout_handoff_token(self.user, SubscriptionTier.PREMIUM)
+        client = APIClient()
+        response = client.post(
+            "/api/billing/v1/checkout/",
+            {"tier": "premium", "mode": "order"},
+            format="json",
+            HTTP_AUTHORIZATION=f"Bearer {token}",
+        )
+        self.assertEqual(response.status_code, 200, response.content)
+        self.assertEqual(response.data["mode"], "order")
+        self.assertEqual(response.data["orderId"], "order_test_1")
+
+        create_payload = mock_client.order.create.call_args.args[0]
+        self.assertLessEqual(len(create_payload["receipt"]), 40)

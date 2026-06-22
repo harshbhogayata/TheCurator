@@ -114,13 +114,15 @@ class CheckoutSessionView(APIView):
 
             return Response({"detail": str(exc)}, status=status.HTTP_400_BAD_REQUEST)
 
-        except Exception:
+        except Exception as exc:
 
             logger.exception("Checkout session creation failed")
 
+            detail = str(exc).strip() or "Unable to start checkout."
+
             return Response(
 
-                {"detail": "Unable to start checkout."},
+                {"detail": detail},
 
                 status=status.HTTP_502_BAD_GATEWAY,
 

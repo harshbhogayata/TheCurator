@@ -19,6 +19,10 @@ CHECKOUT_HANDOFF_SALT = "billing.checkout-handoff"
 CHECKOUT_HANDOFF_MAX_AGE_SECONDS = 600
 
 
+def _looks_like_firebase_jwt(token: str) -> bool:
+    return token.count(".") == 2
+
+
 def create_checkout_handoff_token(user: User, plan: str = "") -> str:
     return signing.dumps(
         {"user_id": str(user.id), "plan": plan or ""},
@@ -52,6 +56,13 @@ class FirebaseOrCheckoutHandoffAuthentication(authentication.BaseAuthentication)
             raise exceptions.AuthenticationFailed("Invalid bearer token.")
 
         token = auth_header[1].decode("utf-8")
+
+        if not _looks_like_firebase_jwt(token):
+            try:
+                user = _user_from_checkout_handoff(token)
+                return (user, {"checkout_handoff": True})
+            except signing.BadSignature:
+                raise exceptions.AuthenticationFailed("Invalid or expired checkout token.") from None
 
         try:
             claims = verify_firebase_token(token)

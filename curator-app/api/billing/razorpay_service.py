@@ -21,6 +21,7 @@ from users.models import User
 logger = logging.getLogger(__name__)
 
 MIN_ORDER_AMOUNT = 100
+MAX_RECEIPT_LENGTH = 40
 
 
 class RazorpayNotConfigured(RuntimeError):
@@ -130,6 +131,13 @@ def _user_notes(user: User, tier: str) -> dict[str, str]:
     return {"user_id": str(user.id), "tier": tier}
 
 
+def _short_receipt(user: User, tier: str) -> str:
+    """Razorpay receipts must be <= 40 characters."""
+    compact_user = str(user.id).replace("-", "")[:10]
+    receipt = f"cur-{tier[:1]}-{compact_user}"
+    return receipt[:MAX_RECEIPT_LENGTH]
+
+
 def create_standard_order(
     *,
     amount: int,
@@ -146,14 +154,22 @@ def create_standard_order(
     payload = {
         "amount": amount,
         "currency": (currency or _currency()).upper(),
-        "receipt": receipt or f"rcpt_{amount}",
+        "receipt": (receipt or f"rcpt_{amount}")[:MAX_RECEIPT_LENGTH],
         "payment_capture": 1,
         "notes": notes or {},
     }
     try:
         order = client.order.create(payload)
     except Exception as exc:
-        _map_razorpay_exception(exc)
+        try:
+            _map_razorpay_exception(exc)
+        except RazorpayServiceError:
+            raise
+        except Exception as inner:
+            raise RazorpayServiceError(f"Razorpay order failed: {inner}") from inner
+
+    if not isinstance(order, dict) or not order.get("id"):
+        raise RazorpayServiceError("Razorpay returned an invalid order response.")
 
     return {
         "order_id": order["id"],
@@ -169,7 +185,7 @@ def _create_order_checkout(user: User, tier: str) -> dict:
     amount = _lifetime_amount() if tier == SubscriptionTier.LIFETIME else _amount_for_tier(tier)
     order = create_standard_order(
         amount=amount,
-        receipt=f"curator-{tier}-{user.id}",
+        receipt=_short_receipt(user, tier),
         notes=_user_notes(user, tier),
     )
     return {
