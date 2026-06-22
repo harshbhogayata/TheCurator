@@ -1,8 +1,11 @@
-# Floating primary pill migration plan
+# Mobile UX plan — floating pills & settings cleanup
 
-Migrate docked / full-width bottom CTAs to the **floating pill** pattern used on Support Us (`DonateSubscribePill`).
+Two tracks in one doc. **Do not implement until you pick an item** and test the prior one.
 
-**Status:** Planning — implementation starts at **#4**; you test each item before the next ships.
+1. **Floating pills** — bottom CTAs → donate-style float (`#3` done, start testing at `#4`)
+2. **Settings cleanup** — remove redundant rows already reachable via tabs / menu / profile (`#S1`, planned only)
+
+**Status:** Planning — floating pills start at **#4**; settings cleanup at **#S1** when you’re ready.
 
 ---
 
@@ -76,7 +79,7 @@ maxWidth: 420
 
 | # | Screen | File(s) | Current | Target | New module (proposed) |
 |---|--------|---------|---------|--------|------------------------|
-| 7 | Settings membership | `app/(app)/settings.tsx` | Inline `membershipButton` in card | Optional: float **Manage plan** when scrolled to bottom — *or* restyle in-card pill to match geometry only (no float) | `src/ui/settings-membership-pill.tsx` OR in-card restyle |
+| 7 | Settings membership | `app/(app)/settings.tsx` | Inline `membershipButton` in card | Optional: float **Manage plan** — *after* **#S1** cleanup so screen is slimmer | `src/ui/settings-membership-pill.tsx` OR in-card restyle |
 | 8 | Paywall sheet | `src/ui/paywall-modal.tsx` | Sheet bottom `primaryButton` | Float **Upgrade now** inside sheet (absolute bottom of sheet, not screen) | `src/ui/paywall-upgrade-pill.tsx` |
 | 12 | Ad upgrade | `src/ui/ad-banner.tsx` | Inline feed/top Upgrade chips | Keep inline for feed; optional float only on dedicated upgrade moments | defer / case-by-case |
 
@@ -167,6 +170,63 @@ When picking up #N:
 | 15 | ⬜ | | | |
 | 16 | ⬜ | | | |
 | 17 | ⬜ | | | |
+| S1 | ⬜ | | | Settings Account section removal |
+| M1 | ⬜ | | | Optional menu nav dedup |
+
+---
+
+## Settings screen cleanup (planned — do not ship yet)
+
+**Goal:** Settings should be **preferences only**, not a second app menu. Navigation to Brief / Explore / Search / Saved / Collections / Profile / Support is already one tap away (tabs, header avatar, hamburger menu).
+
+**File:** `app/(app)/settings.tsx`
+
+### Remove (redundant — already elsewhere)
+
+| ID | Row / section | Why redundant | Reachable via |
+|----|----------------|---------------|---------------|
+| S1a | **Account** → Profile & Account | Duplicate profile entry | Menu → Profile; header avatar → Profile; Profile → account actions |
+| S1b | **Account** → Connected Accounts | Duplicate | Profile → Connected Accounts (`profile.tsx` `profileActions`) |
+| S1c | **Account** → Support The Curator | Duplicate | Membership card CTA (same screen); Menu → Support Us |
+| S1d | **Account** section heading | Empty after removals | — |
+
+*Optional later (menu dedup, not settings):* Menu still lists Daily Briefs, Explore, Search, Saved, Collections, Profile — same as tab bar + profile. Track as **#M1** if you want a slimmer menu in a follow-up.*
+
+### Keep (real settings)
+
+| Section | Items |
+|---------|--------|
+| Membership card | Tier badge + single CTA → donate (only monetization entry on this screen) |
+| Alerts & Delivery | Notification cadence, push toggle, email digest |
+| Reading & Experience | Text size, auto-save, reduce motion, topics & interests |
+| Appearance | Theme (light / dark / auto), Language & Region |
+| Sign out | Destructive action at bottom |
+
+### Implementation notes (when you do #S1)
+
+1. Delete the whole **Account** `SectionHeading` + `sectionStack` block (three `ActionRow`s).
+2. Remove unused imports: `User`, `Heart`, `Link2` if nothing else uses them.
+3. Do **not** remove membership card — it replaces the duplicate Support row.
+4. Confirm Profile still links to Account / Connected Accounts / Donate (`profile.tsx`).
+5. Update help copy if it says “cancel from Settings” only — still true for preferences; subscription management is Profile / Support Us.
+
+### #S1 manual tests
+
+- [ ] Settings opens — no Account section; no broken layout gaps
+- [ ] Profile → Connected Accounts still works
+- [ ] Profile / menu → Support Us still works
+- [ ] Membership card CTA still opens donate
+- [ ] All preference toggles still save (theme, notifications, text size, topics)
+- [ ] Sign out still works
+
+### Settings progress log
+
+| ID | Done | Commit | Notes |
+|----|------|--------|-------|
+| S1 | ⬜ | | Remove redundant Account rows (S1a–S1d) |
+| M1 | ⬜ | | Optional: slim down `menu.tsx` duplicate nav items |
+
+**When ready:** say **“do #S1 settings cleanup”** — only `settings.tsx`, no pill work in the same PR.
 
 ---
 
@@ -181,6 +241,9 @@ When picking up #N:
 
 ---
 
-## When you’re ready to implement #4
+## When you’re ready
 
-Say **“do #4 sign in pill”** — we only touch `sign-in.tsx` + new `auth-sign-in-pill.tsx`, then you test before #5.
+| Say | Action |
+|-----|--------|
+| **“do #4 sign in pill”** | `sign-in.tsx` + `auth-sign-in-pill.tsx` only |
+| **“do #S1 settings cleanup”** | Remove redundant Account rows in `settings.tsx` only |
