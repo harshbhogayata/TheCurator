@@ -70,9 +70,9 @@ function DonateSubscribePillInner({
             borderRadius: layout.borderRadius,
             paddingHorizontal: layout.paddingHorizontal,
             paddingVertical: layout.paddingVertical,
-            backgroundColor: palette.primary,
-            borderColor: palette.outlineVariant + "40",
-            opacity: pressed || disabled ? 0.9 : 1,
+            backgroundColor: palette.inverseSurface,
+            borderColor: palette.outline + "55",
+            opacity: pressed || disabled ? 0.88 : 1,
           },
         ]}
       >
@@ -85,7 +85,7 @@ function DonateSubscribePillInner({
             {
               fontSize: layout.titleFontSize,
               lineHeight: layout.titleLineHeight,
-              color: palette.primaryForeground,
+              color: palette.inversePrimary,
             },
           ]}
         >
@@ -100,7 +100,7 @@ function DonateSubscribePillInner({
             {
               fontSize: layout.subtitleFontSize,
               lineHeight: layout.subtitleLineHeight,
-              color: palette.primaryForeground + "D9",
+              color: palette.inverseOnSurface,
             },
           ]}
         >

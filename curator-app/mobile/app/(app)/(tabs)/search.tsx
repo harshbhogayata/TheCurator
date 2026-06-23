@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { View, Text, TextInput, ScrollView, Pressable } from "react-native";
-import { useLocalSearchParams } from "expo-router";
+import { useLocalSearchParams, useFocusEffect } from "expo-router";
 import { FlashList } from "@shopify/flash-list";
 import {
   Search as SearchIcon,
@@ -17,7 +17,7 @@ import { useReadingStats } from "../../../src/providers/reading-stats-provider";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import type { Article } from "../../../src/data/articles";
-import { useArticles } from "../../../src/hooks/use-articles";
+import { useArticles, useArticlesByIds } from "../../../src/hooks/use-articles";
 import { useCategories } from "../../../src/hooks/use-categories";
 import { type } from "../../../src/ui/tokens/typography";
 
@@ -36,24 +36,35 @@ export default function SearchScreen() {
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
   const { isArticleSaved, isHydrated } = useSavedArticles();
-  const { recentArticleIds } = useReadingStats();
+  const { recentArticleIds, refreshReadingStats } = useReadingStats();
   const { q } = useLocalSearchParams<{ q?: string }>();
   const { data: articles = [] } = useArticles();
   const { data: apiCategories = [] } = useCategories();
+  const { data: recentArticles = [] } = useArticlesByIds(recentArticleIds);
 
-  const recentArticles = useMemo(
-    () =>
-      recentArticleIds
-        .map((rid) => articles.find((a) => a.id === rid))
-        .filter((a): a is Article => Boolean(a)),
-    [recentArticleIds, articles],
+  useFocusEffect(
+    useCallback(() => {
+      refreshReadingStats();
+    }, [refreshReadingStats]),
   );
 
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
 
   useEffect(() => {
     setSearchQuery(q ?? "");
   }, [q]);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedQuery(searchQuery.trim()), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  const isServerSearch = debouncedQuery.length >= 2;
+  const { data: serverResults = [], isFetching: isSearching } = useArticles(
+    isServerSearch ? { q: debouncedQuery } : undefined,
+  );
+  const activeArticles = isServerSearch ? serverResults : articles;
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [readingStatus, setReadingStatus] = useState<"all" | "saved" | "unsaved">("all");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -80,8 +91,8 @@ export default function SearchScreen() {
   };
 
   const filteredArticles = useMemo(() => {
-    return articles.filter((article) => {
-      if (searchQuery) {
+    return activeArticles.filter((article) => {
+      if (!isServerSearch && searchQuery) {
         const query = searchQuery.toLowerCase();
         const matchesTitle = article.title.toLowerCase().includes(query);
         const matchesExcerpt = article.excerpt.toLowerCase().includes(query);
@@ -92,7 +103,7 @@ export default function SearchScreen() {
       }
       if (readingStatus === "saved" || readingStatus === "unsaved") {
         if (!isHydrated) {
-          return true;
+          return false;
         }
       }
       if (readingStatus === "saved") {
@@ -102,7 +113,7 @@ export default function SearchScreen() {
       }
       return true;
     });
-  }, [articles, searchQuery, selectedCategories, readingStatus, isArticleSaved, isHydrated]);
+  }, [activeArticles, isServerSearch, searchQuery, selectedCategories, readingStatus, isArticleSaved, isHydrated]);
 
   const renderItem = useCallback(({ item }: { item: Article }) => (
     <View style={{ marginBottom: 16 }}>
@@ -289,7 +300,12 @@ export default function SearchScreen() {
         {/* Results title */}
         {filteredArticles.length > 0 && (
           <Text style={[type.labelSm, { fontFamily: "Manrope_500Medium", fontSize: 11, color: palette.outline, paddingHorizontal: 4, marginTop: 24, marginBottom: 8 }]}>
-            {filteredArticles.length} {filteredArticles.length === 1 ? "narrative" : "narratives"}
+            {isSearching ? "Searching…" : `${filteredArticles.length} ${filteredArticles.length === 1 ? "narrative" : "narratives"}`}
+          </Text>
+        )}
+        {isServerSearch && !isSearching && filteredArticles.length === 0 && (
+          <Text style={[type.label, { fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant, paddingHorizontal: 4, marginTop: 24 }]}>
+            No narratives match “{debouncedQuery}”.
           </Text>
         )}
       </View>
@@ -304,6 +320,9 @@ export default function SearchScreen() {
     filteredArticles.length,
     contentPadding,
     categoryOptions,
+    isSearching,
+    isServerSearch,
+    debouncedQuery,
   ]);
 
   const listEmpty = useMemo(() => {

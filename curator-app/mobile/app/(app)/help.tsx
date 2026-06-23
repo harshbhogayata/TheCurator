@@ -30,7 +30,7 @@ const faqs: FAQItem[] = [
     category: "Subscription",
     question: "What are the subscription tiers?",
     answer:
-      "We offer 3 paid tiers: Basic ($5/month - ad-free, 50 saves), Premium ($15/month - audio, unlimited saves, exclusive content), and Lifetime ($299 one-time - all Premium features forever).",
+      "Free (ad-supported, 25 saves). Basic (₹499/month — ad-free, brief audio, 100 saves). Premium (₹1,499/month — full article audio, unlimited saves, collections). Lifetime (₹24,999 one-time — all Premium features). See Support Us for current pricing.",
   },
   {
     category: "Subscription",
@@ -42,13 +42,13 @@ const faqs: FAQItem[] = [
     category: "Features",
     question: "What are Audio Briefs?",
     answer:
-      "Audio Briefs are professionally narrated versions of our daily digests and articles. Available for Premium and Lifetime members, perfect for listening during commutes or workouts.",
+      "Audio Briefs are narrated daily digests. Basic and above unlock brief audio. Premium and Lifetime unlock full article narration as well.",
   },
   {
     category: "Features",
     question: "How many articles can I save?",
     answer:
-      "Free users get 25 saves, Basic tier gets 50, and Premium/Lifetime tiers get unlimited saves organized in custom collections.",
+      "Free: 25 saves. Basic: 100 saves. Premium and Lifetime: unlimited saves with custom collections (Premium+).",
   },
   {
     category: "Features",

@@ -65,6 +65,7 @@ export const mockBriefs: BriefItem[] = [
 ];
 
 export const mockCategories: CategoryItem[] = [
+  { slug: "news", name: "World News", color: "#0369a1", icon: "newspaper", rank: 0 },
   { slug: "economy", name: "Economy", color: "#6B7280", icon: "trending-up", rank: 1 },
   { slug: "technology", name: "Technology", color: "#3B82F6", icon: "cpu", rank: 2 },
   { slug: "science", name: "Science", color: "#8B5CF6", icon: "flask", rank: 3 },

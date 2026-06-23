@@ -80,6 +80,7 @@ export const onboardingStepOrder: OnboardingStep[] = [
 ];
 
 export const categoryOptions = [
+  { key: "news", label: "World News", emoji: "🌍" },
   { key: "economy", label: "Economy", emoji: "📈" },
   { key: "technology", label: "Technology", emoji: "💻" },
   { key: "science", label: "Science", emoji: "🔬" },

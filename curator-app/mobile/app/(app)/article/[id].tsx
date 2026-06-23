@@ -40,6 +40,9 @@ import { ArticleAudioPlayer } from "../../../src/ui/article-audio-player";
 import { AddToCollectionModal } from "../../../src/ui/add-to-collection-modal";
 import { useArticle, useArticles } from "../../../src/hooks/use-articles";
 
+const MIN_READ_TIME_MS = 3_000;
+const SCROLL_PERSIST_MIN_Y = 50;
+
 export default function ArticleScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
@@ -62,6 +65,8 @@ export default function ArticleScreen() {
   const scrollRef = useRef<ScrollView>(null);
   const savedScrollY = useRef(0);
   const isArticleSavedRef = useRef(isArticleSaved);
+  const pendingScrollY = useRef<number | null>(null);
+  const scrollPersistTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const scrollKey = `curator.scroll.${id}`;
 
   useEffect(() => {
@@ -111,7 +116,7 @@ export default function ArticleScreen() {
     return () => {
       const readTimeMs = Date.now() - startTime.current;
       const articleId = article?.id;
-      if (readTimeMs > 5000 && articleId) {
+      if (readTimeMs >= MIN_READ_TIME_MS && articleId) {
         recordArticleRead(readTimeMs, articleId);
         if (
           isHydrated &&
@@ -124,28 +129,44 @@ export default function ArticleScreen() {
     };
   }, [article?.id, isHydrated, recordArticleRead, saveArticle, session?.preferences.autoSaveEnabled]);
 
-  // Restore reading position
+  const restoreScrollPosition = useCallback((y: number) => {
+    if (y <= SCROLL_PERSIST_MIN_Y) {
+      return;
+    }
+    pendingScrollY.current = y;
+    scrollRef.current?.scrollTo({ y, animated: false });
+  }, []);
+
+  const persistScrollPosition = useCallback(
+    (y: number) => {
+      if (y > SCROLL_PERSIST_MIN_Y) {
+        void AsyncStorage.setItem(scrollKey, String(Math.floor(y)));
+      } else {
+        void AsyncStorage.removeItem(scrollKey);
+      }
+    },
+    [scrollKey],
+  );
+
+  // Restore reading position after content layout
   useEffect(() => {
-    AsyncStorage.getItem(scrollKey).then((val) => {
+    pendingScrollY.current = null;
+    void AsyncStorage.getItem(scrollKey).then((val) => {
       if (!val) return;
       const y = parseInt(val, 10);
-      if (y > 50) {
-        setTimeout(() => scrollRef.current?.scrollTo({ y, animated: false }), 80);
-      }
+      if (!Number.isFinite(y)) return;
+      restoreScrollPosition(y);
     });
-  }, [scrollKey]);
+  }, [restoreScrollPosition, scrollKey]);
 
-  // Save reading position on unmount
   useEffect(() => {
     return () => {
-      const y = savedScrollY.current;
-      if (y > 50) {
-        AsyncStorage.setItem(scrollKey, String(Math.floor(y))).catch(console.error);
-      } else {
-        AsyncStorage.removeItem(scrollKey).catch(console.error);
+      if (scrollPersistTimer.current) {
+        clearTimeout(scrollPersistTimer.current);
       }
+      persistScrollPosition(savedScrollY.current);
     };
-  }, [scrollKey]);
+  }, [persistScrollPosition, scrollKey]);
 
   const savedState = article ? isArticleSaved(article.id) : null;
   const isSaved = savedState === true;
@@ -195,9 +216,24 @@ export default function ArticleScreen() {
       if (maxScroll > 0) {
         setScrollProgress(Math.min(y / maxScroll, 1));
       }
+
+      if (scrollPersistTimer.current) {
+        clearTimeout(scrollPersistTimer.current);
+      }
+      scrollPersistTimer.current = setTimeout(() => {
+        persistScrollPosition(y);
+      }, 400);
     },
-    [],
+    [persistScrollPosition],
   );
+
+  const handleContentSizeChange = useCallback(() => {
+    if (pendingScrollY.current === null) {
+      return;
+    }
+    scrollRef.current?.scrollTo({ y: pendingScrollY.current, animated: false });
+    pendingScrollY.current = null;
+  }, []);
 
   // Not found
   if (isArticleLoading) {
@@ -365,6 +401,7 @@ export default function ArticleScreen() {
         ref={scrollRef}
         scrollEventThrottle={16}
         onScroll={handleScroll}
+        onContentSizeChange={handleContentSizeChange}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: insets.top + 64,

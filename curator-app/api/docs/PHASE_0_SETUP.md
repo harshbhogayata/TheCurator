@@ -129,29 +129,110 @@ python manage.py seed_currents_sources
 
 ---
 
-## Step 8 — Kokoro TTS (production audio — **do this before launch**)
+## Step 8 — Kokoro TTS on Railway (full walkthrough)
 
-### Why health shows `tts.provider: "none"` today
+### What you have today
 
-The code **intentionally** refuses Edge TTS in production (`DEBUG=false`). Edge is free but **not licensed for a paid commercial app**. Until `KOKORO_TTS_URL` is set, hosted MP3 generation is disabled — mobile falls back to on-device narration.
+| Symptom | Meaning |
+|---------|---------|
+| `integrations.kokoro: "error"` | Kokoro URL is set but **no running Kokoro container** (or wrong hostname). |
+| `%3ckokoro-service%3e.railway.internal` in errors | You pasted the **doc placeholder** literally — delete `<` and `>`. |
+| `run_pipeline` works, audio fails | Expected until Kokoro is deployed. R2 is fine; TTS host is missing. |
 
-This is the right guardrail. It is **not** a bug.
+Kokoro needs **no API key** — it is a self-hosted Docker container. Railway internal DNS connects TheCurator → Kokoro privately.
 
-### Deploy Kokoro on Railway
+**Requirements:** ~**1.5 GB RAM** for the Kokoro service (model ~320 MB + PyTorch). First boot downloads the model (2–5 min).
 
-1. Add a **second Railway service** (Docker) — recommended image: [hwdsl2/docker-kokoro](https://github.com/hwdsl2/docker-kokoro).
-2. Expose internal port `8880` (or use Railway private networking).
-3. On the **API** service:
+---
+
+### 8A — Create the Kokoro service
+
+1. Open Railway → project **keen-smile / production** (same project as Postgres, Redis, TheCurator).
+2. Click **+ Create** (or **New** → **Empty Service**).
+3. Click the new service box → **Settings**.
+4. **Name the service** `kokoro` (lowercase, no spaces).  
+   This name becomes the hostname: `kokoro.railway.internal`.
+5. **Source / Deploy:**
+   - If Railway offers **Docker Image**: enter  
+     `hwdsl2/kokoro-server`  
+     ([Docker Hub](https://hub.docker.com/r/hwdsl2/kokoro-server))
+   - If you must use a Dockerfile, use the image above — do not build from scratch.
+6. **Networking:**
+   - Set the container port to **8880** (Kokoro listens on 8880).
+   - You do **not** need a public domain for Kokoro — TheCurator talks over private networking.
+   - Optional: disable public HTTP on Kokoro if Railway exposes it (private-only is safer).
+7. **Resources (important):**
+   - Allocate at least **1.5 GB RAM** to this service if Railway lets you set limits.
+   - Hobby tier: if Kokoro OOMs, bump plan or reduce concurrent TTS jobs.
+8. Click **Deploy** and wait until status is **Online**.
+
+**First-start:** Kokoro downloads its model on boot. Open **kokoro → Deployments → View logs**. Wait until you see something like:
+
+```text
+Kokoro text-to-speech server is ready
+```
+
+That can take **3–8 minutes** on first deploy.
+
+---
+
+### 8B — Smoke-test Kokoro (from TheCurator shell)
+
+Open **TheCurator → Shell** (not Kokoro shell) and run:
+
+```bash
+curl -sS -o /tmp/kokoro-test.mp3 \
+  -H "Content-Type: application/json" \
+  -d '{"model":"tts-1","input":"Curator audio test.","voice":"af_heart","response_format":"mp3"}' \
+  http://kokoro.railway.internal:8880/v1/audio/speech
+
+ls -la /tmp/kokoro-test.mp3
+```
+
+**Success:** file exists and is **> 1 KB**.
+
+**If `Could not resolve host`:** service is not named `kokoro`, or Kokoro is not Online — check the exact service name on the canvas (use `http://YOUR-SERVICE-NAME.railway.internal:8880`).
+
+**If connection refused:** Kokoro still starting — check Kokoro logs.
+
+**If 404/502:** wrong port — confirm 8880 in Kokoro networking settings.
+
+---
+
+### 8C — Wire TheCurator to Kokoro
+
+**TheCurator → Variables** — set or replace (no angle brackets):
 
 ```bash
 TTS_PROVIDER=kokoro
-KOKORO_TTS_URL=http://<kokoro-service>.railway.internal:8880/v1
+KOKORO_TTS_URL=http://kokoro.railway.internal:8880/v1
+KOKORO_TTS_MODEL=tts-1
 KOKORO_TTS_VOICE=af_heart
 ```
 
-4. Redeploy API. `/health/` should show:
+| Variable | Value | Notes |
+|----------|-------|-------|
+| `TTS_PROVIDER` | `kokoro` | Or `auto` if URL is set |
+| `KOKORO_TTS_URL` | `http://kokoro.railway.internal:8880/v1` | Replace `kokoro` if you named the service differently |
+| `KOKORO_TTS_VOICE` | `af_heart` | Calm English female; see [voice list](https://github.com/hwdsl2/docker-kokoro#available-voices) |
+
+**Delete** any old value containing `<kokoro-service>`.
+
+Redeploy **TheCurator** (Deployments → Redeploy or push a commit).
+
+---
+
+### 8D — Verify end-to-end (API → Kokoro → R2)
+
+```bash
+python manage.py verify_audio_storage
+python manage.py generate_content_audio --all-missing --limit 3
+```
+
+**`/health/` should show:**
 
 ```json
+"integrations": { "kokoro": "ok", ... },
 "tts": {
   "provider": "kokoro",
   "hosted_audio_ready": true,
@@ -159,14 +240,19 @@ KOKORO_TTS_VOICE=af_heart
 }
 ```
 
-5. Verify:
+Then open one article in the app — audio URL should point at your R2 domain (`AUDIO_PUBLIC_BASE_URL`).
 
-```bash
-python manage.py verify_audio_storage
-python manage.py generate_content_audio --all-missing
-```
+---
 
-**Manual:** deploy Kokoro container (no API key — self-hosted). Plan ~512MB–1GB RAM for the sidecar.
+### 8E — Kokoro troubleshooting
+
+| Error | Fix |
+|-------|-----|
+| `%3ckokoro-service%3e` in hostname | Remove literal `<` `>` from `KOKORO_TTS_URL` |
+| Name or service not known | Kokoro service offline or wrong `.railway.internal` name |
+| Connection refused | Kokoro still booting; check logs / port 8880 |
+| OOM / container restart loop | Give Kokoro ≥1.5 GB RAM |
+| `verify_audio_storage` ok but slow | Normal on CPU; first request loads model |
 
 ---
 
@@ -194,17 +280,43 @@ AUDIO_PUBLIC_BASE_URL=https://audio.thecuratorgroup.org
 
 ## Step 10 — Hourly pipeline cron
 
-Railway → API service → **Cron** (or separate worker):
+Without cron, `run_pipeline` only runs when you SSH in manually.
+
+### Railway Cron (TheCurator service)
+
+1. Click **TheCurator** (API) → **Settings**.
+2. Find **Cron Schedule** (or **Cron Jobs** tab, depending on Railway UI).
+3. Add a job:
+   - **Schedule:** `0 * * * *` (every hour, on the hour)
+   - **Command:**
 
 ```bash
-cd api && python manage.py run_pipeline
+python manage.py run_pipeline
 ```
 
-Schedule: `0 * * * *` (every hour).
+4. Save. Railway runs this in the same environment as the web service (same env vars, same DB).
 
-Without this, no new articles after seed content.
+**Note:** Root directory is already `/app` in the container — no `cd api` needed.
 
-**Manual:** enable cron in Railway UI.
+### After first cron hour (or run manually now)
+
+```bash
+python manage.py run_pipeline
+```
+
+### Review drafts (because `PIPELINE_AUTO_PUBLISH=false`)
+
+1. Open `https://<your-api>/admin/`
+2. Log in with superuser (create one if needed: `python manage.py createsuperuser`)
+3. Go to **Content pipeline** → **Drafts** (or review queue)
+4. Approve good drafts → **Publish**
+5. Optionally trigger audio for new articles:
+
+```bash
+python manage.py generate_content_audio --all-missing --limit 20
+```
+
+**Staging shortcut:** set `PIPELINE_AUTO_PUBLISH=true` only on a non-prod environment to skip manual review.
 
 ---
 
@@ -237,13 +349,29 @@ Mobile onboarding will show **8 categories** (4×2 grid) once API `/categories` 
 
 ## Phase 0 done checklist
 
-- [ ] `/health/` — database ok, redis ok
-- [ ] `integrations.openai` + `pexels` ok
-- [ ] `tts.provider` = `kokoro` (not `none`)
-- [ ] `audio_storage` = `s3`
-- [ ] Cron running `run_pipeline` hourly
-- [ ] Admin review queue has drafts (or staging `PIPELINE_AUTO_PUBLISH=true`)
-- [ ] `eas update --channel preview` shipped to testers
+Use this as your master list. Items marked **(you)** are already confirmed from your session.
+
+- [x] **(you)** `/health/` — database ok, redis ok
+- [x] **(you)** `integrations.openai` + `pexels` ok
+- [x] **(you)** `audio_storage` = `s3`
+- [x] **(you)** `run_pipeline` command works
+- [ ] `integrations.kokoro` = `ok` (Step 8 — deploy Kokoro, fix URL)
+- [ ] `verify_audio_storage` passes
+- [ ] `generate_content_audio --limit 3` uploads MP3s to R2
+- [ ] Cron running `run_pipeline` hourly (Step 10)
+- [ ] Admin: at least one pipeline draft reviewed + published
+- [ ] Optional: `CURRENTS_API_KEY` + `seed_currents_sources` (Step 7)
+- [ ] Optional: `UNSPLASH_ACCESS_KEY` (Step 6)
+- [ ] Mobile: commit + `eas update --channel preview` (Continue Reading, search, 8 categories)
+
+### Suggested order to finish today
+
+1. **Step 8** — Deploy Kokoro (8A→8D above)
+2. **Step 10** — Enable hourly cron
+3. **Admin** — Publish 1–3 pipeline drafts
+4. **Audio** — `generate_content_audio --all-missing --limit 10`
+5. **Step 7** (optional) — Currents key if you want India feeds
+6. **Mobile** — ask to push mobile commit + EAS update
 
 ---
 

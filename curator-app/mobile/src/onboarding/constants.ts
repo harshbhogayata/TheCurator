@@ -9,6 +9,7 @@ export const onboardingSteps = onboardingStepOrder.filter(
 export const visualStepKeys = ["account", "categories", "appearance", "reading"] as const;
 
 export const categoryEmojiByKey: Record<string, string> = {
+  news: "🌍",
   economy: "📈",
   technology: "💻",
   science: "🔬",

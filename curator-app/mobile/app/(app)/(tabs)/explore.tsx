@@ -41,6 +41,7 @@ export default function ExploreScreen() {
   const scrollPaddingTop = useTabScrollPaddingTop();
   const { contentPadding } = useLayout();
   const { data: articles = [], isLoading: isArticlesLoading, refetch: refetchArticles } = useArticles();
+  const { data: forYouArticles = [], refetch: refetchForYou } = useArticles({ feed: "for_you" });
   const { data: apiCategories, isLoading: isCategoriesLoading, refetch: refetchCategories } = useCategories();
   const categoryOptions = useMemo(() => {
     if (apiCategories && apiCategories.length > 0) {
@@ -71,11 +72,33 @@ export default function ExploreScreen() {
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
-    void Promise.all([refetchArticles(), refetchCategories()]).finally(() => setRefreshing(false));
-  }, [refetchArticles, refetchCategories]);
+    void Promise.all([refetchArticles(), refetchCategories(), refetchForYou()]).finally(() =>
+      setRefreshing(false),
+    );
+  }, [refetchArticles, refetchCategories, refetchForYou]);
 
-  const topNarratives =
-    viewMode === "today" ? articles.slice(0, 2) : articles.slice(6, 8);
+  const parsePublishedDate = useCallback((article: Article) => {
+    const raw = article.publishedAt ?? article.publishedDate;
+    if (!raw) return null;
+    const parsed = new Date(raw);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }, []);
+
+  const topNarratives = useMemo(() => {
+    if (viewMode === "global") {
+      const pool = forYouArticles.length > 0 ? forYouArticles : articles;
+      return pool.slice(0, 2);
+    }
+
+    const cutoff = new Date();
+    cutoff.setDate(cutoff.getDate() - 2);
+    return articles
+      .filter((article) => {
+        const published = parsePublishedDate(article);
+        return published !== null && published >= cutoff;
+      })
+      .slice(0, 2);
+  }, [articles, forYouArticles, parsePublishedDate, viewMode]);
 
   const filteredExploreArticles = useMemo(() => {
     let list = articles.slice(2);

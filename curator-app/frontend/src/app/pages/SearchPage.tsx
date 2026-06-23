@@ -7,11 +7,10 @@ import { ArticleCard } from '../components/ArticleCard';
 import { useSavedArticles } from '../context/SavedArticlesContext';
 import { useAuth } from '../context/AuthContext';
 import { useReadingStats } from '../context/ReadingStatsContext';
-import { useArticles } from '../../hooks/use-articles';
+import { useArticles, useArticlesByIds } from '../../hooks/use-articles';
 import { useCategories } from '../../hooks/use-categories';
 import { FeedStack } from '../../ui/feed-stack';
 import { useLayout } from '../../providers/layout-provider';
-import type { Article } from '../../data/articles';
 
 function normalizeCategory(value: string): string {
   return value.trim().toLowerCase().replace(/[\s_]+/g, '-');
@@ -29,6 +28,7 @@ export function SearchPage() {
   const { recentArticleIds } = useReadingStats();
   const { isWebDesktop } = useLayout();
   const { data: articles = [], isLoading } = useArticles();
+  const { data: recentArticles = [] } = useArticlesByIds(recentArticleIds);
   const { data: apiCategories = [] } = useCategories();
 
   const [searchQuery, setSearchQuery] = useState(searchParams.get('q') ?? '');
@@ -60,14 +60,6 @@ export function SearchPage() {
       (category) => ({ key: category, label: formatCategoryLabel(category) }),
     );
   }, [apiCategories, articles]);
-
-  const recentArticles = useMemo(
-    () =>
-      recentArticleIds
-        .map((rid) => articles.find((a) => a.id === rid))
-        .filter((a): a is Article => Boolean(a)),
-    [recentArticleIds, articles],
-  );
 
   const filteredArticles = useMemo(() => {
     return articles.filter((article) => {

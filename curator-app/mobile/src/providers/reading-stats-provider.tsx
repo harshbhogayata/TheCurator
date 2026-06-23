@@ -11,7 +11,7 @@ import {
 } from "react";
 
 import { fetchReadingStats, recordReadingEvent } from "../services/mobile-api";
-import { notifyReadingStatsRefresh, registerReadingStatsRefresh } from "../lib/stats-sync";
+import { registerReadingStatsRefresh } from "../lib/stats-sync";
 import { createSaveMutationQueue } from "../lib/saved-articles-sync";
 import { useAuthUserId } from "../hooks/use-auth-user";
 
@@ -35,6 +35,7 @@ interface ReadingStatsContextValue {
   stats: ReadingStats;
   recordArticleRead: (readTimeMs: number, articleId?: string) => void;
   recordSave: () => void;
+  refreshReadingStats: () => void;
   averageReadTimeMs: number;
   thisWeekArticles: number;
   recentArticleIds: string[];
@@ -64,6 +65,58 @@ function getStartOfWeekDate(): string {
   const monday = new Date(now);
   monday.setDate(diff);
   return monday.toISOString().slice(0, 10);
+}
+
+function mergeReadingEventIntoStats(
+  prev: ReadingStats,
+  readTimeMs: number,
+  articleId?: string,
+): ReadingStats {
+  const today = getTodayDate();
+  const existingIndex = prev.dailyHistory.findIndex((r) => r.date === today);
+  let dailyHistory: DailyRecord[];
+
+  if (existingIndex >= 0) {
+    dailyHistory = prev.dailyHistory.map((r, i) =>
+      i === existingIndex
+        ? {
+            ...r,
+            articlesRead: r.articlesRead + 1,
+            readTimeMs: r.readTimeMs + readTimeMs,
+          }
+        : r,
+    );
+  } else {
+    dailyHistory = [...prev.dailyHistory, { date: today, articlesRead: 1, readTimeMs }];
+  }
+
+  const { currentStreak, longestStreak } = calculateStreak(dailyHistory);
+
+  const recentArticleIds = articleId
+    ? [articleId, ...prev.recentArticleIds.filter((id) => id !== articleId)].slice(0, 8)
+    : prev.recentArticleIds;
+
+  return {
+    ...prev,
+    totalArticlesRead: prev.totalArticlesRead + 1,
+    totalReadTimeMs: prev.totalReadTimeMs + readTimeMs,
+    currentStreak,
+    longestStreak,
+    dailyHistory,
+    recentArticleIds,
+  };
+}
+
+function payloadToStats(payload: Awaited<ReturnType<typeof fetchReadingStats>>): ReadingStats {
+  return {
+    totalArticlesRead: payload.totalArticlesRead,
+    totalReadTimeMs: payload.totalReadTimeMs,
+    totalSaved: payload.totalSaved,
+    currentStreak: payload.currentStreak,
+    longestStreak: payload.longestStreak,
+    dailyHistory: payload.dailyHistory,
+    recentArticleIds: payload.recentArticleIds,
+  };
 }
 
 function calculateStreak(dailyHistory: DailyRecord[]): {
@@ -181,20 +234,12 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
     fetchReadingStats()
       .then((payload) => {
         if (!cancelled) {
-          setStats({
-            totalArticlesRead: payload.totalArticlesRead,
-            totalReadTimeMs: payload.totalReadTimeMs,
-            totalSaved: payload.totalSaved,
-            currentStreak: payload.currentStreak,
-            longestStreak: payload.longestStreak,
-            dailyHistory: payload.dailyHistory,
-            recentArticleIds: payload.recentArticleIds,
-          });
+          setStats(payloadToStats(payload));
         }
       })
       .catch(() => {
         if (!cancelled) {
-          setStats(DEFAULT_STATS);
+          // Keep prior stats on transient failures — do not wipe Continue Reading.
         }
       });
 
@@ -203,35 +248,29 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
     };
   }, [userId]);
 
-  useEffect(() => {
-    const refresh = () => {
-      if (MOCK_BACKEND || !userId) {
-        return;
-      }
+  const refreshReadingStats = useCallback(() => {
+    if (MOCK_BACKEND || !userId) {
+      return;
+    }
 
-      void fetchReadingStats()
-        .then((payload) => {
-          setStats({
-            totalArticlesRead: payload.totalArticlesRead,
-            totalReadTimeMs: payload.totalReadTimeMs,
-            totalSaved: payload.totalSaved,
-            currentStreak: payload.currentStreak,
-            longestStreak: payload.longestStreak,
-            dailyHistory: payload.dailyHistory,
-            recentArticleIds: payload.recentArticleIds,
-          });
-        })
-        .catch(() => {
-          // Keep current stats on transient failures.
-        });
-    };
-
-    return registerReadingStatsRefresh(refresh);
+    void fetchReadingStats()
+      .then((payload) => {
+        setStats(payloadToStats(payload));
+      })
+      .catch(() => {
+        // Keep current stats on transient failures.
+      });
   }, [userId]);
+
+  useEffect(() => {
+    return registerReadingStatsRefresh(refreshReadingStats);
+  }, [refreshReadingStats]);
 
   const recordArticleRead = useCallback(
     (readTimeMs: number, articleId?: string) => {
       if (!MOCK_BACKEND && userId) {
+        setStats((prev) => mergeReadingEventIntoStats(prev, readTimeMs, articleId));
+
         void enqueueMutation(() =>
           recordReadingEvent({
             articleId,
@@ -239,68 +278,23 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
           }),
         )
           .then((payload) => {
-            setStats({
-              totalArticlesRead: payload.totalArticlesRead,
-              totalReadTimeMs: payload.totalReadTimeMs,
-              totalSaved: payload.totalSaved,
-              currentStreak: payload.currentStreak,
-              longestStreak: payload.longestStreak,
-              dailyHistory: payload.dailyHistory,
-              recentArticleIds: payload.recentArticleIds,
-            });
+            setStats(payloadToStats(payload));
           })
           .catch(() => {
-            // Keep current state if network write fails.
+            refreshReadingStats();
           });
         return;
       }
 
       setStats((prev) => {
-        const today = getTodayDate();
-        const existingIndex = prev.dailyHistory.findIndex(
-          (r) => r.date === today,
-        );
-        let dailyHistory: DailyRecord[];
-
-        if (existingIndex >= 0) {
-          dailyHistory = prev.dailyHistory.map((r, i) =>
-            i === existingIndex
-              ? {
-                  ...r,
-                  articlesRead: r.articlesRead + 1,
-                  readTimeMs: r.readTimeMs + readTimeMs,
-                }
-              : r,
-          );
-        } else {
-          dailyHistory = [
-            ...prev.dailyHistory,
-            { date: today, articlesRead: 1, readTimeMs },
-          ];
-        }
-
-        const { currentStreak, longestStreak } = calculateStreak(dailyHistory);
-
-        const recentArticleIds = articleId
-          ? [articleId, ...prev.recentArticleIds.filter((id) => id !== articleId)].slice(0, 8)
-          : prev.recentArticleIds;
-
-        const next: ReadingStats = {
-          ...prev,
-          totalArticlesRead: prev.totalArticlesRead + 1,
-          totalReadTimeMs: prev.totalReadTimeMs + readTimeMs,
-          currentStreak,
-          longestStreak,
-          dailyHistory,
-          recentArticleIds,
-        };
+        const next = mergeReadingEventIntoStats(prev, readTimeMs, articleId);
         if (MOCK_BACKEND) {
           void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
         }
         return next;
       });
     },
-    [enqueueMutation, userId],
+    [enqueueMutation, refreshReadingStats, userId],
   );
 
   const recordSave = useCallback(() => {
@@ -337,11 +331,12 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
       stats,
       recordArticleRead,
       recordSave,
+      refreshReadingStats,
       averageReadTimeMs,
       thisWeekArticles,
       recentArticleIds: stats.recentArticleIds,
     }),
-    [stats, recordArticleRead, recordSave, averageReadTimeMs, thisWeekArticles],
+    [stats, recordArticleRead, recordSave, refreshReadingStats, averageReadTimeMs, thisWeekArticles],
   );
 
   return (

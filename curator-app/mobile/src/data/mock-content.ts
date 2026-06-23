@@ -175,13 +175,14 @@ export const mockBriefs: BriefItem[] = [
 ];
 
 export const mockCategories = [
+  { slug: "news", name: "World News", color: "#0369a1", icon: "newspaper", rank: 0 },
   { slug: "economy", name: "Economy", color: "#6B7280", icon: "trending-up", rank: 1 },
-  { slug: "technology", name: "Technology", color: "#3B82F6", icon: "cpu", rank: 2 },
-  { slug: "science", name: "Science", color: "#8B5CF6", icon: "flask", rank: 3 },
-  { slug: "culture", name: "Culture", color: "#EC4899", icon: "palette", rank: 4 },
-  { slug: "health", name: "Health", color: "#10B981", icon: "heart", rank: 5 },
-  { slug: "politics", name: "Politics", color: "#F59E0B", icon: "landmark", rank: 6 },
-  { slug: "climate", name: "Climate", color: "#22C55E", icon: "leaf", rank: 7 },
+  { slug: "technology", name: "Technology", color: "#3B82F6", icon: "cpu", rank: 3 },
+  { slug: "science", name: "Science", color: "#8B5CF6", icon: "flask", rank: 4 },
+  { slug: "culture", name: "Culture", color: "#EC4899", icon: "palette", rank: 5 },
+  { slug: "health", name: "Health", color: "#10B981", icon: "heart", rank: 6 },
+  { slug: "politics", name: "Politics", color: "#F59E0B", icon: "landmark", rank: 7 },
+  { slug: "climate", name: "Climate", color: "#22C55E", icon: "leaf", rank: 8 },
 ];
 
 export function findMockArticle(id: string): Article | null {

@@ -1,9 +1,10 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Platform } from "react-native";
 import * as Device from "expo-device";
 import * as Notifications from "expo-notifications";
 import Constants from "expo-constants";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
 
 import { useAuth } from "../providers/auth-provider";
 import { registerDevice, unregisterDevice } from "../services/mobile-api";
@@ -20,9 +21,52 @@ Notifications.setNotificationHandler({
   }),
 });
 
+function routeFromNotificationUrl(router: ReturnType<typeof useRouter>, url: unknown) {
+  if (typeof url !== "string" || !url.trim()) {
+    return;
+  }
+
+  const path = url.trim();
+  const articleMatch = path.match(/\/article\/([^/?#]+)/i);
+  if (articleMatch?.[1]) {
+    router.push(`/(app)/article/${articleMatch[1]}`);
+    return;
+  }
+
+  if (path.startsWith("/brief") || path.includes("/brief/")) {
+    router.push("/(app)/(tabs)");
+  }
+}
+
 export function usePushNotifications() {
+  const router = useRouter();
   const { status, session } = useAuth();
+  const handledColdStart = useRef(false);
   const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+
+  useEffect(() => {
+    if (MOCK_BACKEND || status !== "signed-in" || !session) {
+      return;
+    }
+
+    const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
+      const url = response.notification.request.content.data?.url;
+      routeFromNotificationUrl(router, url);
+    });
+
+    if (!handledColdStart.current) {
+      handledColdStart.current = true;
+      void Notifications.getLastNotificationResponseAsync().then((response) => {
+        if (!response) return;
+        const url = response.notification.request.content.data?.url;
+        routeFromNotificationUrl(router, url);
+      });
+    }
+
+    return () => {
+      responseSub.remove();
+    };
+  }, [MOCK_BACKEND, router, session, status]);
 
   useEffect(() => {
     if (MOCK_BACKEND) {

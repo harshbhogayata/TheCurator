@@ -59,6 +59,11 @@ export interface SessionPayload {
 
 export const categoryOptions: CategoryOption[] = [
   {
+    key: "news",
+    label: "World News",
+    description: "Headlines, global events, and the stories shaping the day.",
+  },
+  {
     key: "economy",
     label: "Economy",
     description: "Global context, business, and markets that reshape the day.",
@@ -116,6 +121,7 @@ export const onboardingStepOrder: OnboardingStep[] = [
 
 // Article types
 export type ArticleCategory =
+  | "news"
   | "economy"
   | "technology"
   | "science"
