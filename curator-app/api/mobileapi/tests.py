@@ -102,6 +102,43 @@ class MobileApiContractTests(TestCase):
         self.assertEqual(events.first().read_time_ms, 7_200_000)
         self.assertEqual(second.data["totalReadTimeMs"], 7_200_000)
 
+    def test_recent_articles_reorder_on_reread(self):
+        second_article = Article.objects.create(
+            title="Second narrative",
+            excerpt="Another story.",
+            category=self.category,
+            read_time_minutes=4,
+            author="Desk",
+            sources=["Reuters"],
+            content="Body two",
+        )
+
+        self.client.post(
+            "/api/mobile/v1/reading/events",
+            {"articleId": str(self.article.id), "readTimeMs": 6_000},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="read-first",
+        )
+        self.client.post(
+            "/api/mobile/v1/reading/events",
+            {"articleId": str(second_article.id), "readTimeMs": 6_000},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="read-second",
+        )
+
+        stats = self.client.get("/api/mobile/v1/reading/stats")
+        self.assertEqual(stats.data["recentArticleIds"][0], str(second_article.id))
+
+        self.client.post(
+            "/api/mobile/v1/reading/events",
+            {"articleId": str(self.article.id), "readTimeMs": 6_000},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="read-first-again",
+        )
+
+        stats = self.client.get("/api/mobile/v1/reading/stats")
+        self.assertEqual(stats.data["recentArticleIds"][0], str(self.article.id))
+
     def test_entitlement_payload_exposes_camel_case_override_fields(self):
         entitlement = UserEntitlement.objects.create(
             user=self.user,

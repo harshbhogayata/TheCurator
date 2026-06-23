@@ -1,13 +1,13 @@
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
-from content_pipeline.models import Source, SourceKind
+from content_pipeline.models import Source, SourceKind, SourceLicenseStatus
 from mobileapi.models import Category
 
 # Reputable, freely accessible RSS feeds mapped to Curator's category catalog.
 DEFAULT_SOURCES = [
-    {"name": "Reuters World", "url": "https://feeds.reuters.com/Reuters/worldNews", "category": "politics"},
-    {"name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "category": "politics"},
+    {"name": "Reuters World", "url": "https://feeds.reuters.com/Reuters/worldNews", "category": "news"},
+    {"name": "BBC World", "url": "https://feeds.bbci.co.uk/news/world/rss.xml", "category": "news"},
     {"name": "BBC Technology", "url": "https://feeds.bbci.co.uk/news/technology/rss.xml", "category": "technology"},
     {"name": "Ars Technica", "url": "https://feeds.arstechnica.com/arstechnica/index", "category": "technology"},
     {"name": "The Verge", "url": "https://www.theverge.com/rss/index.xml", "category": "technology"},
@@ -41,6 +41,7 @@ class Command(BaseCommand):
                     "url": entry["url"],
                     "category": categories.get(entry["category"]),
                     "is_active": True,
+                    "license_status": SourceLicenseStatus.RSS_PERMITTED,
                 },
             )
             if was_created:

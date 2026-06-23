@@ -2,13 +2,14 @@ from django.utils.text import slugify
 
 
 CONTENT_CATEGORY_CATALOG = [
-    {"slug": "economy", "name": "Economy", "color": "#0f766e", "icon": "line-chart", "rank": 0},
-    {"slug": "technology", "name": "Technology", "color": "#1d4ed8", "icon": "cpu", "rank": 1},
-    {"slug": "climate", "name": "Climate", "color": "#15803d", "icon": "leaf", "rank": 2},
-    {"slug": "culture", "name": "Culture", "color": "#a16207", "icon": "palette", "rank": 3},
-    {"slug": "health", "name": "Health", "color": "#be123c", "icon": "heart-pulse", "rank": 4},
-    {"slug": "politics", "name": "Politics", "color": "#7c2d12", "icon": "landmark", "rank": 5},
-    {"slug": "science", "name": "Science", "color": "#6d28d9", "icon": "flask-conical", "rank": 6},
+    {"slug": "news", "name": "World News", "color": "#0369a1", "icon": "newspaper", "rank": 0},
+    {"slug": "economy", "name": "Economy", "color": "#0f766e", "icon": "line-chart", "rank": 1},
+    {"slug": "technology", "name": "Technology", "color": "#1d4ed8", "icon": "cpu", "rank": 2},
+    {"slug": "climate", "name": "Climate", "color": "#15803d", "icon": "leaf", "rank": 3},
+    {"slug": "culture", "name": "Culture", "color": "#a16207", "icon": "palette", "rank": 4},
+    {"slug": "health", "name": "Health", "color": "#be123c", "icon": "heart-pulse", "rank": 5},
+    {"slug": "politics", "name": "Politics", "color": "#7c2d12", "icon": "landmark", "rank": 6},
+    {"slug": "science", "name": "Science", "color": "#6d28d9", "icon": "flask-conical", "rank": 7},
 ]
 
 

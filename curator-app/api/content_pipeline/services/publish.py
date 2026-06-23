@@ -6,6 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from content_pipeline.models import ArticleDraft, DraftKind, DraftStatus
+from content_pipeline.services.image_resolver import resolve_stock_image
 from mobileapi.models import Article, ArticleStatus, Brief
 
 logger = logging.getLogger(__name__)
@@ -34,6 +35,16 @@ def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
     now = timezone.now()
     published = None
 
+    image_url = (draft.image_url or "").strip()
+    image_source_url = ""
+    image_attribution = ""
+    if not image_url and draft.image_query:
+        resolved = resolve_stock_image(draft.image_query)
+        if resolved:
+            image_url = resolved["image_url"]
+            image_source_url = resolved.get("image_source_url", "")
+            image_attribution = resolved.get("image_attribution", "")
+
     if draft.kind == DraftKind.ARTICLE:
         if draft.category is None:
             raise PublishError("Draft has no category; assign one before publishing.")
@@ -49,7 +60,9 @@ def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
             source_links=draft.source_links or [],
             topics=draft.topics or [],
             image_query=draft.image_query,
-            image_url=draft.image_url,
+            image_url=image_url,
+            image_source_url=image_source_url,
+            image_attribution=image_attribution,
             status=ArticleStatus.PUBLISHED,
             is_active=True,
         )
@@ -60,7 +73,8 @@ def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
             summary=draft.content or draft.excerpt,
             duration_minutes=max(1, round(len((draft.content or "").split()) / 150)),
             published_at=timezone.localdate(),
-            image_url=draft.image_url,
+            image_url=image_url or draft.image_url,
+            image_attribution=image_attribution,
             insights=max(1, len(draft.source_links or [])),
             is_breaking=draft.is_breaking,
             is_active=True,

@@ -237,7 +237,9 @@ def _build_reading_stats_payload(user):
 
     recent_article_ids = []
     seen_ids = set()
-    recent_rows = UserReadingEvent.objects.filter(user=user, article__isnull=False).order_by("-created_at")
+    recent_rows = UserReadingEvent.objects.filter(user=user, article__isnull=False).order_by(
+        "-updated_at", "-created_at"
+    )
     for article_id in recent_rows.values_list("article_id", flat=True):
         as_string = str(article_id)
         if as_string in seen_ids:

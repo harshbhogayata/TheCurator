@@ -1,8 +1,9 @@
 """Article narration: TTS synthesis + upload to S3-compatible or local storage.
 
 Providers:
-- ``edge`` — Microsoft Edge neural voices via edge-tts (free, no API key).
+- ``kokoro`` — self-hosted OpenAI-compatible Kokoro service (production).
 - ``openai`` — OpenAI speech API (paid).
+- ``edge`` — Microsoft Edge neural voices (dev/staging only).
 
 When no hosted MP3 is available, mobile clients fall back to on-device narration
 using ``narrationText`` returned from the audio API.
@@ -91,23 +92,64 @@ def narration_text_for_brief(brief):
 
 def resolve_tts_provider():
     configured = getattr(settings, "TTS_PROVIDER", "auto").lower()
+    kokoro_url = (getattr(settings, "KOKORO_TTS_URL", "") or "").strip()
+    openai_key = (getattr(settings, "OPENAI_API_KEY", "") or "").strip()
+
+    if configured == "kokoro":
+        if kokoro_url:
+            return "kokoro"
+        logger.warning("TTS_PROVIDER=kokoro but KOKORO_TTS_URL is missing.")
+        if settings.DEBUG:
+            return "edge"
+        return "none"
+
     if configured == "openai":
-        if getattr(settings, "OPENAI_API_KEY", ""):
+        if openai_key:
             return "openai"
-        logger.warning("TTS_PROVIDER=openai but OPENAI_API_KEY is missing; using edge.")
-        return "edge"
+        logger.warning("TTS_PROVIDER=openai but OPENAI_API_KEY is missing.")
+        if settings.DEBUG:
+            return "edge"
+        return "none"
+
     if configured == "edge":
         return "edge"
-    # auto — prefer free Edge neural voices; OpenAI is opt-in via TTS_PROVIDER=openai.
-    return "edge"
+
+    # auto — prefer commercial providers; Edge only in DEBUG.
+    if kokoro_url:
+        return "kokoro"
+    if openai_key:
+        return "openai"
+    if settings.DEBUG:
+        return "edge"
+    logger.warning(
+        "No Kokoro or OpenAI TTS configured in production; hosted audio is disabled."
+    )
+    return "none"
+
+
+def kokoro_speech_url():
+    """Normalize KOKORO_TTS_URL to the OpenAI-compatible speech endpoint."""
+    base = (getattr(settings, "KOKORO_TTS_URL", "") or "").strip().rstrip("/")
+    if not base:
+        return ""
+    if base.endswith("/audio/speech"):
+        return base
+    if base.endswith("/v1/audio"):
+        return f"{base}/speech"
+    if base.endswith("/v1"):
+        return f"{base}/audio/speech"
+    return f"{base}/audio/speech"
 
 
 def default_tts_voice(override=None):
     """Return the configured voice for the active TTS provider."""
     if override:
         return override
-    if resolve_tts_provider() == "openai":
+    provider = resolve_tts_provider()
+    if provider == "openai":
         return getattr(settings, "OPENAI_TTS_VOICE", "alloy")
+    if provider == "kokoro":
+        return getattr(settings, "KOKORO_TTS_VOICE", "af_heart")
     return getattr(settings, "EDGE_TTS_VOICE", "en-US-JennyNeural")
 
 
@@ -137,7 +179,11 @@ def audio_generation_configured():
     provider = resolve_tts_provider()
     if provider == "openai":
         return bool(getattr(settings, "OPENAI_API_KEY", ""))
-    return True
+    if provider == "kokoro":
+        return bool(kokoro_speech_url())
+    if provider == "edge":
+        return True
+    return False
 
 
 # Backwards-compatible alias used across views/commands.
@@ -187,6 +233,31 @@ def synthesize_edge(text, *, voice):
             loop.close()
 
 
+def synthesize_kokoro(text, *, model=None, voice=None):
+    endpoint = kokoro_speech_url()
+    if not endpoint:
+        raise AudioGenerationError("KOKORO_TTS_URL is not configured.")
+
+    response = requests.post(
+        endpoint,
+        headers={"Content-Type": "application/json"},
+        json={
+            "model": model or getattr(settings, "KOKORO_TTS_MODEL", "tts-1"),
+            "input": text,
+            "voice": voice or getattr(settings, "KOKORO_TTS_VOICE", "af_heart"),
+            "response_format": "mp3",
+        },
+        timeout=120,
+    )
+    if response.status_code != 200:
+        raise AudioGenerationError(
+            f"Kokoro TTS request failed ({response.status_code}): {response.text[:300]}"
+        )
+    if not response.content:
+        raise AudioGenerationError("Kokoro TTS returned no audio data.")
+    return response.content
+
+
 def synthesize_chunk(text, *, provider, model=None, voice=None, api_key=None):
     if provider == "openai":
         return synthesize_openai(
@@ -195,6 +266,8 @@ def synthesize_chunk(text, *, provider, model=None, voice=None, api_key=None):
             voice=voice or getattr(settings, "OPENAI_TTS_VOICE", "alloy"),
             api_key=api_key or getattr(settings, "OPENAI_API_KEY", ""),
         )
+    if provider == "kokoro":
+        return synthesize_kokoro(text, model=model, voice=voice)
     return synthesize_edge(
         text,
         voice=voice or getattr(settings, "EDGE_TTS_VOICE", "en-US-JennyNeural"),
@@ -286,8 +359,12 @@ def generate_audio_for_text(text, *, storage_key, model=None, voice=None):
         raise AudioGenerationError("TTS/storage is not configured.")
 
     provider = resolve_tts_provider()
+    if provider == "none":
+        raise AudioGenerationError("TTS provider is not configured for production.")
     if provider == "openai" and not getattr(settings, "OPENAI_API_KEY", ""):
         raise AudioGenerationError("OPENAI_API_KEY is not configured.")
+    if provider == "kokoro" and not kokoro_speech_url():
+        raise AudioGenerationError("KOKORO_TTS_URL is not configured.")
 
     chunks = chunk_text(text)
     if not chunks:

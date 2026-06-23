@@ -345,7 +345,7 @@ WEBPUSH_VAPID_PRIVATE_KEY = env("WEBPUSH_VAPID_PRIVATE_KEY", default="")
 WEBPUSH_VAPID_CLAIMS_EMAIL = env("WEBPUSH_VAPID_CLAIMS_EMAIL", default="")
 
 # Article narration (TTS) + media storage (local disk or S3-compatible, e.g. R2).
-# Default provider is Edge neural TTS (free). Set TTS_PROVIDER=openai when using OpenAI.
+# Production: kokoro (self-host) or openai. Edge is dev/staging only.
 TTS_PROVIDER = env("TTS_PROVIDER", default="auto")
 OPENAI_API_KEY = env("OPENAI_API_KEY", default="")
 OPENAI_TTS_MODEL = env("OPENAI_TTS_MODEL", default="gpt-4o-mini-tts")
@@ -358,6 +358,14 @@ AUDIO_LOCAL_URL_PREFIX = env("AUDIO_LOCAL_URL_PREFIX", default="/api/mobile/v1/m
 
 # Content pipeline (RSS/API ingestion + LLM rewriting + editorial review).
 OPENAI_CHAT_MODEL = env("OPENAI_CHAT_MODEL", default="gpt-4o-mini")
+PEXELS_API_KEY = env("PEXELS_API_KEY", default="")
+UNSPLASH_ACCESS_KEY = env("UNSPLASH_ACCESS_KEY", default="")
+CURRENTS_API_KEY = env("CURRENTS_API_KEY", default="")
+CURRENTS_DEFAULT_LANGUAGE = env("CURRENTS_DEFAULT_LANGUAGE", default="en")
+CURRENTS_DAILY_REQUEST_BUDGET = env.int("CURRENTS_DAILY_REQUEST_BUDGET", default=1000)
+KOKORO_TTS_URL = env("KOKORO_TTS_URL", default="")
+KOKORO_TTS_MODEL = env("KOKORO_TTS_MODEL", default="tts-1")
+KOKORO_TTS_VOICE = env("KOKORO_TTS_VOICE", default="af_heart")
 PIPELINE_ENABLED = env.bool("PIPELINE_ENABLED", default=True)
 # When True, approved drafts publish automatically; otherwise editors publish
 # from the review queue in Django admin.

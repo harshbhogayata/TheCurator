@@ -19,6 +19,7 @@ from content_pipeline.models import (
 )
 from content_pipeline.services.dedup import cluster_new_items
 from content_pipeline.services.fetchers import fetch_source_safely
+from content_pipeline.services.image_resolver import resolve_stock_image
 from content_pipeline.services.llm import (
     LlmError,
     estimate_read_time_minutes,
@@ -107,6 +108,10 @@ def generate_drafts_from_clusters():
             if item.url
         ]
         image_url = next((item.image_url for item in items if item.image_url), "")
+        if not image_url:
+            resolved = resolve_stock_image(str(payload.get("image_query", "")))
+            if resolved:
+                image_url = resolved["image_url"]
 
         ArticleDraft.objects.create(
             kind=DraftKind.ARTICLE,
