@@ -9,20 +9,23 @@ import logging
 import re
 from collections import Counter
 from datetime import timedelta
+from urllib.parse import urlparse
 
 from django.utils import timezone
 
 from content_pipeline.models import (
     RawItem,
     RawItemStatus,
+    SourceKind,
     StoryCluster,
     StoryClusterStatus,
 )
 
 logger = logging.getLogger(__name__)
 
-CLUSTER_WINDOW_HOURS = 48
-SIMILARITY_THRESHOLD = 0.45
+CLUSTER_WINDOW_HOURS = 72
+SIMILARITY_THRESHOLD = 0.38
+CONSOLIDATION_THRESHOLD = 0.32
 
 STOPWORDS = {
     "the", "and", "for", "with", "from", "that", "this", "into", "over", "after",
@@ -43,6 +46,69 @@ def jaccard(a, b):
     intersection = len(a & b)
     union = len(a | b)
     return intersection / union if union else 0.0
+
+
+def distinct_coverage_count(items) -> int:
+    """Count distinct outlets covering a cluster.
+
+    RSS/Atom rows count per feed Source. API aggregator rows (e.g. Currents)
+    count per article URL domain so multi-outlet API bundles help reach the
+    PIPELINE_MIN_CLUSTER_SOURCES bar.
+    """
+    keys: set[str] = set()
+    for item in items:
+        if item.source.kind == SourceKind.API:
+            netloc = urlparse(item.url or "").netloc.lower().removeprefix("www.")
+            if netloc:
+                keys.add(f"domain:{netloc}")
+                continue
+        keys.add(f"feed:{item.source_id}")
+    return len(keys)
+
+
+def consolidate_open_clusters():
+    """Merge near-duplicate open clusters so coverage accumulates on one story."""
+    window_start = timezone.now() - timedelta(hours=CLUSTER_WINDOW_HOURS)
+    open_clusters = list(
+        StoryCluster.objects.filter(
+            status=StoryClusterStatus.OPEN,
+            created_at__gte=window_start,
+        ).prefetch_related("items")
+    )
+    cluster_tokens = {cluster.id: title_tokens(cluster.title) for cluster in open_clusters}
+    merged = 0
+    survivors: list[StoryCluster] = []
+
+    for cluster in open_clusters:
+        if not StoryCluster.objects.filter(id=cluster.id).exists():
+            continue
+
+        tokens = cluster_tokens[cluster.id]
+        target = None
+        target_score = 0.0
+        for survivor in survivors:
+            if (
+                cluster.category_id
+                and survivor.category_id
+                and cluster.category_id != survivor.category_id
+            ):
+                continue
+            score = jaccard(tokens, cluster_tokens[survivor.id])
+            if score >= CONSOLIDATION_THRESHOLD and score > target_score:
+                target = survivor
+                target_score = score
+
+        if target is None:
+            survivors.append(cluster)
+            continue
+
+        RawItem.objects.filter(cluster=cluster).update(cluster=target)
+        cluster.delete()
+        merged += 1
+
+    if merged:
+        logger.info("Pipeline consolidated %d overlapping cluster(s).", merged)
+    return merged
 
 
 def _dominant_category(cluster):
@@ -103,6 +169,8 @@ def cluster_new_items():
         item.status = RawItemStatus.CLUSTERED
         item.save(update_fields=["cluster", "status", "updated_at"])
         processed += 1
+
+    consolidate_open_clusters()
 
     # Refresh category on clusters that gained items from differently-hinted sources.
     for cluster in open_clusters:

@@ -16,7 +16,7 @@ from content_pipeline.models import (
     StoryCluster,
     StoryClusterStatus,
 )
-from content_pipeline.services.dedup import cluster_new_items
+from content_pipeline.services.dedup import cluster_new_items, distinct_coverage_count
 from content_pipeline.services.fetchers import fetch_source_safely
 from content_pipeline.services.image_resolver import resolve_content_hero_image
 from content_pipeline.services.llm import (
@@ -89,6 +89,7 @@ def generate_drafts_from_clusters():
     )
 
     created = 0
+    skipped_low_sources = 0
     for cluster in clusters:
         if created >= max_drafts:
             break
@@ -96,8 +97,9 @@ def generate_drafts_from_clusters():
         items = [
             item for item in cluster.items.all() if item.status == RawItemStatus.CLUSTERED
         ]
-        distinct_sources = {item.source_id for item in items}
-        if len(distinct_sources) < min_sources:
+        coverage = distinct_coverage_count(items)
+        if coverage < min_sources:
+            skipped_low_sources += 1
             continue
 
         try:
@@ -151,6 +153,13 @@ def generate_drafts_from_clusters():
 
     if created:
         logger.info("Pipeline generated %d draft(s).", created)
+    elif skipped_low_sources:
+        logger.info(
+            "Pipeline generated 0 drafts: %d open cluster(s) below min coverage "
+            "(%d distinct outlets required).",
+            skipped_low_sources,
+            min_sources,
+        )
     return created
 
 

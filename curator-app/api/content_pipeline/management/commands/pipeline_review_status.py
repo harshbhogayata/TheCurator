@@ -1,8 +1,19 @@
 """Print editorial queue stats (daily admin review habit / cron logging)."""
 
-from django.core.management.base import BaseCommand
+from collections import Counter
 
-from content_pipeline.models import ArticleDraft, DraftStatus
+from django.conf import settings
+from django.core.management.base import BaseCommand
+from django.utils import timezone
+
+from content_pipeline.models import (
+    ArticleDraft,
+    DraftStatus,
+    RawItemStatus,
+    StoryCluster,
+    StoryClusterStatus,
+)
+from content_pipeline.services.dedup import distinct_coverage_count
 
 
 class Command(BaseCommand):
@@ -18,6 +29,53 @@ class Command(BaseCommand):
         self.stdout.write(f"Drafts needing review:  {in_review}")
         self.stdout.write(f"Approved (publish queue): {approved}")
         self.stdout.write(f"Published (total):        {published_today}")
+
+        min_sources = settings.PIPELINE_MIN_CLUSTER_SOURCES
+        open_clusters = (
+            StoryCluster.objects.filter(status=StoryClusterStatus.OPEN)
+            .prefetch_related("items__source")
+            .order_by("-created_at")
+        )
+        coverage_counts: list[int] = []
+        eligible = 0
+        for cluster in open_clusters:
+            items = [
+                item for item in cluster.items.all() if item.status == RawItemStatus.CLUSTERED
+            ]
+            coverage = distinct_coverage_count(items)
+            coverage_counts.append(coverage)
+            if coverage >= min_sources:
+                eligible += 1
+
+        self.stdout.write("")
+        self.stdout.write(f"Open story clusters:      {len(coverage_counts)}")
+        self.stdout.write(
+            f"Eligible for drafting:    {eligible} "
+            f"(need {min_sources}+ distinct outlets)"
+        )
+        if coverage_counts:
+            histogram = Counter(coverage_counts)
+            buckets = ", ".join(f"{count}→{n}" for count, n in sorted(histogram.items()))
+            self.stdout.write(f"Coverage distribution:    {buckets}")
+            top = sorted(
+                (
+                    (
+                        distinct_coverage_count(
+                            [
+                                item
+                                for item in cluster.items.all()
+                                if item.status == RawItemStatus.CLUSTERED
+                            ]
+                        ),
+                        cluster.title[:80],
+                    )
+                    for cluster in open_clusters[:5]
+                ),
+                reverse=True,
+            )
+            self.stdout.write("Top open clusters:")
+            for coverage, title in top:
+                self.stdout.write(f"  · {coverage} outlets — {title}")
 
         if in_review:
             self.stdout.write("")
@@ -35,10 +93,26 @@ class Command(BaseCommand):
                     "(or use Publish now in admin)."
                 )
             )
+        elif eligible:
+            self.stdout.write("")
+            self.stdout.write(
+                self.style.WARNING(
+                    f"Action: {eligible} cluster(s) ready — run_pipeline should draft on "
+                    "the next cron tick (or run manually now)."
+                )
+            )
+        elif open_clusters.exists():
+            self.stdout.write("")
+            self.stdout.write(
+                self.style.WARNING(
+                    f"No clusters meet the {min_sources}-outlet bar yet. "
+                    "Stories need more overlapping coverage or a lower "
+                    "PIPELINE_MIN_CLUSTER_SOURCES."
+                )
+            )
         else:
             self.stdout.write(self.style.SUCCESS("Editorial queue clear."))
 
-        from django.utils import timezone
         from mobileapi.models import Brief
 
         today = timezone.localdate()
