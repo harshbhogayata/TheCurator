@@ -10,6 +10,7 @@ from content_pipeline.models import (
     Source,
     StoryCluster,
 )
+from mobileapi.models import Category
 from content_pipeline.services.fetchers import fetch_source_safely
 from content_pipeline.services.publish import PublishError, publish_draft
 
@@ -101,7 +102,7 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     list_display = (
         "title",
         "status_badge",
-        "category",
+        "category_label",
         "breaking_badge",
         "created_at",
     )
@@ -159,8 +160,27 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     )
     actions = ["approve_drafts", "publish_now", "reject_drafts", "send_back_to_review"]
 
+    def changelist_view(self, request, extra_context=None):
+        import logging
+
+        logger = logging.getLogger(__name__)
+        try:
+            return super().changelist_view(request, extra_context=extra_context)
+        except Exception:
+            logger.exception("ArticleDraft changelist_view failed")
+            raise
+
     def get_queryset(self, request):
         return super().get_queryset(request).select_related("category")
+
+    @admin.display(description="Category", ordering="category__name")
+    def category_label(self, obj):
+        if not obj.category_id:
+            return "-"
+        try:
+            return obj.category.name
+        except Category.DoesNotExist:
+            return "(missing)"
 
     @admin.display(description="Breaking")
     def breaking_badge(self, obj):
