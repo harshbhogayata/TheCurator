@@ -110,3 +110,27 @@ def resolve_stock_image(image_query: str) -> ResolvedImage | None:
         return None
 
     return _resolve_pexels(query) or _resolve_unsplash(query)
+
+
+def effective_image_query(*, title: str = "", image_query: str = "", category: str = "") -> str:
+    """Best stock-photo search phrase from LLM query, category, or title."""
+    query = (image_query or "").strip()
+    if query:
+        return query
+    category_name = (category or "").strip()
+    if category_name:
+        return f"{category_name} news"
+    words = (title or "").split()[:5]
+    return " ".join(words) if words else "world news"
+
+
+def resolve_content_hero_image(
+    *,
+    title: str = "",
+    image_query: str = "",
+    category: str = "",
+) -> ResolvedImage | None:
+    """Resolve a hero image using query fallbacks (Pexels → Unsplash)."""
+    return resolve_stock_image(
+        effective_image_query(title=title, image_query=image_query, category=category)
+    )

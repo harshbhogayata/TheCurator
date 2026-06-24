@@ -2,10 +2,36 @@ from unittest.mock import MagicMock, patch
 
 from django.test import SimpleTestCase, override_settings
 
-from content_pipeline.services.image_resolver import resolve_stock_image
+from content_pipeline.services.image_resolver import effective_image_query, resolve_stock_image
 
 
 class ImageResolverTests(SimpleTestCase):
+    def test_effective_image_query_prefers_llm_query(self):
+        self.assertEqual(
+            effective_image_query(
+                title="Long headline here",
+                image_query="climate summit",
+                category="World News",
+            ),
+            "climate summit",
+        )
+
+    def test_effective_image_query_falls_back_to_category(self):
+        self.assertEqual(
+            effective_image_query(title="Some headline", image_query="", category="Tech"),
+            "Tech news",
+        )
+
+    def test_effective_image_query_falls_back_to_title_words(self):
+        self.assertEqual(
+            effective_image_query(
+                title="Markets rally after Fed decision",
+                image_query="",
+                category="",
+            ),
+            "Markets rally after Fed decision",
+        )
+
     @override_settings(PEXELS_API_KEY="")
     def test_returns_none_without_api_key(self):
         self.assertIsNone(resolve_stock_image("city skyline"))

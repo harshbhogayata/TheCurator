@@ -6,7 +6,7 @@ from django.db import transaction
 from django.utils import timezone
 
 from content_pipeline.models import ArticleDraft, DraftKind, DraftStatus
-from content_pipeline.services.image_resolver import resolve_stock_image
+from content_pipeline.services.image_resolver import resolve_content_hero_image
 from mobileapi.models import Article, ArticleStatus, Brief
 
 logger = logging.getLogger(__name__)
@@ -38,8 +38,13 @@ def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
     image_url = (draft.image_url or "").strip()
     image_source_url = ""
     image_attribution = ""
-    if not image_url and draft.image_query:
-        resolved = resolve_stock_image(draft.image_query)
+    if not image_url and (draft.image_query or draft.title):
+        category_name = draft.category.name if draft.category_id else ""
+        resolved = resolve_content_hero_image(
+            title=draft.title,
+            image_query=draft.image_query,
+            category=category_name,
+        )
         if resolved:
             image_url = resolved["image_url"]
             image_source_url = resolved.get("image_source_url", "")

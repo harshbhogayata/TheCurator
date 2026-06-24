@@ -19,7 +19,7 @@ from content_pipeline.models import (
 )
 from content_pipeline.services.dedup import cluster_new_items
 from content_pipeline.services.fetchers import fetch_source_safely
-from content_pipeline.services.image_resolver import resolve_stock_image
+from content_pipeline.services.image_resolver import resolve_content_hero_image
 from content_pipeline.services.llm import (
     LlmError,
     estimate_read_time_minutes,
@@ -27,6 +27,15 @@ from content_pipeline.services.llm import (
     write_daily_brief,
 )
 from content_pipeline.services.publish import PublishError, publish_draft
+from content_pipeline.services.post_publish import (
+    compute_article_relations_sync,
+    generate_article_audio_sync,
+    generate_brief_audio_sync,
+    resolve_article_image_sync,
+    resolve_brief_image_sync,
+    resolve_missing_draft_images,
+    run_post_publish_maintenance,
+)
 from mobileapi.models import Article, ArticleStatus, Category
 
 logger = logging.getLogger(__name__)
@@ -108,8 +117,14 @@ def generate_drafts_from_clusters():
             if item.url
         ]
         image_url = next((item.image_url for item in items if item.image_url), "")
+        image_query = str(payload.get("image_query", ""))[:255]
+        category = _resolve_category(payload.get("category"), fallback=cluster.category)
         if not image_url:
-            resolved = resolve_stock_image(str(payload.get("image_query", "")))
+            resolved = resolve_content_hero_image(
+                title=payload["title"],
+                image_query=image_query,
+                category=category.name if category else "",
+            )
             if resolved:
                 image_url = resolved["image_url"]
 
@@ -120,9 +135,9 @@ def generate_drafts_from_clusters():
             title=payload["title"].strip()[:240],
             excerpt=payload["excerpt"].strip(),
             content=content,
-            category=_resolve_category(payload.get("category"), fallback=cluster.category),
+            category=category,
             read_time_minutes=estimate_read_time_minutes(content),
-            image_query=str(payload.get("image_query", ""))[:255],
+            image_query=image_query,
             image_url=image_url,
             topics=payload.get("topics") or [],
             source_links=source_links,
@@ -205,14 +220,19 @@ def publish_ready_drafts():
             continue
 
         if draft.kind == DraftKind.ARTICLE:
-            generate_article_audio_task.delay(str(content.id))
-            compute_article_relations.delay(str(content.id))
+            generate_article_audio_sync(str(content.id))
+            compute_article_relations_sync(str(content.id))
+            resolve_article_image_sync(content)
             if draft.is_breaking:
                 from mobileapi.tasks import send_breaking_news_alert
 
-                send_breaking_news_alert.delay(str(content.id))
+                try:
+                    send_breaking_news_alert.delay(str(content.id))
+                except Exception:
+                    send_breaking_news_alert(str(content.id))
         else:
-            generate_brief_audio_task.delay(str(content.id))
+            resolve_brief_image_sync(content)
+            generate_brief_audio_sync(str(content.id))
         published += 1
 
     return published
@@ -239,7 +259,9 @@ def run_pipeline():
     fetch_due_sources()
     cluster_raw_items()
     generate_drafts_from_clusters()
+    resolve_missing_draft_images()
     publish_ready_drafts()
+    run_post_publish_maintenance()
 
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=300)

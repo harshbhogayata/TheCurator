@@ -3,6 +3,7 @@
 Use for Railway cron, manual ops, or when Celery beat is not running.
 """
 
+from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
 from content_pipeline.tasks import run_pipeline
@@ -15,3 +16,4 @@ class Command(BaseCommand):
         self.stdout.write("Starting pipeline run...")
         run_pipeline()
         self.stdout.write(self.style.SUCCESS("Pipeline run finished."))
+        call_command("pipeline_review_status", verbosity=1)

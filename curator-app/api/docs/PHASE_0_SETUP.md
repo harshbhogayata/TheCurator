@@ -296,6 +296,8 @@ python manage.py run_pipeline
 
 4. Save. Railway runs this in the same environment as the web service (same env vars, same DB).
 
+Each run also **resolves hero images** (Pexels → Unsplash) and **generates missing narration** for up to 25 items each — no separate Celery worker required. Tune with `PIPELINE_RESOLVE_IMAGES_ON_RUN`, `PIPELINE_IMAGE_LIMIT`, `PIPELINE_GENERATE_AUDIO_ON_RUN`, `PIPELINE_AUDIO_LIMIT`.
+
 **Note:** Root directory is already `/app` in the container — no `cd api` needed.
 
 ### After first cron hour (or run manually now)
@@ -310,10 +312,10 @@ python manage.py run_pipeline
 2. Log in with superuser (create one if needed: `python manage.py createsuperuser`)
 3. Go to **Content pipeline** → **Drafts** (or review queue)
 4. Approve good drafts → **Publish**
-5. Optionally trigger audio for new articles:
+5. Images and audio are filled in automatically on the next `run_pipeline` run (or immediately if you use **Publish now** in admin). To backfill manually:
 
 ```bash
-python manage.py generate_content_audio --all-missing --limit 20
+python manage.py run_pipeline
 ```
 
 **Staging shortcut:** set `PIPELINE_AUTO_PUBLISH=true` only on a non-prod environment to skip manual review.
@@ -369,7 +371,7 @@ Use this as your master list. Items marked **(you)** are already confirmed from 
 1. **Step 8** — Deploy Kokoro (8A→8D above)
 2. **Step 10** — Enable hourly cron
 3. **Admin** — Publish 1–3 pipeline drafts
-4. **Audio** — `generate_content_audio --all-missing --limit 10`
+4. **Admin** — Publish 1–3 pipeline drafts (images + audio run inline)
 5. **Step 7** (optional) — Currents key if you want India feeds
 6. **Mobile** — ask to push mobile commit + EAS update
 

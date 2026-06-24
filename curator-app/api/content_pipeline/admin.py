@@ -1,4 +1,5 @@
 from django.contrib import admin, messages
+from django.db.models import Case, IntegerField, When
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
@@ -131,6 +132,41 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     actions = ["approve_drafts", "publish_now", "reject_drafts", "send_back_to_review"]
     date_hierarchy = "created_at"
 
+    def get_queryset(self, request):
+        return (
+            super()
+            .get_queryset(request)
+            .annotate(
+                review_priority=Case(
+                    When(status=DraftStatus.IN_REVIEW, then=0),
+                    When(status=DraftStatus.DRAFT, then=1),
+                    When(status=DraftStatus.APPROVED, then=2),
+                    default=3,
+                    output_field=IntegerField(),
+                )
+            )
+            .order_by("review_priority", "-created_at")
+        )
+
+    def changelist_view(self, request, extra_context=None):
+        in_review = ArticleDraft.objects.filter(
+            status__in=[DraftStatus.DRAFT, DraftStatus.IN_REVIEW]
+        ).count()
+        approved = ArticleDraft.objects.filter(status=DraftStatus.APPROVED).count()
+        if in_review:
+            messages.info(
+                request,
+                f"Editorial habit: {in_review} draft(s) need review — "
+                "open each, edit if needed, then Approve or Publish now.",
+            )
+        elif approved:
+            messages.info(
+                request,
+                f"{approved} approved draft(s) will publish on the next hourly "
+                "run_pipeline (or select and use Publish now).",
+            )
+        return super().changelist_view(request, extra_context=extra_context)
+
     @admin.display(description="Status")
     def status_badge(self, obj):
         colors = {
@@ -167,10 +203,12 @@ class ArticleDraftAdmin(admin.ModelAdmin):
 
     @admin.action(description="Publish now (creates live content + narration)")
     def publish_now(self, request, queryset):
-        from content_pipeline.tasks import (
-            compute_article_relations,
-            generate_article_audio_task,
-            generate_brief_audio_task,
+        from content_pipeline.services.post_publish import (
+            compute_article_relations_sync,
+            generate_article_audio_sync,
+            generate_brief_audio_sync,
+            resolve_article_image_sync,
+            resolve_brief_image_sync,
         )
 
         published = 0
@@ -181,14 +219,19 @@ class ArticleDraftAdmin(admin.ModelAdmin):
                 self.message_user(request, f"{draft.title}: {exc}", level=messages.WARNING)
                 continue
             if draft.kind == DraftKind.ARTICLE:
-                generate_article_audio_task.delay(str(content.id))
-                compute_article_relations.delay(str(content.id))
+                resolve_article_image_sync(content)
+                generate_article_audio_sync(str(content.id))
+                compute_article_relations_sync(str(content.id))
                 if draft.is_breaking:
                     from mobileapi.tasks import send_breaking_news_alert
 
-                    send_breaking_news_alert.delay(str(content.id))
+                    try:
+                        send_breaking_news_alert.delay(str(content.id))
+                    except Exception:
+                        send_breaking_news_alert(str(content.id))
             else:
-                generate_brief_audio_task.delay(str(content.id))
+                resolve_brief_image_sync(content)
+                generate_brief_audio_sync(str(content.id))
             published += 1
         if published:
             self.message_user(request, f"Published {published} draft(s).")
