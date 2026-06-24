@@ -9,6 +9,10 @@ from users.mobile_auth_pages import (
     MobileVerifyEmailPageView,
 )
 
+admin.site.site_header = "Curator editorial"
+admin.site.site_title = "Curator admin"
+admin.site.index_title = "Pipeline & content"
+
 urlpatterns = [
     path("", RootWelcomeView.as_view(), name="root"),
     path("m/donate", MobileDonatePageView.as_view(), name="mobile-donate"),

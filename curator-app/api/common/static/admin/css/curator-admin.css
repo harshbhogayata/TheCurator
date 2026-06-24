@@ -1,0 +1,20 @@
+/* Curator admin UX tweaks */
+
+#user-tools .theme-toggle {
+  margin-left: 0.35rem;
+  padding: 0.2rem 0.45rem;
+  vertical-align: middle;
+}
+
+#user-tools .theme-toggle svg {
+  display: inline-block;
+  width: 1rem;
+  height: 1rem;
+  vertical-align: -0.15em;
+}
+
+/* We only use explicit light/dark — hide the "auto" icon state */
+html[data-theme="light"] .theme-toggle .theme-icon-when-auto,
+html[data-theme="dark"] .theme-toggle .theme-icon-when-auto {
+  display: none;
+}

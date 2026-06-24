@@ -1,0 +1,33 @@
+{% extends "admin/base.html" %}
+{% load i18n static %}
+
+{% block title %}{% if subtitle %}{{ subtitle }} | {% endif %}{{ title }} | {{ site_title|default:_("Curator admin") }}{% endblock %}
+
+{% block dark-mode-vars %}
+<script>
+(function () {
+  try {
+    var mode = localStorage.getItem("theme");
+    if (mode !== "light" && mode !== "dark" && mode !== "auto") {
+      mode = "auto";
+    }
+    document.documentElement.setAttribute("data-theme", mode || "auto");
+  } catch (e) {
+    document.documentElement.setAttribute("data-theme", "auto");
+  }
+})();
+</script>
+<link rel="stylesheet" href="{% static 'admin/css/dark_mode.css' %}">
+<script src="{% static 'admin/js/curator-theme.js' %}"></script>
+{% endblock %}
+
+{% block extrastyle %}
+{{ block.super }}
+<link rel="stylesheet" href="{% static 'admin/css/curator-admin.css' %}">
+{% endblock %}
+
+{% block branding %}
+<div id="site-name"><a href="{% url 'admin:index' %}">{{ site_header|default:_("Curator editorial") }}</a></div>
+{% endblock %}
+
+{% block nav-global %}{% endblock %}

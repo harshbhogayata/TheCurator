@@ -185,7 +185,10 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     @admin.display(description="Breaking")
     def breaking_badge(self, obj):
         if obj.is_breaking:
-            return format_html('<span style="color:#b91c1c;font-weight:600;">Yes</span>')
+            return format_html(
+                '<span style="color:#b91c1c;font-weight:600;">{}</span>',
+                "Yes",
+            )
         return "-"
 
     @admin.display(description="Status")
