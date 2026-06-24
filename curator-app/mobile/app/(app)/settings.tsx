@@ -418,18 +418,18 @@ export default function SettingsScreen() {
             style={({ pressed }) => [
               styles.membershipButton,
               {
-                backgroundColor: pressed ? palette.primaryDim : palette.inverseSurface,
+                backgroundColor: pressed ? palette.primaryDim : palette.primary,
               },
             ]}
           >
             <View style={styles.membershipButtonContent}>
               <Text
                 numberOfLines={1}
-                style={[styles.membershipButtonText, { color: palette.inversePrimary }]}
+                style={[styles.membershipButtonText, { color: palette.primaryForeground }]}
               >
                 {tierCopy.action}
               </Text>
-              <ChevronRight size={18} color={palette.inversePrimary} />
+              <ChevronRight size={18} color={palette.primaryForeground} />
             </View>
           </Pressable>
         </View>
