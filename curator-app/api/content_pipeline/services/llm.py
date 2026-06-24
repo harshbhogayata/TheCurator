@@ -31,15 +31,16 @@ Respond with a single JSON object with exactly these keys:
 """
 
 BRIEF_SYSTEM_PROMPT = """\
-You are the editor of Curator's daily audio brief. Given today's published
+You are the editor of Curator's daily audio brief. Given the last day's published
 articles, write a single spoken-word brief in Curator's calm editorial voice:
 a flowing narration that connects the day's stories, suitable for text-to-speech.
 No markdown, no headings, no bullet points - plain paragraphs only.
+Aim for roughly 5-10 minutes when read aloud (about 900-1400 words).
 
 Respond with a single JSON object with exactly these keys:
 - "title": the brief's title, max 90 characters (e.g. "Your Tuesday briefing")
-- "summary": the full narration script, 350-650 words, paragraphs separated
-  by a blank line
+- "summary": the full narration script, 900-1400 words, paragraphs separated
+  by a blank line; open with a one-sentence overview, then weave stories together
 - "insights": integer count of distinct stories covered
 """
 
@@ -118,7 +119,12 @@ def write_daily_brief(articles):
     """Generate a daily brief payload from today's published articles."""
     stories_block = []
     for article in articles:
-        stories_block.append(f"TITLE: {article.title}\nEXCERPT: {article.excerpt[:500]}")
+        category = article.category.name if article.category_id else "News"
+        stories_block.append(
+            f"TITLE: {article.title}\n"
+            f"CATEGORY: {category}\n"
+            f"EXCERPT: {article.excerpt[:500]}"
+        )
 
     user_prompt = "Today's published stories:\n\n" + "\n\n---\n\n".join(stories_block)
     payload, model = _chat_json(BRIEF_SYSTEM_PROMPT, user_prompt)

@@ -37,3 +37,17 @@ class Command(BaseCommand):
             )
         else:
             self.stdout.write(self.style.SUCCESS("Editorial queue clear."))
+
+        from django.utils import timezone
+        from mobileapi.models import Brief
+
+        today = timezone.localdate()
+        if Brief.objects.filter(is_active=True, published_at=today).exists():
+            self.stdout.write(self.style.SUCCESS(f"Daily brief for {today}: published."))
+        else:
+            self.stdout.write(
+                self.style.WARNING(
+                    f"No daily brief for {today} yet — runs after publish_ready_drafts "
+                    "when PIPELINE_DAILY_BRIEF_ENABLED=true."
+                )
+            )

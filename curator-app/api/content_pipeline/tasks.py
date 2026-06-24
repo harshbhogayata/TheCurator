@@ -1,7 +1,6 @@
 """Celery tasks orchestrating the ingest -> cluster -> draft -> publish flow."""
 
 import logging
-from datetime import timedelta
 
 from celery import shared_task
 from django.conf import settings
@@ -24,7 +23,6 @@ from content_pipeline.services.llm import (
     LlmError,
     estimate_read_time_minutes,
     rewrite_cluster_to_article,
-    write_daily_brief,
 )
 from content_pipeline.services.publish import PublishError, publish_draft
 from content_pipeline.services.post_publish import (
@@ -36,7 +34,7 @@ from content_pipeline.services.post_publish import (
     resolve_missing_draft_images,
     run_post_publish_maintenance,
 )
-from mobileapi.models import Article, ArticleStatus, Category
+from mobileapi.models import Article, Category
 
 logger = logging.getLogger(__name__)
 
@@ -158,41 +156,10 @@ def generate_drafts_from_clusters():
 
 @shared_task
 def generate_daily_brief_draft():
-    """Draft the daily audio brief from the last 24h of published articles."""
-    if not settings.PIPELINE_ENABLED:
-        return None
+    """Legacy Celery beat hook — delegates to the daily brief pipeline."""
+    from content_pipeline.services.daily_brief import run_daily_brief_pipeline
 
-    since = timezone.localdate() - timedelta(days=1)
-    articles = list(
-        Article.objects.filter(
-            is_active=True,
-            status=ArticleStatus.PUBLISHED,
-            published_at__gte=since,
-        ).order_by("-published_at", "rank")[:12]
-    )
-    if not articles:
-        logger.info("Pipeline daily brief skipped: no recent articles.")
-        return None
-
-    try:
-        payload, model = write_daily_brief(articles)
-    except LlmError as exc:
-        logger.warning("Pipeline daily brief generation failed: %s", exc)
-        return None
-
-    draft = ArticleDraft.objects.create(
-        kind=DraftKind.BRIEF,
-        status=DraftStatus.IN_REVIEW,
-        title=payload["title"].strip()[:240],
-        excerpt=payload["summary"].strip()[:500],
-        content=payload["summary"].strip(),
-        source_links=[
-            {"name": article.title, "url": ""} for article in articles
-        ],
-        llm_model=model,
-    )
-    logger.info("Pipeline drafted daily brief: %s", draft.title)
-    return str(draft.id)
+    return run_daily_brief_pipeline()
 
 
 @shared_task
@@ -261,6 +228,9 @@ def run_pipeline():
     generate_drafts_from_clusters()
     resolve_missing_draft_images()
     publish_ready_drafts()
+    from content_pipeline.services.daily_brief import run_daily_brief_pipeline
+
+    run_daily_brief_pipeline()
     run_post_publish_maintenance()
 
 
