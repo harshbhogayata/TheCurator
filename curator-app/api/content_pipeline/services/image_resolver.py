@@ -49,7 +49,7 @@ def _resolve_pexels(query: str) -> ResolvedImage | None:
 
     photo = photos[0]
     src = photo.get("src") or {}
-    image_url = src.get("large2x") or src.get("large") or src.get("medium")
+    image_url = src.get("large") or src.get("large2x") or src.get("medium")
     if not image_url:
         return None
 

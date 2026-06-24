@@ -203,6 +203,8 @@ class ArticleDraftAdmin(admin.ModelAdmin):
 
     @admin.action(description="Publish now (creates live content + narration)")
     def publish_now(self, request, queryset):
+        import logging
+
         from content_pipeline.services.post_publish import (
             compute_article_relations_sync,
             generate_article_audio_sync,
@@ -211,6 +213,7 @@ class ArticleDraftAdmin(admin.ModelAdmin):
             resolve_brief_image_sync,
         )
 
+        logger = logging.getLogger(__name__)
         published = 0
         for draft in queryset:
             try:
@@ -218,20 +221,38 @@ class ArticleDraftAdmin(admin.ModelAdmin):
             except PublishError as exc:
                 self.message_user(request, f"{draft.title}: {exc}", level=messages.WARNING)
                 continue
-            if draft.kind == DraftKind.ARTICLE:
-                resolve_article_image_sync(content)
-                generate_article_audio_sync(str(content.id))
-                compute_article_relations_sync(str(content.id))
-                if draft.is_breaking:
-                    from mobileapi.tasks import send_breaking_news_alert
+            except Exception as exc:
+                logger.exception("Publish failed for draft %s", draft.id)
+                self.message_user(
+                    request,
+                    f"{draft.title}: publish error — {exc}",
+                    level=messages.ERROR,
+                )
+                continue
 
-                    try:
-                        send_breaking_news_alert.delay(str(content.id))
-                    except Exception:
-                        send_breaking_news_alert(str(content.id))
-            else:
-                resolve_brief_image_sync(content)
-                generate_brief_audio_sync(str(content.id))
+            try:
+                if draft.kind == DraftKind.ARTICLE:
+                    resolve_article_image_sync(content)
+                    generate_article_audio_sync(str(content.id))
+                    compute_article_relations_sync(str(content.id))
+                    if draft.is_breaking:
+                        from mobileapi.tasks import send_breaking_news_alert
+
+                        try:
+                            send_breaking_news_alert.delay(str(content.id))
+                        except Exception:
+                            send_breaking_news_alert(str(content.id))
+                else:
+                    resolve_brief_image_sync(content)
+                    generate_brief_audio_sync(str(content.id))
+            except Exception as exc:
+                logger.exception("Post-publish failed for %s", draft.id)
+                self.message_user(
+                    request,
+                    f"Published “{draft.title}” but image/audio step failed: {exc}. "
+                    "Run `python manage.py run_pipeline` to backfill.",
+                    level=messages.WARNING,
+                )
             published += 1
         if published:
             self.message_user(request, f"Published {published} draft(s).")
