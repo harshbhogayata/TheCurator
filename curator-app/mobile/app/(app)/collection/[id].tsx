@@ -19,6 +19,7 @@ import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { SwipeableArticleCard } from "../../../src/ui/swipeable-article-card";
 import { useArticlesByIds, useSavedArticlesList } from "../../../src/hooks/use-articles";
 import { PillPageHeader } from "../../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../../src/lib/layout";
 
 export default function CollectionDetailScreen() {
   const { palette } = useTheme();
@@ -33,6 +34,7 @@ export default function CollectionDetailScreen() {
   } = useCollections();
   const { showToast } = useToast();
   const router = useRouter();
+  const modalScrollPadding = useModalScrollPadding();
 
   const addModalRef = useRef<BottomSheetModal>(null);
   const editModalRef = useRef<BottomSheetModal>(null);
@@ -119,12 +121,12 @@ export default function CollectionDetailScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title={collection.name} />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: 4 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: modalScrollPadding }}
         showsVerticalScrollIndicator={false}
       >
         {/* Meta row — matches the narrativesHeader pattern in explore */}

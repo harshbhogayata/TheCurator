@@ -1,10 +1,7 @@
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
-import { BlurView } from "expo-blur";
 import {
-  X,
   FolderOpen,
   BarChart3,
   Heart,
@@ -21,6 +18,9 @@ import { useAuth } from "../../src/providers/auth-provider";
 import { useSubscription } from "../../src/providers/subscription-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { ProfileAvatar } from "../../src/ui/profile-avatar";
+import { GlassCard } from "../../src/ui/glass-card";
+import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { userDisplayName } from "../../src/lib/user-display-name";
 import { useNavigateFromModal } from "../../src/lib/navigate-from-modal";
 
@@ -35,11 +35,11 @@ const menuItems = [
 ];
 
 export default function MenuScreen() {
-  const { palette, resolvedTheme } = useTheme();
+  const { palette } = useTheme();
   const { session, signOut } = useAuth();
   const { tier } = useSubscription();
-  const router = useRouter();
   const navigateFromModal = useNavigateFromModal();
+  const modalScrollPadding = useModalScrollPadding();
 
   const handleSignOut = () => {
     Alert.alert("Sign Out?", "You'll need to sign in again to access your saved articles.", [
@@ -49,7 +49,6 @@ export default function MenuScreen() {
   };
 
   const displayName = userDisplayName(session?.user);
-  const tint = resolvedTheme === "dark" ? "dark" : "light";
   const memberLabel =
     tier === "lifetime"
       ? "Lifetime Member"
@@ -84,122 +83,55 @@ export default function MenuScreen() {
         ]}
       />
 
-      <SafeAreaView style={{ flex: 1 }} edges={["top", "left", "right"]}>
-        <View style={styles.headerRow}>
-          <View style={[styles.shadow, { flex: 1 }]}>
-            <View
-              style={[
-                styles.headerPill,
-                {
-                  borderColor: palette.outlineVariant + "4D",
-                },
-              ]}
-            >
-              <BlurView
-                pointerEvents="none"
-                intensity={80}
-                tint={tint}
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  { backgroundColor: palette.surfaceContainerLowest + "CC" },
-                ]}
-              />
-              <Text style={[styles.headerTitle, { color: palette.onSurface }]}>
-                Menu
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.shadow}>
-            <View
-              style={[
-                styles.closePill,
-                {
-                  borderColor: palette.outlineVariant + "4D",
-                },
-              ]}
-            >
-              <BlurView
-                pointerEvents="none"
-                intensity={80}
-                tint={tint}
-                style={[
-                  StyleSheet.absoluteFillObject,
-                  { backgroundColor: palette.surfaceContainerLowest + "CC" },
-                ]}
-              />
-              <Pressable
-                onPress={() => router.back()}
-                style={({ pressed }) => [
-                  styles.closeButton,
-                  {
-                    backgroundColor: pressed ? palette.surfaceContainerLow + "99" : "transparent",
-                  },
-                ]}
-              >
-                <X size={20} color={palette.onSurface} strokeWidth={2.5} />
-              </Pressable>
-            </View>
-          </View>
-        </View>
+      <SafeAreaView style={{ flex: 1 }} edges={[]}>
+        <PillPageHeader title="Menu" leadingAction="close" />
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: modalScrollPadding }]}
           showsVerticalScrollIndicator={false}
         >
           <Pressable
             onPress={() => navigateFromModal("/(app)/profile")}
-            style={({ pressed }) => [
-              styles.profileCard,
-              {
-                borderColor: palette.outlineVariant + "26",
-                backgroundColor: pressed ? palette.surfaceContainerLow + "66" : "transparent",
-              },
-            ]}
+            style={({ pressed }) => ({ opacity: pressed ? 0.94 : 1, marginBottom: 28 })}
           >
-            <BlurView
-              pointerEvents="none"
-              intensity={78}
-              tint={tint}
-              style={[
-                StyleSheet.absoluteFillObject,
-                { backgroundColor: palette.surfaceContainerLowest + "BF" },
-              ]}
-            />
-
-            <View
-              style={[
-                styles.profileAvatarWrap,
-                { borderColor: palette.outlineVariant + "40" },
-              ]}
+            <GlassCard
+              borderRadius={38}
+              style={styles.profileCard}
             >
-              <ProfileAvatar
-                avatarUrl={session?.user?.avatarUrl}
-                displayName={session?.user?.displayName}
-                email={session?.user?.email}
-                size={64}
-              />
-            </View>
-
-            <View style={styles.profileCopy}>
-              <Text style={[styles.profileName, { color: palette.onSurface }]} numberOfLines={1}>
-                {displayName}
-              </Text>
-              <View style={styles.profileMetaRow}>
-                <SubscriptionBadge size="sm" />
-                <Text style={[styles.profileMeta, { color: palette.outline }]}>
-                  {memberLabel}
-                </Text>
+              <View
+                style={[
+                  styles.profileAvatarWrap,
+                  { borderColor: palette.outlineVariant + "40" },
+                ]}
+              >
+                <ProfileAvatar
+                  avatarUrl={session?.user?.avatarUrl}
+                  displayName={session?.user?.displayName}
+                  email={session?.user?.email}
+                  size={64}
+                />
               </View>
-            </View>
 
-            <ChevronRight
-              size={20}
-              color={palette.outlineVariant}
-              strokeWidth={2.2}
-              style={{ flexShrink: 0 }}
-            />
+              <View style={styles.profileCopy}>
+                <Text style={[styles.profileName, { color: palette.onSurface }]} numberOfLines={1}>
+                  {displayName}
+                </Text>
+                <View style={styles.profileMetaRow}>
+                  <SubscriptionBadge size="sm" />
+                  <Text style={[styles.profileMeta, { color: palette.outline }]}>
+                    {memberLabel}
+                  </Text>
+                </View>
+              </View>
+
+              <ChevronRight
+                size={20}
+                color={palette.outlineVariant}
+                strokeWidth={2.2}
+                style={{ flexShrink: 0 }}
+              />
+            </GlassCard>
           </Pressable>
 
           <View style={styles.navList}>
@@ -207,23 +139,7 @@ export default function MenuScreen() {
               const Icon = item.icon;
 
               return (
-                <View
-                  key={item.label}
-                  style={[
-                    styles.menuCard,
-                    { borderColor: palette.outlineVariant + "24" },
-                  ]}
-                >
-                  <BlurView
-                    pointerEvents="none"
-                    intensity={78}
-                    tint={tint}
-                    style={[
-                      StyleSheet.absoluteFillObject,
-                      { backgroundColor: palette.surfaceContainerLowest + "BA" },
-                    ]}
-                  />
-
+                <GlassCard key={item.label} borderRadius={30} style={styles.menuCard}>
                   <Pressable
                     onPress={() => navigateFromModal(item.path)}
                     style={({ pressed }) => [
@@ -255,27 +171,12 @@ export default function MenuScreen() {
                       <ChevronRight size={18} color={palette.outlineVariant} strokeWidth={2.1} />
                     </View>
                   </Pressable>
-                </View>
+                </GlassCard>
               );
             })}
           </View>
 
-          <View
-            style={[
-              styles.signOutCard,
-              { borderColor: palette.outlineVariant + "24" },
-            ]}
-          >
-            <BlurView
-              pointerEvents="none"
-              intensity={78}
-              tint={tint}
-              style={[
-                StyleSheet.absoluteFillObject,
-                { backgroundColor: palette.surfaceContainerLowest + "BA" },
-              ]}
-            />
-
+          <GlassCard borderRadius={30} style={styles.signOutCard}>
             <Pressable
               onPress={handleSignOut}
               style={({ pressed }) => [
@@ -311,7 +212,7 @@ export default function MenuScreen() {
                 </View>
               </View>
             </Pressable>
-          </View>
+          </GlassCard>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -330,61 +231,15 @@ const styles = StyleSheet.create({
     width: 220,
     height: 220,
   },
-  shadow: {
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 6 },
-    shadowOpacity: 0.1,
-    shadowRadius: 18,
-    elevation: 8,
-  },
-  headerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 16,
-    paddingBottom: 14,
-  },
-  headerPill: {
-    overflow: "hidden",
-    borderRadius: 999,
-    borderWidth: 2,
-    paddingHorizontal: 24,
-    paddingVertical: 11,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  headerTitle: {
-    fontFamily: "Newsreader_500Medium_Italic",
-    fontSize: 25,
-  },
-  closePill: {
-    overflow: "hidden",
-    borderRadius: 999,
-    borderWidth: 2,
-    padding: 4,
-  },
-  closeButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    alignItems: "center",
-    justifyContent: "center",
-  },
   scrollContent: {
     paddingHorizontal: 24,
-    paddingTop: 10,
     paddingBottom: 42,
   },
   profileCard: {
-    overflow: "hidden",
-    borderRadius: 38,
-    borderWidth: 1,
     padding: 22,
     flexDirection: "row",
     alignItems: "center",
     gap: 16,
-    marginBottom: 28,
     minHeight: 112,
   },
   profileAvatarWrap: {
@@ -417,9 +272,7 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   menuCard: {
-    overflow: "hidden",
-    borderRadius: 30,
-    borderWidth: 1,
+    // Shadow handled by GlassCard outer wrapper.
   },
   menuPressable: {
     width: "100%",
@@ -451,9 +304,6 @@ const styles = StyleSheet.create({
     lineHeight: 22,
   },
   signOutCard: {
-    overflow: "hidden",
-    borderRadius: 30,
-    borderWidth: 1,
     marginTop: 28,
   },
 });

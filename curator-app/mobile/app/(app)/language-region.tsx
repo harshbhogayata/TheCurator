@@ -7,6 +7,7 @@ import { Check, Info } from "lucide-react-native";
 import { useTheme } from "../../src/providers/theme-provider";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 
 const REGION_STORAGE_KEY = "@curator/locale-region";
 
@@ -19,6 +20,7 @@ const regions = [
 export default function LanguageRegionScreen() {
   const { palette } = useTheme();
   const { showToast } = useToast();
+  const modalScrollPadding = useModalScrollPadding();
   const [selectedRegion, setSelectedRegion] = useState("en-US");
 
   useEffect(() => {
@@ -37,12 +39,12 @@ export default function LanguageRegionScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Language & Region" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: modalScrollPadding, paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
         <Text

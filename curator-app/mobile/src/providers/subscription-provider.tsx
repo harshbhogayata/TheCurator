@@ -72,6 +72,15 @@ const MOCK_PREMIUM = __DEV__ && process.env.EXPO_PUBLIC_MOCK_PREMIUM === "true";
 const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
 
 const STORAGE_KEY = "curator.subscription-tier";
+const VALID_TIERS = new Set<SubscriptionTier>(["free", "basic", "premium", "lifetime"]);
+
+function tierStorageKey(userId: string) {
+  return `${STORAGE_KEY}.${userId}`;
+}
+
+function isValidTier(value: string): value is SubscriptionTier {
+  return VALID_TIERS.has(value as SubscriptionTier);
+}
 const RC_ENTITLEMENT_IDS: Record<Exclude<SubscriptionTier, "free">, string[]> = {
   basic: [process.env.EXPO_PUBLIC_RC_BASIC_ENTITLEMENT_ID ?? "Basic", "basic"],
   premium: [process.env.EXPO_PUBLIC_RC_PREMIUM_ENTITLEMENT_ID ?? "Premium", "premium"],
@@ -155,29 +164,36 @@ function higherTier(a: SubscriptionTier, b: SubscriptionTier): SubscriptionTier 
   return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
 }
 
-async function resolveSubscriptionTier(): Promise<{
+async function resolveSubscriptionTier(session?: {
+  user: { id: string; firebaseUid?: string | null };
+}): Promise<{
   tier: SubscriptionTier;
   backendOk: boolean;
 }> {
   let resolved: SubscriptionTier = MOCK_PREMIUM ? "premium" : "free";
   let backendOk = true;
 
-  try {
-    const payload = await fetchEntitlement();
-    resolved = payload.effectiveTier ?? payload.tier;
-  } catch {
-    backendOk = false;
-  }
-
   if (!MOCK_BACKEND && Purchases && Platform.OS !== "web" && Constants.appOwnership !== "expo") {
     try {
-      const customerInfo = await Purchases.getCustomerInfo();
-      resolved = higherTier(resolved, tierFromCustomerInfo(customerInfo));
-    } catch {
-      if (!backendOk) {
-        return { tier: resolved, backendOk: false };
+      if (session?.user?.id) {
+        const appUserId =
+          session.user.firebaseUid ??
+          (firebaseConfigured ? getFirebaseAuth().currentUser?.uid : null) ??
+          session.user.id;
+        await Purchases.logIn(appUserId);
       }
+      const customerInfo = await Purchases.getCustomerInfo();
+      resolved = tierFromCustomerInfo(customerInfo);
+    } catch {
+      // RevenueCat unavailable — fall through to backend entitlement.
     }
+  }
+
+  try {
+    const payload = await fetchEntitlement();
+    resolved = higherTier(resolved, payload.effectiveTier ?? payload.tier);
+  } catch {
+    backendOk = false;
   }
 
   return { tier: resolved, backendOk };
@@ -296,25 +312,41 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     if (!MOCK_BACKEND) {
       if (!session?.user?.id) {
         setTierState(MOCK_PREMIUM ? "premium" : "free");
+        setIsTierResolving(false);
         return;
       }
 
       let cancelled = false;
+      const userId = session.user.id;
+      const storageKey = tierStorageKey(userId);
+
       setIsTierResolving(true);
-      void resolveSubscriptionTier()
-        .then(({ tier: resolved, backendOk }) => {
+
+      const hydrateAndResolve = async () => {
+        try {
+          const cached = await AsyncStorage.getItem(storageKey);
+          if (!cancelled && cached && isValidTier(cached)) {
+            setTierState(cached);
+          }
+
+          const { tier: resolved, backendOk } = await resolveSubscriptionTier(session);
           if (!cancelled) {
             setTierState(resolved);
+            await AsyncStorage.setItem(storageKey, resolved).catch(console.error);
             setTierSyncDegraded(!backendOk && !usesRazorpayBilling());
-            setIsTierResolving(false);
           }
-        })
-        .catch(() => {
+        } catch {
           if (!cancelled) {
             setTierSyncDegraded(!usesRazorpayBilling());
+          }
+        } finally {
+          if (!cancelled) {
             setIsTierResolving(false);
           }
-        });
+        }
+      };
+
+      void hydrateAndResolve();
 
       return () => {
         cancelled = true;
@@ -323,8 +355,8 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
     let cancelled = false;
     AsyncStorage.getItem(STORAGE_KEY).then((value) => {
-      if (!cancelled && value) {
-        setTierState(value as SubscriptionTier);
+      if (!cancelled && value && isValidTier(value)) {
+        setTierState(value);
       }
     });
     return () => {
@@ -332,10 +364,14 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
     };
   }, [session?.user?.id]);
 
-  const setTier = useCallback((newTier: SubscriptionTier) => {
-    setTierState(newTier);
-    void AsyncStorage.setItem(STORAGE_KEY, newTier).catch(console.error);
-  }, []);
+  const setTier = useCallback(
+    (newTier: SubscriptionTier) => {
+      setTierState(newTier);
+      const storageKey = session?.user?.id ? tierStorageKey(session.user.id) : STORAGE_KEY;
+      void AsyncStorage.setItem(storageKey, newTier).catch(console.error);
+    },
+    [session?.user?.id],
+  );
 
   const purchasePackage = useCallback(async (pkg: PurchasesPackage) => {
     if (MOCK_BACKEND || Platform.OS === "web" || !Purchases) return false;
@@ -464,13 +500,18 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const refreshTier = useCallback(async () => {
     setIsTierResolving(true);
     try {
-      const { tier: resolved, backendOk } = await resolveSubscriptionTier();
+      const { tier: resolved, backendOk } = await resolveSubscriptionTier(
+        session ?? undefined,
+      );
       setTierState(resolved);
+      if (session?.user?.id) {
+        await AsyncStorage.setItem(tierStorageKey(session.user.id), resolved).catch(console.error);
+      }
       setTierSyncDegraded(!backendOk && !usesRazorpayBilling());
     } finally {
       setIsTierResolving(false);
     }
-  }, []);
+  }, [session]);
 
   const restorePurchases = useCallback(async () => {
     if (MOCK_BACKEND || usesRazorpayBilling() || Platform.OS === "web" || !Purchases || isExpoGo) {
@@ -524,7 +565,8 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       tier,
       setTier,
       billingProvider: getBillingProvider(),
-      hasAdFree: features.adFree,
+      // Hide ad/promo surfaces until entitlement is confirmed (prevents premium flash).
+      hasAdFree: features.adFree || isTierResolving,
       hasAudioAccess: features.audio,
       hasBriefAudioAccess: features.briefAudio,
       hasUnlimitedSaves: features.unlimitedSaves,

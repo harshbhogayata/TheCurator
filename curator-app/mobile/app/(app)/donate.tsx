@@ -26,6 +26,7 @@ import { DONATE_PLAN_COPY } from "../../src/lib/tier-copy";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import {
   DonateSubscribePill,
   getDonateSubscribeScrollPadding,
@@ -97,6 +98,7 @@ export default function DonateScreen() {
   const { showToast } = useToast();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const modalScrollPadding = useModalScrollPadding();
   const scrollClearance = getDonateSubscribeScrollPadding(insets.bottom);
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
   const selectedPlanData = plans.find((plan) => plan.id === selectedPlan) ?? plans[2];
@@ -191,12 +193,16 @@ export default function DonateScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={["top"]}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Support Us" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: scrollClearance }}
+        contentContainerStyle={{
+          paddingTop: modalScrollPadding,
+          paddingHorizontal: 20,
+          paddingBottom: scrollClearance,
+        }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}

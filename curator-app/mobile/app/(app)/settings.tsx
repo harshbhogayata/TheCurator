@@ -32,6 +32,7 @@ import { updatePreferences as updatePreferencesRemote } from "../../src/services
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
 import { MembershipSyncBanner } from "../../src/ui/membership-sync-banner";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { type } from "../../src/ui/tokens/typography";
 
 const themeOptions: Array<{
@@ -250,6 +251,7 @@ export default function SettingsScreen() {
   } = useAuth();
   const { showToast } = useToast();
   const router = useRouter();
+  const modalScrollPadding = useModalScrollPadding();
   const sessionCategories = session?.onboarding.selectedCategories ?? [];
 
   const [preferences, setPreferences] = useState<UserPreferences>(
@@ -360,9 +362,9 @@ export default function SettingsScreen() {
 
   if (status === "loading" && !session) {
     return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
         <PillPageHeader title="Settings" />
-        <View style={{ flex: 1, paddingHorizontal: 20, gap: 16, paddingTop: 16 }}>
+        <View style={{ flex: 1, paddingHorizontal: 20, gap: 16, paddingTop: modalScrollPadding }}>
           {[120, 72, 72, 72].map((h, i) => (
             <View key={i} style={{ height: h, borderRadius: 30, backgroundColor: palette.surfaceContainerLow }} />
           ))}
@@ -372,12 +374,12 @@ export default function SettingsScreen() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Settings" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: modalScrollPadding }]}
         showsVerticalScrollIndicator={false}
       >
         <MembershipSyncBanner embedded />

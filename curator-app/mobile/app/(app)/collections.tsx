@@ -19,6 +19,7 @@ import { ConfirmDialog } from "../../src/ui/confirm-dialog";
 import { shape } from "../../src/ui/tokens/spacing";
 import { type } from "../../src/ui/tokens/typography";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { useArticles } from "../../src/hooks/use-articles";
 import { IMAGES } from "../../src/data/images";
 
@@ -44,6 +45,7 @@ export default function CollectionsScreen() {
   const { data: allArticles = [] } = useArticles();
   const { showToast } = useToast();
   const router = useRouter();
+  const modalScrollPadding = useModalScrollPadding();
 
   const createModalRef = useRef<BottomSheetModal>(null);
   const [newName, setNewName] = useState("");
@@ -98,12 +100,12 @@ export default function CollectionsScreen() {
   );
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Collections" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: 8 }}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: modalScrollPadding }}
         showsVerticalScrollIndicator={false}
       >
         {/* New Collection row */}

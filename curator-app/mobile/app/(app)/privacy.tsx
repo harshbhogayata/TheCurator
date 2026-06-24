@@ -4,6 +4,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useTheme } from "../../src/providers/theme-provider";
 import { PRIVACY_EMAIL } from "../../src/constants/site";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 
 const sections = [
   {
@@ -59,14 +60,15 @@ const sections = [
 
 export default function PrivacyScreen() {
   const { palette } = useTheme();
+  const modalScrollPadding = useModalScrollPadding();
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Privacy Policy" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: modalScrollPadding, paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
         <Text

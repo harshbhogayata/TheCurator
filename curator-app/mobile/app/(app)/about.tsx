@@ -9,9 +9,11 @@ import {
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 
 export default function AboutScreen() {
   const { palette } = useTheme();
+  const modalScrollPadding = useModalScrollPadding();
 
   const values = [
     {
@@ -58,12 +60,12 @@ export default function AboutScreen() {
   ];
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="About The Curator" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: modalScrollPadding, paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Hero */}

@@ -7,11 +7,13 @@ import * as Linking from "expo-linking";
 import { useTheme } from "../../src/providers/theme-provider";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { listPrivacyExports, requestPrivacyExport, type PrivacyExportPayload } from "../../src/services/mobile-api";
 
 export default function DataExportScreen() {
   const { palette } = useTheme();
   const { showToast } = useToast();
+  const modalScrollPadding = useModalScrollPadding();
 
   const [exports, setExports] = useState<PrivacyExportPayload[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,12 +52,12 @@ export default function DataExportScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Data Export" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: modalScrollPadding }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.description, { color: palette.onSurfaceVariant }]}>

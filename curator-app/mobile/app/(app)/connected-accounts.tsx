@@ -6,6 +6,7 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 
 const providerCopy = {
   email: {
@@ -29,16 +30,17 @@ export default function ConnectedAccountsScreen() {
   const { palette } = useTheme();
   const { session } = useAuth();
   const { showToast } = useToast();
+  const modalScrollPadding = useModalScrollPadding();
 
   const connectedProviders = new Set(session?.identities.map((identity) => identity.provider) ?? []);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Connected Accounts" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: modalScrollPadding }]}
         showsVerticalScrollIndicator={false}
       >
         <Text style={[styles.intro, { color: palette.onSurfaceVariant }]}>

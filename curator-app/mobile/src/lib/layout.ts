@@ -24,6 +24,11 @@ export function useTabScrollPaddingTop() {
   return useHeaderOffset() + TAB_HERO_GAP;
 }
 
+/** Scroll paddingTop for modal screens with floating PillPageHeader. */
+export function useModalScrollPadding() {
+  return useHeaderOffset() + 12;
+}
+
 export function useLayout() {
   const { width, height } = useWindowDimensions();
   const isTablet = width >= BREAKPOINTS.lg;

@@ -7,6 +7,7 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { SUPPORT_EMAIL } from "../../src/constants/site";
 import { buildHelpFaqs, openSupportEmail } from "../../src/lib/help-content";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { useToast } from "../../src/providers/toast-provider";
 
 interface FAQItem {
@@ -20,6 +21,7 @@ const categories = ["All", "Getting Started", "Subscription", "Features", "Techn
 export default function HelpScreen() {
   const { palette } = useTheme();
   const { showToast } = useToast();
+  const modalScrollPadding = useModalScrollPadding();
   const faqs = useMemo(() => buildHelpFaqs(), []);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
@@ -35,12 +37,12 @@ export default function HelpScreen() {
   });
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Help & Support" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: modalScrollPadding, paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
       >
         {/* Search */}

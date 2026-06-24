@@ -8,6 +8,7 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { useReadingStats } from "../../src/providers/reading-stats-provider";
 import { useSavedArticles } from "../../src/providers/saved-articles-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { ErrorState } from "../../src/ui/error-state";
 import { type } from "../../src/ui/tokens/typography";
 
@@ -23,6 +24,7 @@ export default function ReadingStatsScreen() {
   const { palette } = useTheme();
   const { stats, averageReadTimeMs, thisWeekArticles, statsLoadError, refreshReadingStats } = useReadingStats();
   const { savedCount } = useSavedArticles();
+  const modalScrollPadding = useModalScrollPadding();
   const [timeframe, setTimeframe] = useState<"week" | "month">("week");
   const [refreshing, setRefreshing] = useState(false);
 
@@ -53,12 +55,12 @@ export default function ReadingStatsScreen() {
   const maxVal = Math.max(...barData.map((d) => d.value), 1);
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Reading Stats" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
+        contentContainerStyle={{ paddingTop: modalScrollPadding, paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl

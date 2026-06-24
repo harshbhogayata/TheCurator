@@ -1,6 +1,5 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
@@ -24,8 +23,9 @@ import { useReadingStats } from "../../src/providers/reading-stats-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { ProfileAvatar } from "../../src/ui/profile-avatar";
 import { EmailVerificationBanner } from "../../src/ui/email-verification-banner";
-import { Header } from "../../src/ui/header";
-import { useHeaderOffset } from "../../src/lib/layout";
+import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { GlassCard } from "../../src/ui/glass-card";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { userDisplayName } from "../../src/lib/user-display-name";
 import { type } from "../../src/ui/tokens/typography";
 import { useToast } from "../../src/providers/toast-provider";
@@ -39,14 +39,14 @@ const profileActions = [
 ];
 
 export default function ProfileScreen() {
-  const { palette, resolvedTheme } = useTheme();
+  const { palette } = useTheme();
   const { session, updateProfileAvatar } = useAuth();
   const { tier } = useSubscription();
   const { savedCount } = useSavedArticles();
   const { stats } = useReadingStats();
   const router = useRouter();
   const navigateFromModal = useNavigateFromModal();
-  const headerOffset = useHeaderOffset();
+  const modalScrollPadding = useModalScrollPadding();
   const { showToast } = useToast();
   
   const handlePickImage = async () => {
@@ -77,7 +77,6 @@ export default function ProfileScreen() {
   };
 
   const displayName = userDisplayName(session?.user);
-  const tint = resolvedTheme === "dark" ? "dark" : "light";
   const memberLabel =
     tier === "lifetime"
       ? "Lifetime Member"
@@ -121,11 +120,14 @@ export default function ProfileScreen() {
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={[]}>
-        <Header title="Profile" showMenu={false} showProfile={false} showBadge={false} />
+        <PillPageHeader title="Profile" leadingAction="close" />
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={[styles.scrollContent, { paddingTop: headerOffset }]}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingTop: modalScrollPadding },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           <EmailVerificationBanner />
@@ -202,30 +204,19 @@ export default function ProfileScreen() {
                   }
                   router.push(item.path);
                 }}
-                style={({ pressed }) => [
-                  styles.statCard,
-                  {
-                    borderColor: palette.outlineVariant + "26",
-                    shadowColor: "#000",
-                    opacity: pressed ? 0.92 : 1,
-                  },
-                ]}
+                style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.92 : 1 })}
               >
-                <BlurView
-                  pointerEvents="none"
-                  intensity={72}
-                  tint={tint}
-                  style={[
-                    StyleSheet.absoluteFillObject,
-                    { backgroundColor: palette.surfaceContainerLowest + "BF" },
-                  ]}
-                />
-                <Text style={[styles.statValue, { color: palette.primary }]}>
-                  {item.value}
-                </Text>
-                <Text style={[styles.statLabel, { color: palette.onSurfaceVariant }]}>
-                  {item.label}
-                </Text>
+                <GlassCard
+                  borderRadius={28}
+                  style={styles.statCard}
+                >
+                  <Text style={[styles.statValue, { color: palette.primary }]}>
+                    {item.value}
+                  </Text>
+                  <Text style={[styles.statLabel, { color: palette.onSurfaceVariant }]}>
+                    {item.label}
+                  </Text>
+                </GlassCard>
               </Pressable>
             ))}
           </View>
@@ -240,23 +231,7 @@ export default function ProfileScreen() {
                 const Icon = item.icon;
 
                 return (
-                  <View
-                    key={item.label}
-                    style={[
-                      styles.actionShell,
-                      { borderColor: palette.outlineVariant + "26" },
-                    ]}
-                  >
-                    <BlurView
-                      pointerEvents="none"
-                      intensity={72}
-                      tint={tint}
-                      style={[
-                        StyleSheet.absoluteFillObject,
-                        { backgroundColor: palette.surfaceContainerLowest + "B8" },
-                      ]}
-                    />
-
+                  <GlassCard key={item.label} borderRadius={999} style={styles.actionShell}>
                     <Pressable
                       onPress={() => router.push(item.path)}
                       style={({ pressed }) => [
@@ -288,7 +263,7 @@ export default function ProfileScreen() {
                         <ChevronRight size={18} color={palette.outlineVariant} />
                       </View>
                     </Pressable>
-                  </View>
+                  </GlassCard>
                 );
               })}
             </View>
@@ -368,18 +343,10 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   statCard: {
-    flex: 1,
-    overflow: "hidden",
-    borderRadius: 28,
-    borderWidth: 1,
     minHeight: 118,
     paddingHorizontal: 20,
     paddingVertical: 18,
     justifyContent: "center",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.05,
-    shadowRadius: 20,
-    elevation: 6,
   },
   statLabel: {
     ...type.overline,
@@ -404,9 +371,7 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   actionShell: {
-    overflow: "hidden",
-    borderRadius: 999,
-    borderWidth: 1,
+    // Shadow handled by GlassCard outer wrapper.
   },
   actionPressable: {
     width: "100%",

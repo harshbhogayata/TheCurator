@@ -10,6 +10,7 @@ import { useAuth } from "../../src/providers/auth-provider";
 import { useSubscription } from "../../src/providers/subscription-provider";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useModalScrollPadding } from "../../src/lib/layout";
 import { ProfileAvatar } from "../../src/ui/profile-avatar";
 import { ApiError } from "../../src/services/api-client";
 
@@ -20,6 +21,7 @@ export default function AccountScreen() {
   const { tier } = useSubscription();
   const { showToast } = useToast();
   const router = useRouter();
+  const modalScrollPadding = useModalScrollPadding();
 
   const displayName = session?.user?.displayName || "";
   const email = session?.user?.email || "";
@@ -120,12 +122,12 @@ export default function AccountScreen() {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
       <PillPageHeader title="Account" />
 
       <ScrollView
         style={{ flex: 1 }}
-        contentContainerStyle={styles.content}
+        contentContainerStyle={[styles.content, { paddingTop: modalScrollPadding }]}
         showsVerticalScrollIndicator={false}
       >
         <View style={styles.hero}>

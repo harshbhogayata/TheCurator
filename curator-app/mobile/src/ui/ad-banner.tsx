@@ -29,7 +29,7 @@ const SUPPORT_VARIANTS = [
 
 function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
   const { palette } = useTheme();
-  const { tier } = useSubscription();
+  const { tier, isTierResolving } = useSubscription();
   const router = useRouter();
   const [dismissed, setDismissed] = useState(false);
 
@@ -43,7 +43,7 @@ function AdBannerInner({ position = "inline", onClose }: AdBannerProps) {
     onClose?.();
   }, [onClose]);
 
-  if (tier !== "free" || dismissed) {
+  if (isTierResolving || tier !== "free" || dismissed) {
     return null;
   }
 

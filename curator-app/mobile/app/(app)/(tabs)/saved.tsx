@@ -30,7 +30,7 @@ export default function SavedScreen() {
   const router = useRouter();
   const { unsaveArticle, unsaveArticles, savedCount, savedArticleIds, syncError, refreshSavedArticles } =
     useSavedArticles();
-  const { hasUnlimitedSaves, maxSaves } = useSubscription();
+  const { hasUnlimitedSaves, maxSaves, isTierResolving } = useSubscription();
   const headerOffset = useHeaderOffset();
   const { contentPadding } = useLayout();
   const { data: articles = [], isLoading, isFetching, isHydrated } = useSavedArticlesList();
@@ -150,7 +150,7 @@ export default function SavedScreen() {
         ) : null}
 
         {/* Storage limit banner (free users only) */}
-        {!hasUnlimitedSaves && (
+        {!hasUnlimitedSaves && !isTierResolving && (
           <View
             style={{
               marginHorizontal: contentPadding,
