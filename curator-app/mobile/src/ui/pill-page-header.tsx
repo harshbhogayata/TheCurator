@@ -15,9 +15,10 @@ interface PillPageHeaderProps {
   /** Back arrow (default) or close X for modal sheets. */
   leadingAction?: "back" | "close";
   onLeadingPress?: () => void;
-  /** Profile avatar on the right — mirrors tab Header on Profile screen. */
+  /** Profile avatar on the right — on by default, same as tab Header. */
   showProfile?: boolean;
   showBadge?: boolean;
+  /** When false, avatar is shown but not tappable (e.g. on Profile screen). */
   profileInteractive?: boolean;
   onProfilePress?: () => void;
 }
@@ -26,7 +27,7 @@ function PillPageHeaderInner({
   title,
   leadingAction = "back",
   onLeadingPress,
-  showProfile = false,
+  showProfile = true,
   showBadge = true,
   profileInteractive = true,
   onProfilePress,
@@ -40,7 +41,20 @@ function PillPageHeaderInner({
   const borderColor = palette.outlineVariant + "4D";
 
   const handleLeadingPress = onLeadingPress ?? (() => router.back());
-  const handleProfilePress = onProfilePress ?? (() => router.push("/(app)/account"));
+  const handleProfilePress = onProfilePress ?? (() => router.push("/(app)/profile"));
+
+  const profilePill = (
+    <FrostedPill borderColor={borderColor} style={styles.profilePill}>
+      {showBadge ? <SubscriptionBadge size="sm" /> : null}
+      <ProfileAvatar
+        avatarUrl={session?.user?.avatarUrl}
+        displayName={session?.user?.displayName}
+        email={session?.user?.email}
+        size={30}
+        imageStyle={{ borderWidth: 1, borderColor: palette.outlineVariant + "26" }}
+      />
+    </FrostedPill>
+  );
 
   return (
     <View
@@ -94,33 +108,18 @@ function PillPageHeaderInner({
       {showProfile ? (
         <View style={styles.shadow}>
           {profileInteractive ? (
-            <Pressable onPress={handleProfilePress}>
-              <FrostedPill borderColor={borderColor} style={styles.profilePill}>
-                {showBadge ? <SubscriptionBadge size="sm" /> : null}
-                <ProfileAvatar
-                  avatarUrl={session?.user?.avatarUrl}
-                  displayName={session?.user?.displayName}
-                  email={session?.user?.email}
-                  size={30}
-                  imageStyle={{ borderWidth: 1, borderColor: palette.outlineVariant + "26" }}
-                />
-              </FrostedPill>
+            <Pressable
+              onPress={handleProfilePress}
+              accessibilityRole="button"
+              accessibilityLabel="Open profile"
+            >
+              {profilePill}
             </Pressable>
           ) : (
-            <FrostedPill borderColor={borderColor} style={styles.profilePill}>
-              <ProfileAvatar
-                avatarUrl={session?.user?.avatarUrl}
-                displayName={session?.user?.displayName}
-                email={session?.user?.email}
-                size={30}
-                imageStyle={{ borderWidth: 1, borderColor: palette.outlineVariant + "26" }}
-              />
-            </FrostedPill>
+            profilePill
           )}
         </View>
-      ) : (
-        <View style={styles.sideSpacer} />
-      )}
+      ) : null}
     </View>
   );
 }
@@ -137,10 +136,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
-  },
-  sideSpacer: {
-    width: 40,
-    height: 40,
   },
   shadow: {
     shadowColor: "#000",
@@ -168,6 +163,7 @@ const styles = StyleSheet.create({
     minWidth: 0,
   },
   titlePill: {
+    flex: 1,
     minWidth: 0,
     minHeight: 52,
     paddingHorizontal: 14,

@@ -123,7 +123,6 @@ export default function ProfileScreen() {
         <PillPageHeader
           title="Profile"
           leadingAction="close"
-          showProfile
           showBadge={false}
           profileInteractive={false}
         />
