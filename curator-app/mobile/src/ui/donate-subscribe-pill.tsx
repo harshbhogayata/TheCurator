@@ -1,5 +1,6 @@
 import { memo } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { BlurView } from "expo-blur";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { useTheme } from "../providers/theme-provider";
@@ -48,10 +49,12 @@ function DonateSubscribePillInner({
   disabled = false,
   testID,
 }: DonateSubscribePillProps) {
-  const { palette } = useTheme();
+  const { palette, resolvedTheme } = useTheme();
   const insets = useSafeAreaInsets();
   const layout = DONATE_SUBSCRIBE_PILL_LAYOUT;
   const floatBottom = Math.max(insets.bottom + layout.safeBottomPadding, layout.bottomInsetMin);
+  const blurTint = resolvedTheme === "dark" ? "dark" : "light";
+  const frostedFill = palette.surfaceContainerLowest + (Platform.OS === "android" ? "F2" : "E6");
 
   return (
     <View
@@ -60,52 +63,73 @@ function DonateSubscribePillInner({
     >
       <Pressable
         testID={testID}
+        accessibilityRole="button"
+        accessibilityLabel={title}
+        accessibilityState={{ disabled }}
         onPress={onPress}
         disabled={disabled}
-        android_ripple={{ color: "rgba(255,255,255,0.14)" }}
+        android_ripple={{ color: palette.primary + "33" }}
         style={({ pressed }) => [
           styles.pill,
           {
             minHeight: layout.pillHeight,
             borderRadius: layout.borderRadius,
-            paddingHorizontal: layout.paddingHorizontal,
-            paddingVertical: layout.paddingVertical,
-            backgroundColor: palette.inverseSurface,
-            borderColor: palette.outline + "55",
-            opacity: pressed || disabled ? 0.88 : 1,
+            borderColor: palette.outlineVariant + "66",
+            opacity: pressed || disabled ? 0.92 : 1,
           },
         ]}
       >
-        <Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.86}
+        <BlurView
+          intensity={80}
+          tint={blurTint}
           style={[
-            styles.title,
+            StyleSheet.absoluteFill,
             {
-              fontSize: layout.titleFontSize,
-              lineHeight: layout.titleLineHeight,
-              color: palette.inversePrimary,
+              borderRadius: layout.borderRadius,
+              backgroundColor: frostedFill,
             },
           ]}
+        />
+        <View
+          style={{
+            paddingHorizontal: layout.paddingHorizontal,
+            paddingVertical: layout.paddingVertical,
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 2,
+          }}
         >
-          {title}
-        </Text>
-        <Text
-          numberOfLines={1}
-          adjustsFontSizeToFit
-          minimumFontScale={0.86}
-          style={[
-            styles.subtitle,
-            {
-              fontSize: layout.subtitleFontSize,
-              lineHeight: layout.subtitleLineHeight,
-              color: palette.inverseOnSurface,
-            },
-          ]}
-        >
-          {subtitle}
-        </Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.86}
+            style={[
+              styles.title,
+              {
+                fontSize: layout.titleFontSize,
+                lineHeight: layout.titleLineHeight,
+                color: palette.onSurface,
+              },
+            ]}
+          >
+            {title}
+          </Text>
+          <Text
+            numberOfLines={1}
+            adjustsFontSizeToFit
+            minimumFontScale={0.86}
+            style={[
+              styles.subtitle,
+              {
+                fontSize: layout.subtitleFontSize,
+                lineHeight: layout.subtitleLineHeight,
+                color: palette.onSurfaceVariant,
+              },
+            ]}
+          >
+            {subtitle}
+          </Text>
+        </View>
       </Pressable>
     </View>
   );
@@ -122,10 +146,8 @@ const styles = StyleSheet.create({
   pill: {
     width: "100%",
     maxWidth: 420,
-    alignItems: "center",
-    justifyContent: "center",
-    gap: 2,
-    borderWidth: 1,
+    overflow: "hidden",
+    borderWidth: 2,
     shadowColor: "#000000",
     shadowOffset: { width: 0, height: DONATE_SUBSCRIBE_PILL_LAYOUT.shadowOffsetY },
     shadowOpacity: DONATE_SUBSCRIBE_PILL_LAYOUT.shadowOpacity,

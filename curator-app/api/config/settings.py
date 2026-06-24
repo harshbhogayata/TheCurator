@@ -382,6 +382,9 @@ PIPELINE_ENABLED = env.bool("PIPELINE_ENABLED", default=True)
 PIPELINE_AUTO_PUBLISH = env.bool("PIPELINE_AUTO_PUBLISH", default=False)
 PIPELINE_MAX_DRAFTS_PER_RUN = env.int("PIPELINE_MAX_DRAFTS_PER_RUN", default=10)
 PIPELINE_MIN_CLUSTER_SOURCES = env.int("PIPELINE_MIN_CLUSTER_SOURCES", default=3)
+# Delete draft/in-review/rejected rows after this TTL; approved and published are kept.
+PIPELINE_DRAFT_TTL_HOURS = env.int("PIPELINE_DRAFT_TTL_HOURS", default=72)
+PIPELINE_DRAFT_EXPIRE_ENABLED = env.bool("PIPELINE_DRAFT_EXPIRE_ENABLED", default=True)
 # After each pipeline/cron run, sync-generate narration for missing audio (no Celery worker).
 PIPELINE_GENERATE_AUDIO_ON_RUN = env.bool("PIPELINE_GENERATE_AUDIO_ON_RUN", default=True)
 PIPELINE_AUDIO_LIMIT = env.int("PIPELINE_AUDIO_LIMIT", default=25)

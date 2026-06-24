@@ -241,6 +241,9 @@ def run_pipeline():
 
     run_daily_brief_pipeline()
     run_post_publish_maintenance()
+    from content_pipeline.services.draft_cleanup import expire_stale_drafts
+
+    expire_stale_drafts()
 
 
 @shared_task(bind=True, max_retries=2, default_retry_delay=300)
