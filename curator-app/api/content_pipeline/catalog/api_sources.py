@@ -75,13 +75,28 @@ WORLDNEWS_SOURCES = [
     {"name": "World News Canada Top", "url": _worldnews(**{"source-country": "ca", "language": "en"}), "category": "news", "fetch_interval_minutes": 240, "region": "global"},
 ]
 
-ALL_NEWS_API_SOURCES = (
-    CURRENTS_SOURCES
-    + GUARDIAN_SOURCES
-    + GNEWS_SOURCES
-    + APITUBE_SOURCES
-    + MEDIASTACK_SOURCES
-    + WORLDNEWS_SOURCES
+# Production catalog — GNews/Mediastack/World News kept in repo but not seeded active
+# (free-tier ToS / backlink / rate limits). Re-enable by adding to ALL_NEWS_API_SOURCES.
+ALL_NEWS_API_SOURCES = CURRENTS_SOURCES + GUARDIAN_SOURCES + APITUBE_SOURCES
+
+RETIRED_API_SOURCE_SLUGS = (
+    "gnews-world",
+    "gnews-us",
+    "gnews-uk",
+    "gnews-india",
+    "gnews-business",
+    "gnews-technology",
+    "gnews-science",
+    "gnews-health",
+    "mediastack-us-uk-in",
+    "mediastack-us",
+    "mediastack-uk",
+    "mediastack-india",
+    "mediastack-technology",
+    "world-news-us-top",
+    "world-news-uk-top",
+    "world-news-india-top",
+    "world-news-canada-top",
 )
 
 

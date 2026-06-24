@@ -20,6 +20,7 @@ from content_pipeline.models import (
     StoryCluster,
     StoryClusterStatus,
 )
+from content_pipeline.services.api_common import article_url_domain
 
 logger = logging.getLogger(__name__)
 
@@ -69,10 +70,10 @@ def distinct_coverage_count(items) -> int:
     keys: set[str] = set()
     for item in items:
         if item.source.kind == SourceKind.API:
-            netloc = urlparse(item.url or "").netloc.lower().removeprefix("www.")
+            netloc = article_url_domain(item.url)
             if netloc:
                 keys.add(f"domain:{netloc}")
-                continue
+            continue
         keys.add(f"feed:{item.source_id}")
     return len(keys)
 

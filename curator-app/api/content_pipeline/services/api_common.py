@@ -36,11 +36,23 @@ def normalize_entry(
     published_at=None,
 ) -> dict:
     return {
-        "external_id": external_id,
-        "url": url.strip(),
-        "title": title.strip(),
-        "summary": summary.strip(),
-        "author": author.strip(),
-        "image_url": image_url.strip(),
+        "external_id": str(external_id or ""),
+        "url": (url or "").strip(),
+        "title": (title or "").strip(),
+        "summary": (summary or "").strip(),
+        "author": (author or "").strip(),
+        "image_url": (image_url or "").strip(),
         "published_at": published_at,
     }
+
+
+def article_url_domain(url: str) -> str:
+    """Return normalized hostname for coverage counting; empty on bad URLs."""
+    raw = (url or "").strip()
+    if not raw:
+        return ""
+    try:
+        netloc = urlparse(raw).netloc.lower().removeprefix("www.")
+    except ValueError:
+        return ""
+    return netloc

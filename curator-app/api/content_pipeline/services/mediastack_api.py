@@ -70,15 +70,15 @@ def fetch_mediastack_entries(source) -> list[dict]:
 
     items = []
     for article in payload.get("data") or []:
-        items.append(
-            normalize_entry(
-                external_id=str(article.get("url", "")),
-                url=article.get("url", ""),
-                title=article.get("title", ""),
-                summary=article.get("description", ""),
-                author=article.get("author", ""),
-                image_url=article.get("image", ""),
-                published_at=parse_iso_datetime(article.get("published_at")),
-            )
+        entry = normalize_entry(
+            external_id=str(article.get("url", "")),
+            url=article.get("url"),
+            title=article.get("title"),
+            summary=article.get("description"),
+            author=article.get("author"),
+            image_url=article.get("image"),
+            published_at=parse_iso_datetime(article.get("published_at")),
         )
+        if entry["title"]:
+            items.append(entry)
     return items

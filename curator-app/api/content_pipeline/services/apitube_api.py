@@ -75,15 +75,15 @@ def fetch_apitube_entries(source) -> list[dict]:
     for article in payload.get("results") or []:
         author_info = article.get("author") or {}
         author = author_info.get("name", "") if isinstance(author_info, dict) else str(author_info)
-        items.append(
-            normalize_entry(
-                external_id=str(article.get("id", "")),
-                url=article.get("href", ""),
-                title=article.get("title", ""),
-                summary=article.get("description", ""),
-                author=author,
-                image_url=article.get("image", ""),
-                published_at=parse_iso_datetime(article.get("published_at")),
-            )
+        entry = normalize_entry(
+            external_id=str(article.get("id", "")),
+            url=article.get("href"),
+            title=article.get("title"),
+            summary=article.get("description"),
+            author=author,
+            image_url=article.get("image"),
+            published_at=parse_iso_datetime(article.get("published_at")),
         )
+        if entry["title"]:
+            items.append(entry)
     return items

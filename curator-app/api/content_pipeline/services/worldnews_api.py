@@ -69,12 +69,16 @@ def fetch_worldnews_entries(source) -> list[dict]:
 
     if endpoint == "search-news":
         for article in payload.get("news") or []:
-            items.append(_normalize_worldnews_article(article))
+            entry = _normalize_worldnews_article(article)
+            if entry["title"]:
+                items.append(entry)
         return items
 
     for cluster in payload.get("top_news") or []:
         for article in cluster.get("news") or []:
-            items.append(_normalize_worldnews_article(article))
+            entry = _normalize_worldnews_article(article)
+            if entry["title"]:
+                items.append(entry)
     return items
 
 

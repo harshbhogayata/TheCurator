@@ -62,6 +62,13 @@ class DistinctCoverageCountTests(TestCase):
         ]
         self.assertEqual(distinct_coverage_count(items), 5)
 
+    def test_api_aggregator_ignores_malformed_urls(self):
+        items = [
+            self._item(self.currents, "https://[invalid-ipv6"),
+            self._item(self.currents, "https://www.reuters.com/world/story"),
+        ]
+        self.assertEqual(distinct_coverage_count(items), 1)
+
     def test_title_tokens_strip_stopwords(self):
         tokens = title_tokens("The President says new policy after summit")
         self.assertNotIn("the", tokens)

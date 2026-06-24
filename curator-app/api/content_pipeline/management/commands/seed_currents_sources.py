@@ -3,7 +3,11 @@ from collections import Counter
 from django.core.management.base import BaseCommand
 from django.utils.text import slugify
 
-from content_pipeline.catalog.api_sources import ALL_NEWS_API_SOURCES, estimate_api_requests_per_day
+from content_pipeline.catalog.api_sources import (
+    ALL_NEWS_API_SOURCES,
+    RETIRED_API_SOURCE_SLUGS,
+    estimate_api_requests_per_day,
+)
 from content_pipeline.models import Source, SourceKind, SourceLicenseStatus
 from mobileapi.models import Category
 
@@ -35,6 +39,13 @@ class Command(BaseCommand):
                 created += 1
             else:
                 updated += 1
+
+        retired = Source.objects.filter(slug__in=RETIRED_API_SOURCE_SLUGS).update(is_active=False)
+        if retired:
+            self.stdout.write(
+                f"Deactivated {retired} retired API source(s) "
+                f"(GNews, Mediastack, World News)."
+            )
 
         estimates = estimate_api_requests_per_day()
         est_summary = ", ".join(f"{name}~{count}/day" for name, count in estimates.items())

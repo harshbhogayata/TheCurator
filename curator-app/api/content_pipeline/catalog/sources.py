@@ -436,7 +436,7 @@ RSS_INDIA = [
     },
     {
         "name": "Scroll.in",
-        "url": "https://scroll.in/feeds/news",
+        "url": "https://scroll.in/latest.rss",
         "category": "news",
         "fetch_interval_minutes": 90,
         "region": "india",
