@@ -3,7 +3,7 @@ import uuid
 from django.test import TestCase
 
 from content_pipeline.models import RawItem, Source, SourceKind, StoryCluster
-from content_pipeline.services.dedup import distinct_coverage_count, title_tokens
+from content_pipeline.services.dedup import cluster_similarity, distinct_coverage_count, title_tokens
 from mobileapi.models import Category
 
 
@@ -67,3 +67,10 @@ class DistinctCoverageCountTests(TestCase):
         self.assertNotIn("the", tokens)
         self.assertIn("president", tokens)
         self.assertIn("policy", tokens)
+
+    def test_cluster_similarity_boosts_shared_names(self):
+        a = title_tokens(
+            "Tension builds between Trump and Senate Republicans, putting GOP agenda on the line"
+        )
+        b = title_tokens("Trump pressures Senate Republicans to pass GOP agenda bill")
+        self.assertGreaterEqual(cluster_similarity(a, b), 0.28)

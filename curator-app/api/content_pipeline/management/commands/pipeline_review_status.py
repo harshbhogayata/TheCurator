@@ -38,6 +38,7 @@ class Command(BaseCommand):
         )
         coverage_counts: list[int] = []
         eligible = 0
+        eligible_at_three = 0
         for cluster in open_clusters:
             items = [
                 item for item in cluster.items.all() if item.status == RawItemStatus.CLUSTERED
@@ -46,13 +47,19 @@ class Command(BaseCommand):
             coverage_counts.append(coverage)
             if coverage >= min_sources:
                 eligible += 1
+            if coverage >= 3:
+                eligible_at_three += 1
 
         self.stdout.write("")
         self.stdout.write(f"Open story clusters:      {len(coverage_counts)}")
         self.stdout.write(
             f"Eligible for drafting:    {eligible} "
-            f"(need {min_sources}+ distinct outlets)"
+            f"(need {min_sources}+ distinct outlets; env PIPELINE_MIN_CLUSTER_SOURCES)"
         )
+        if min_sources > 3 and eligible_at_three > eligible:
+            self.stdout.write(
+                f"Would qualify at min=3: {eligible_at_three} cluster(s)"
+            )
         if coverage_counts:
             histogram = Counter(coverage_counts)
             buckets = ", ".join(f"{count}→{n}" for count, n in sorted(histogram.items()))
