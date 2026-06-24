@@ -371,7 +371,7 @@ PIPELINE_ENABLED = env.bool("PIPELINE_ENABLED", default=True)
 # from the review queue in Django admin.
 PIPELINE_AUTO_PUBLISH = env.bool("PIPELINE_AUTO_PUBLISH", default=False)
 PIPELINE_MAX_DRAFTS_PER_RUN = env.int("PIPELINE_MAX_DRAFTS_PER_RUN", default=10)
-PIPELINE_MIN_CLUSTER_SOURCES = env.int("PIPELINE_MIN_CLUSTER_SOURCES", default=1)
+PIPELINE_MIN_CLUSTER_SOURCES = env.int("PIPELINE_MIN_CLUSTER_SOURCES", default=5)
 # After each pipeline/cron run, sync-generate narration for missing audio (no Celery worker).
 PIPELINE_GENERATE_AUDIO_ON_RUN = env.bool("PIPELINE_GENERATE_AUDIO_ON_RUN", default=True)
 PIPELINE_AUDIO_LIMIT = env.int("PIPELINE_AUDIO_LIMIT", default=25)
