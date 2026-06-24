@@ -75,14 +75,16 @@ class ArticleDraftAdmin(admin.ModelAdmin):
 
     list_display = (
         "title",
-        "kind",
         "status_badge",
         "category",
-        "is_breaking",
-        "scheduled_publish_at",
+        "breaking_badge",
         "created_at",
     )
-    list_filter = ("status", "kind", "is_breaking", "category")
+    list_display_links = ("title",)
+    list_filter = ("status", "kind", "category", "is_breaking")
+    list_per_page = 500
+    list_max_show_all = 5000
+    show_full_result_count = True
     search_fields = ("title", "excerpt", "content")
     readonly_fields = (
         "cluster",
@@ -130,12 +132,12 @@ class ArticleDraftAdmin(admin.ModelAdmin):
         ),
     )
     actions = ["approve_drafts", "publish_now", "reject_drafts", "send_back_to_review"]
-    date_hierarchy = "created_at"
 
     def get_queryset(self, request):
-        return (
+        qs = (
             super()
             .get_queryset(request)
+            .select_related("category")
             .annotate(
                 review_priority=Case(
                     When(status=DraftStatus.IN_REVIEW, then=0),
@@ -147,25 +149,37 @@ class ArticleDraftAdmin(admin.ModelAdmin):
             )
             .order_by("review_priority", "-created_at")
         )
+        # Default to editorial queue — hide published/rejected unless status filter set.
+        if not request.GET.get("status__exact") and not request.GET.get("q"):
+            qs = qs.exclude(
+                status__in=[DraftStatus.PUBLISHED, DraftStatus.REJECTED]
+            )
+        return qs
 
     def changelist_view(self, request, extra_context=None):
         in_review = ArticleDraft.objects.filter(
             status__in=[DraftStatus.DRAFT, DraftStatus.IN_REVIEW]
         ).count()
         approved = ArticleDraft.objects.filter(status=DraftStatus.APPROVED).count()
-        if in_review:
+        showing_queue = not request.GET.get("status__exact") and not request.GET.get("q")
+        if showing_queue:
             messages.info(
                 request,
-                f"Editorial habit: {in_review} draft(s) need review — "
-                "open each, edit if needed, then Approve or Publish now.",
+                f"Review queue: {in_review} need review, {approved} approved. "
+                "Use Status filter → Published to see live drafts.",
             )
-        elif approved:
+        elif in_review:
             messages.info(
                 request,
-                f"{approved} approved draft(s) will publish on the next hourly "
-                "run_pipeline (or select and use Publish now).",
+                f"{in_review} draft(s) still need review.",
             )
         return super().changelist_view(request, extra_context=extra_context)
+
+    @admin.display(description="Breaking")
+    def breaking_badge(self, obj):
+        if obj.is_breaking:
+            return format_html('<span style="color:#b91c1c;font-weight:600;">Yes</span>')
+        return "—"
 
     @admin.display(description="Status")
     def status_badge(self, obj):
