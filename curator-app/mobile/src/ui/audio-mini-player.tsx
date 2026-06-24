@@ -27,6 +27,7 @@ function AudioMiniPlayerInner() {
     currentBriefId,
     positionMs,
     durationMs,
+    playbackSource,
     pause,
     resume,
     skipForward,
@@ -39,6 +40,7 @@ function AudioMiniPlayerInner() {
   const insets = useSafeAreaInsets();
 
   const isPlaying = state === "playing";
+  const isSpeechMode = playbackSource === "speech";
   const progress = durationMs > 0 ? positionMs / durationMs : 0;
   const progressPercent = `${Math.min(progress * 100, 100)}%`;
 
@@ -142,9 +144,11 @@ function AudioMiniPlayerInner() {
           </View>
 
           {/* Skip back */}
-          <Pressable onPress={skipBackward} style={styles.controlButton}>
-            <SkipBack size={16} color={palette.onSurface} />
-          </Pressable>
+          {!isSpeechMode ? (
+            <Pressable onPress={skipBackward} style={styles.controlButton}>
+              <SkipBack size={16} color={palette.onSurface} />
+            </Pressable>
+          ) : null}
 
           {/* Play/Pause */}
           <Pressable
@@ -170,9 +174,11 @@ function AudioMiniPlayerInner() {
           </Pressable>
 
           {/* Skip forward */}
-          <Pressable onPress={skipForward} style={styles.controlButton}>
-            <SkipForward size={16} color={palette.onSurface} />
-          </Pressable>
+          {!isSpeechMode ? (
+            <Pressable onPress={skipForward} style={styles.controlButton}>
+              <SkipForward size={16} color={palette.onSurface} />
+            </Pressable>
+          ) : null}
 
           {/* Close */}
           <Pressable onPress={stopBrief} style={styles.controlButton}>

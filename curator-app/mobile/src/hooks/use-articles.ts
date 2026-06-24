@@ -4,10 +4,10 @@ import { useMemo } from "react";
 import type { Article } from "../data/articles";
 import { queryKeys } from "../lib/query-keys";
 import { useSavedArticles } from "../providers/saved-articles-provider";
-import { fetchArticle, fetchArticles, fetchArticlesByIds } from "../services/mobile-api";
+import { fetchArticle, fetchAllArticles, fetchArticlesByIds } from "../services/mobile-api";
 
 async function fetchArticlesQuery(filters?: Record<string, unknown>): Promise<Article[]> {
-  return fetchArticles(filters);
+  return fetchAllArticles(filters);
 }
 
 async function fetchArticleQuery(id: string): Promise<Article | null> {
@@ -22,7 +22,8 @@ export function useArticles(filters?: Record<string, unknown>) {
   return useQuery({
     queryKey: queryKeys.articles.list(filters),
     queryFn: () => fetchArticlesQuery(filters),
-    staleTime: 30 * 60 * 1000,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 60 * 60 * 1000,
   });
 }
 

@@ -54,7 +54,7 @@ const SavedArticlesContext = createContext<SavedArticlesContextValue | null>(nul
 
 export function SavedArticlesProvider({ children }: PropsWithChildren) {
   const { session } = useAuth();
-  const { hasUnlimitedSaves, maxSaves } = useSubscription();
+  const { hasUnlimitedSaves, maxSaves, tier } = useSubscription();
   const { requestUpgrade } = useUpgradeGate();
   const { showToast } = useToast();
   const userId = session?.user?.id ?? null;
@@ -85,8 +85,7 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
       const ids = await listSavedArticleIds();
       syncFromServer(ids);
     } catch {
-      setSyncError("Couldn't sync saved articles. Pull to retry.");
-      setIsHydrated(false);
+      setSyncError("Couldn't sync saved articles. Pull down to retry.");
     }
   }, [syncFromServer, userId]);
 
@@ -137,7 +136,7 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
           }
         } catch {
           if (!cancelled) {
-            setSyncError("Couldn't load saved articles. Open Saved and tap Retry.");
+            setSyncError("Couldn't load saved articles. Pull down to retry.");
             setIsHydrated(false);
           }
         }
@@ -158,11 +157,13 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
   const saveArticle = useCallback(
     (id: string) => {
       if (!MOCK_BACKEND && !userId) {
+        showToast("info", "Sign in to save articles.");
         return;
       }
 
       let shouldPersist = false;
       const previousIds = [...savedArticleIdsRef.current];
+      const upgradeTier = tier === "free" ? "basic" : "premium";
 
       setSavedArticleIds((prev) => {
         if (prev.includes(id)) {
@@ -172,7 +173,7 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
         if (!hasUnlimitedSaves && prev.length >= maxSaves) {
           requestUpgrade({
             featureName: "more saved articles",
-            requiredTier: "premium",
+            requiredTier: upgradeTier,
           });
           return prev;
         }
@@ -208,7 +209,7 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
           showToast("error", "Couldn't save this article. Try again.");
         });
     },
-    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, requestUpgrade, showToast, syncFromServer, userId],
+    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, requestUpgrade, showToast, syncFromServer, tier, userId],
   );
 
   const unsaveArticles = useCallback(

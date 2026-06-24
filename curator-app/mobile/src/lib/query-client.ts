@@ -9,7 +9,7 @@ export const queryClient = new QueryClient({
       retry: 2, // Slightly more retries for network resilience
       refetchOnWindowFocus: false,
       staleTime: 1000 * 60 * 5, // 5 minutes — hooks that need longer caching set their own staleTime
-      gcTime: 1000 * 60 * 60 * 24 * 7, // Keep in garbage collection for 7 days (offline support)
+      gcTime: 1000 * 60 * 60 * 24, // 24 hours — avoids week-long stale article cache offline
     },
   },
 });

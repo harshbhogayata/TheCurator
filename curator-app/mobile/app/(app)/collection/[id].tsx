@@ -1,5 +1,7 @@
-import { useCallback, useRef, useState } from "react";
-import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { useCallback, useRef, useState, useMemo } from "react";
+import { Pressable, StyleSheet, Text, View } from "react-native";
+import { FlatList } from "react-native-gesture-handler";
+import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useLocalSearchParams, useRouter } from "expo-router";
 import { Plus, Edit3, Trash2, X } from "lucide-react-native";
@@ -18,8 +20,10 @@ import { useToast } from "../../../src/providers/toast-provider";
 import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { SwipeableArticleCard } from "../../../src/ui/swipeable-article-card";
 import { useArticlesByIds, useSavedArticlesList } from "../../../src/hooks/use-articles";
+import { useSavedArticles } from "../../../src/providers/saved-articles-provider";
 import { PillPageHeader } from "../../../src/ui/pill-page-header";
 import { useModalScrollPadding } from "../../../src/lib/layout";
+import type { Article } from "../../../src/data/articles";
 
 export default function CollectionDetailScreen() {
   const { palette } = useTheme();
@@ -42,6 +46,8 @@ export default function CollectionDetailScreen() {
   const collection = id ? getCollection(id) : undefined;
   const { data: collectionArticleDetails = [] } = useArticlesByIds(collection?.articleIds ?? []);
   const { data: savedArticleDetails = [] } = useSavedArticlesList();
+  const { savedArticleIds } = useSavedArticles();
+  const savedIdSet = useMemo(() => new Set(savedArticleIds), [savedArticleIds]);
 
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [editName, setEditName] = useState(collection?.name ?? "");
@@ -63,80 +69,60 @@ export default function CollectionDetailScreen() {
     [],
   );
 
-  if (isCollectionsLoading) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontFamily: "Newsreader_500Medium_Italic", fontSize: 20, color: palette.onSurfaceVariant }}>
-          Loading collection...
-        </Text>
-      </SafeAreaView>
+  const collectionArticles = useMemo(() => {
+    if (!collection) return [];
+    return collectionArticleDetails.filter((article) => collection.articleIds.includes(article.id));
+  }, [collection, collectionArticleDetails]);
+
+  const availableArticles = useMemo(() => {
+    if (!collection) return [];
+    return savedArticleDetails.filter(
+      (article) =>
+        savedIdSet.has(article.id) && !collection.articleIds.includes(article.id),
     );
-  }
+  }, [collection, savedArticleDetails, savedIdSet]);
 
-  if (!collection) {
-    return (
-      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background, alignItems: "center", justifyContent: "center" }}>
-        <Text style={{ fontFamily: "Newsreader_500Medium_Italic", fontSize: 22, color: palette.onSurfaceVariant, marginBottom: 20 }}>
-          Collection not found
-        </Text>
-        <Pressable
-          onPress={() => router.back()}
-          style={{ paddingVertical: 12, paddingHorizontal: 24, backgroundColor: palette.inverseSurface, borderRadius: 999 }}
-        >
-          <Text style={{ fontFamily: "Manrope_600SemiBold", fontSize: 14, color: palette.inverseOnSurface }}>Go Back</Text>
-        </Pressable>
-      </SafeAreaView>
-    );
-  }
+  const swipeRowRefs = useRef(new Map<string, SwipeableMethods>());
 
-  const collectionArticles = collectionArticleDetails.filter((a) => collection.articleIds.includes(a.id));
-  const availableArticles = savedArticleDetails.filter(
-    (article) => !collection.articleIds.includes(article.id),
-  );
-
-  const handleDeleteCollection = () => {
-    deleteCollection(collection.id);
-    showToast("success", "Collection deleted");
-    router.back();
-  };
-
-  const handleEditSave = () => {
-    if (!editName.trim()) {
-      showToast("error", "Collection name is required");
+  const registerSwipeRow = useCallback((articleId: string, methods: SwipeableMethods | null) => {
+    if (methods) {
+      swipeRowRefs.current.set(articleId, methods);
       return;
     }
-    updateCollection(collection.id, { name: editName.trim(), description: editDescription.trim() });
-    showToast("success", "Collection updated");
-    closeEdit();
-  };
+    swipeRowRefs.current.delete(articleId);
+  }, []);
 
-  const handleAddArticle = (articleId: string) => {
-    addArticleToCollection(collection.id, articleId);
-    showToast("success", "Article added");
-  };
+  const handleSwipeRowOpen = useCallback((articleId: string) => {
+    swipeRowRefs.current.forEach((methods, id) => {
+      if (id !== articleId) {
+        methods.close();
+      }
+    });
+  }, []);
 
-  const handleRemoveArticle = (articleId: string) => {
-    removeArticleFromCollection(collection.id, articleId);
-    showToast("success", "Article removed");
-  };
+  const closeAllSwipeRows = useCallback(() => {
+    swipeRowRefs.current.forEach((methods) => methods.close());
+  }, []);
 
-  return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
-      <PillPageHeader title={collection.name} />
+  const handleRemoveArticle = useCallback(
+    (articleId: string) => {
+      if (!collection) return;
+      removeArticleFromCollection(collection.id, articleId);
+      showToast("success", "Article removed");
+    },
+    [collection, removeArticleFromCollection, showToast],
+  );
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: modalScrollPadding }}
-        showsVerticalScrollIndicator={false}
-      >
-        {/* Meta row — matches the narrativesHeader pattern in explore */}
+  const listHeader = useMemo(
+    () => (
+      <>
         <View style={styles.metaRow}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.metaCount, { color: palette.outline }]}>
               {collectionArticles.length}{" "}
               {collectionArticles.length === 1 ? "article" : "articles"}
             </Text>
-            {collection.description ? (
+            {collection?.description ? (
               <Text style={[styles.metaDesc, { color: palette.onSurfaceVariant }]}>
                 {collection.description}
               </Text>
@@ -168,31 +154,101 @@ export default function CollectionDetailScreen() {
           </View>
         </View>
 
-        {/* Divider */}
         <View style={[styles.divider, { backgroundColor: palette.outlineVariant + "26" }]} />
+      </>
+    ),
+    [collection, collectionArticles.length, openAdd, openEdit, palette],
+  );
 
-        {/* Articles */}
-        {collectionArticles.length === 0 ? (
-          <View style={styles.emptyState}>
-            <Text style={[styles.emptyTitle, { color: palette.onSurface }]}>
-              Nothing here yet
-            </Text>
-            <Text style={[styles.emptySub, { color: palette.onSurfaceVariant }]}>
-              Tap Add to pull in articles from your saved list.
-            </Text>
-          </View>
-        ) : (
-          <View style={{ gap: 16 }}>
-            {collectionArticles.map((article) => (
-              <SwipeableArticleCard
-                key={article.id}
-                article={article}
-                onRemove={() => handleRemoveArticle(article.id)}
-              />
-            ))}
-          </View>
-        )}
-      </ScrollView>
+  const renderArticleItem = useCallback(
+    ({ item: article }: { item: Article }) => (
+      <SwipeableArticleCard
+        article={article}
+        onRemove={() => handleRemoveArticle(article.id)}
+        enableSaveSwipe={false}
+        removeSwipeDirection="right"
+        onSwipeRowOpen={handleSwipeRowOpen}
+        registerSwipeRow={registerSwipeRow}
+      />
+    ),
+    [handleRemoveArticle, handleSwipeRowOpen, registerSwipeRow],
+  );
+
+  const listEmpty = useCallback(
+    () => (
+      <View style={styles.emptyState}>
+        <Text style={[styles.emptyTitle, { color: palette.onSurface }]}>Nothing here yet</Text>
+        <Text style={[styles.emptySub, { color: palette.onSurfaceVariant }]}>
+          Tap Add to pull in articles from your saved list.
+        </Text>
+      </View>
+    ),
+    [palette.onSurface, palette.onSurfaceVariant],
+  );
+
+  if (isCollectionsLoading) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontFamily: "Newsreader_500Medium_Italic", fontSize: 20, color: palette.onSurfaceVariant }}>
+          Loading collection...
+        </Text>
+      </SafeAreaView>
+    );
+  }
+
+  if (!collection) {
+    return (
+      <SafeAreaView style={{ flex: 1, backgroundColor: palette.background, alignItems: "center", justifyContent: "center" }}>
+        <Text style={{ fontFamily: "Newsreader_500Medium_Italic", fontSize: 22, color: palette.onSurfaceVariant, marginBottom: 20 }}>
+          Collection not found
+        </Text>
+        <Pressable
+          onPress={() => router.back()}
+          style={{ paddingVertical: 12, paddingHorizontal: 24, backgroundColor: palette.inverseSurface, borderRadius: 999 }}
+        >
+          <Text style={{ fontFamily: "Manrope_600SemiBold", fontSize: 14, color: palette.inverseOnSurface }}>Go Back</Text>
+        </Pressable>
+      </SafeAreaView>
+    );
+  }
+
+  const handleDeleteCollection = () => {
+    deleteCollection(collection.id);
+    showToast("success", "Collection deleted");
+    router.back();
+  };
+
+  const handleEditSave = () => {
+    if (!editName.trim()) {
+      showToast("error", "Collection name is required");
+      return;
+    }
+    updateCollection(collection.id, { name: editName.trim(), description: editDescription.trim() });
+    showToast("success", "Collection updated");
+    closeEdit();
+  };
+
+  const handleAddArticle = (articleId: string) => {
+    addArticleToCollection(collection.id, articleId);
+    showToast("success", "Article added");
+  };
+
+  return (
+    <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }} edges={[]}>
+      <PillPageHeader title={collection.name} />
+
+      <FlatList
+        data={collectionArticles}
+        keyExtractor={(item) => item.id}
+        renderItem={renderArticleItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: modalScrollPadding }}
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+        onScrollBeginDrag={closeAllSwipeRows}
+      />
 
       {/* Add Articles Sheet */}
       <BottomSheetModal

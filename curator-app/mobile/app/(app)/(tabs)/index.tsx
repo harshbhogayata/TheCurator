@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 import {
   View,
   Text,
@@ -13,7 +13,7 @@ import { Image } from "expo-image";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { Sparkles, Play, Pause, Lock, Quote } from "lucide-react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useLocalSearchParams } from "expo-router";
 
 import { useTheme } from "../../../src/providers/theme-provider";
 import { useSubscription } from "../../../src/providers/subscription-provider";
@@ -38,13 +38,19 @@ import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
 export default function BriefsScreen() {
   const { palette } = useTheme();
   const router = useRouter();
+  const { briefId } = useLocalSearchParams<{ briefId?: string }>();
   const { hasAdFree, hasBriefAudioAccess } = useSubscription();
   const { playBrief, state, currentBriefId, pause, resume } = useAudio();
   const { data: briefs = [], isFetching, isLoading, refetch, isError } = useBriefs();
   const { showToast } = useToast();
   const scrollPaddingTop = useTabScrollPaddingTop();
 
-  const displayBriefs = briefs;
+  const displayBriefs = useMemo(() => {
+    if (!briefId || briefs.length === 0) return briefs;
+    const index = briefs.findIndex((brief) => brief.id === briefId);
+    if (index <= 0) return briefs;
+    return [briefs[index], ...briefs.slice(0, index), ...briefs.slice(index + 1)];
+  }, [briefId, briefs]);
 
   const [refreshing, setRefreshing] = useState(false);
   const [paywallVisible, setPaywallVisible] = useState(false);

@@ -22,6 +22,7 @@ export interface PlayBriefOptions {
 interface AudioContextValue {
   state: PlaybackState;
   currentBriefId: string | null;
+  playbackSource: PlaybackSource;
   positionMs: number;
   durationMs: number;
   playbackSpeed: PlaybackSpeed;
@@ -48,6 +49,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
   const [positionMs, setPositionMs] = useState(0);
   const [durationMs, setDurationMs] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState<PlaybackSpeed>(1);
+  const [playbackSource, setPlaybackSource] = useState<PlaybackSource>("file");
   const soundRef = useRef<Audio.Sound | null>(null);
   const sourceRef = useRef<PlaybackSource>("file");
   const speechStartedAtRef = useRef<number | null>(null);
@@ -68,6 +70,19 @@ export function AudioProvider({ children }: PropsWithChildren) {
       }
     };
   }, []);
+
+  useEffect(() => {
+    if (sourceRef.current !== "speech" || state !== "playing") {
+      return;
+    }
+    const interval = setInterval(() => {
+      if (speechStartedAtRef.current) {
+        const elapsed = speechPausedAtRef.current + (Date.now() - speechStartedAtRef.current);
+        setPositionMs(elapsed);
+      }
+    }, 250);
+    return () => clearInterval(interval);
+  }, [state, currentBriefId]);
 
   const onPlaybackStatusUpdate = useCallback((status: AVPlaybackStatus) => {
     if (!status.isLoaded) return;
@@ -91,6 +106,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
     if (sourceRef.current === "speech") {
       Speech.stop();
       sourceRef.current = "file";
+      setPlaybackSource("file");
       speechStartedAtRef.current = null;
       speechPausedAtRef.current = 0;
     }
@@ -106,6 +122,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
     async (id: string, narrationText: string) => {
       await unloadCurrentSound();
       sourceRef.current = "speech";
+      setPlaybackSource("speech");
       setState("loading");
       setCurrentBriefId(id);
       setPositionMs(0);
@@ -123,6 +140,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
           setPositionMs(0);
           setDurationMs(0);
           sourceRef.current = "file";
+          setPlaybackSource("file");
         },
         onStopped: () => {
           setState("idle");
@@ -130,6 +148,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
           setPositionMs(0);
           setDurationMs(0);
           sourceRef.current = "file";
+          setPlaybackSource("file");
         },
       });
     },
@@ -152,6 +171,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
 
       await unloadCurrentSound();
       sourceRef.current = "file";
+      setPlaybackSource("file");
       setState("loading");
       setCurrentBriefId(id);
       setPositionMs(0);
@@ -262,6 +282,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
     () => ({
       state,
       currentBriefId,
+      playbackSource,
       positionMs,
       durationMs,
       playbackSpeed,
@@ -277,6 +298,7 @@ export function AudioProvider({ children }: PropsWithChildren) {
     [
       state,
       currentBriefId,
+      playbackSource,
       positionMs,
       durationMs,
       playbackSpeed,

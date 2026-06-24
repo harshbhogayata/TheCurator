@@ -112,7 +112,7 @@ const TIER_FEATURES: Record<
     audio: false,
     briefAudio: false,
     unlimitedSaves: false,
-    collections: false,
+    collections: true,
     offline: false,
     customThemes: false,
     maxSaves: 25,
@@ -324,20 +324,15 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
       const hydrateAndResolve = async () => {
         try {
-          const cached = await AsyncStorage.getItem(storageKey);
-          if (!cancelled && cached && isValidTier(cached)) {
-            setTierState(cached);
-          }
-
           const { tier: resolved, backendOk } = await resolveSubscriptionTier(session);
           if (!cancelled) {
             setTierState(resolved);
             await AsyncStorage.setItem(storageKey, resolved).catch(console.error);
-            setTierSyncDegraded(!backendOk && !usesRazorpayBilling());
+            setTierSyncDegraded(!backendOk);
           }
         } catch {
           if (!cancelled) {
-            setTierSyncDegraded(!usesRazorpayBilling());
+            setTierSyncDegraded(true);
           }
         } finally {
           if (!cancelled) {
@@ -507,7 +502,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       if (session?.user?.id) {
         await AsyncStorage.setItem(tierStorageKey(session.user.id), resolved).catch(console.error);
       }
-      setTierSyncDegraded(!backendOk && !usesRazorpayBilling());
+      setTierSyncDegraded(!backendOk);
     } finally {
       setIsTierResolving(false);
     }
@@ -565,8 +560,7 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       tier,
       setTier,
       billingProvider: getBillingProvider(),
-      // Hide ad/promo surfaces until entitlement is confirmed (prevents premium flash).
-      hasAdFree: features.adFree || isTierResolving,
+      hasAdFree: isTierResolving ? false : features.adFree,
       hasAudioAccess: features.audio,
       hasBriefAudioAccess: features.briefAudio,
       hasUnlimitedSaves: features.unlimitedSaves,

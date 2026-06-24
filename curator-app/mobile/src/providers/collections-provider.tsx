@@ -19,6 +19,7 @@ import {
   removeArticleFromCollectionRemote,
   updateCollectionRemote,
 } from "../services/mobile-api";
+import { parseEntitlementError } from "../lib/parse-entitlement-error";
 import { useAuthUserId, useCanSyncUserData } from "../hooks/use-auth-user";
 import { invalidateArticlesByIdsQueries } from "../lib/query-client";
 import { createSaveMutationQueue, subscribeArticlesUnsaved } from "../lib/saved-articles-sync";
@@ -29,6 +30,8 @@ import { useToast } from "./toast-provider";
 interface CollectionsContextValue {
   collections: Collection[];
   isLoading: boolean;
+  loadError: string | null;
+  refreshCollections: () => Promise<void>;
   createCollection: (
     name: string,
     description?: string,
@@ -55,11 +58,33 @@ const CollectionsContext = createContext<CollectionsContextValue | null>(null);
 export function CollectionsProvider({ children }: PropsWithChildren) {
   const userId = useAuthUserId();
   const canSync = useCanSyncUserData();
-  const { hasCollections, maxCollections } = useSubscription();
+  const { maxCollections } = useSubscription();
   const { requestUpgrade } = useUpgradeGate();
   const { showToast } = useToast();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  const loadCollections = useCallback(async () => {
+    if (MOCK_BACKEND || !userId) {
+      return;
+    }
+    setIsLoading(true);
+    setLoadError(null);
+    try {
+      const payload = await listCollections();
+      setCollections(payload);
+    } catch {
+      setCollections([]);
+      setLoadError("Couldn't load collections.");
+    } finally {
+      setIsLoading(false);
+    }
+  }, [userId]);
+
+  const refreshCollections = useCallback(async () => {
+    await loadCollections();
+  }, [loadCollections]);
 
   const collectionsRef = useRef(collections);
   collectionsRef.current = collections;
@@ -115,29 +140,16 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
     }
 
     let cancelled = false;
-
-    listCollections()
-      .then((payload) => {
-        if (!cancelled) {
-          setCollections(payload);
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCollections([]);
-          showToast("error", "Couldn't load collections. Try again later.");
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setIsLoading(false);
-        }
-      });
+    void loadCollections().finally(() => {
+      if (!cancelled) {
+        // loadCollections manages isLoading
+      }
+    });
 
     return () => {
       cancelled = true;
     };
-  }, [userId]);
+  }, [loadCollections, userId]);
 
   const persistMock = useCallback((next: Collection[]) => {
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(next));
@@ -179,29 +191,13 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       color = "#6366f1",
       icon = "folder",
     ): Collection => {
-      if (!hasCollections) {
-        requestUpgrade({
-          featureName: "collections",
-          requiredTier: "basic",
-        });
-        return {
-          id: "",
-          name,
-          description,
-          color,
-          icon,
-          articleIds: [],
-          createdAt: new Date().toISOString(),
-        };
-      }
-
       if (
         Number.isFinite(maxCollections) &&
         collectionsRef.current.length >= maxCollections
       ) {
         requestUpgrade({
           featureName: "more collections",
-          requiredTier: "premium",
+          requiredTier: maxCollections <= 3 ? "basic" : "premium",
         });
         return {
           id: "",
@@ -242,18 +238,26 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
             );
             flushPendingAdds(newCollection.id, serverCollection);
           })
-          .catch(() => {
+          .catch((error) => {
             pendingTempAddsRef.current.delete(newCollection.id);
             setCollections((prev) =>
               prev.filter((current) => current.id !== newCollection.id),
             );
+            const entitlement = parseEntitlementError(error);
+            if (entitlement.isEntitlement) {
+              requestUpgrade({
+                featureName: "more collections",
+                requiredTier: entitlement.requiredTier,
+              });
+              return;
+            }
             showToast("error", "Couldn't create collection. Try again.");
           });
       }
 
       return newCollection;
     },
-    [canSync, flushPendingAdds, hasCollections, maxCollections, persistMock, requestUpgrade],
+    [canSync, flushPendingAdds, maxCollections, persistMock, requestUpgrade, showToast],
   );
 
   const updateCollection = useCallback(
@@ -315,14 +319,6 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
 
   const addArticleToCollection = useCallback(
     (collectionId: string, articleId: string) => {
-      if (!hasCollections) {
-        requestUpgrade({
-          featureName: "collections",
-          requiredTier: "basic",
-        });
-        return;
-      }
-
       const target = collectionsRef.current.find((collection) => collection.id === collectionId);
       if (target?.articleIds.includes(articleId)) {
         return;
@@ -375,7 +371,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
           showToast("error", "Couldn't add to collection. Try again.");
         });
     },
-    [canSync, enqueueMutation, hasCollections, persistMock, requestUpgrade, showToast],
+    [canSync, enqueueMutation, persistMock, showToast],
   );
 
   const addArticleToCollections = useCallback(
@@ -449,6 +445,8 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
     () => ({
       collections,
       isLoading,
+      loadError,
+      refreshCollections,
       createCollection,
       updateCollection,
       deleteCollection,
@@ -460,6 +458,8 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
     [
       collections,
       isLoading,
+      loadError,
+      refreshCollections,
       createCollection,
       updateCollection,
       deleteCollection,

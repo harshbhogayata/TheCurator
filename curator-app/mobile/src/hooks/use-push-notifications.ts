@@ -21,8 +21,12 @@ Notifications.setNotificationHandler({
   }),
 });
 
-function routeFromNotificationUrl(router: ReturnType<typeof useRouter>, url: unknown) {
-  if (typeof url !== "string" || !url.trim()) {
+function routeFromNotificationUrl(
+  router: ReturnType<typeof useRouter>,
+  url: unknown,
+  canRoute: boolean,
+) {
+  if (!canRoute || typeof url !== "string" || !url.trim()) {
     return;
   }
 
@@ -30,6 +34,12 @@ function routeFromNotificationUrl(router: ReturnType<typeof useRouter>, url: unk
   const articleMatch = path.match(/\/article\/([^/?#]+)/i);
   if (articleMatch?.[1]) {
     router.push(`/(app)/article/${articleMatch[1]}`);
+    return;
+  }
+
+  const briefMatch = path.match(/\/brief\/([^/?#]+)/i);
+  if (briefMatch?.[1]) {
+    router.push({ pathname: "/(app)/(tabs)", params: { briefId: briefMatch[1] } });
     return;
   }
 
@@ -43,15 +53,18 @@ export function usePushNotifications() {
   const { status, session } = useAuth();
   const handledColdStart = useRef(false);
   const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
+  const canRoute =
+    status === "signed-in" &&
+    Boolean(session?.onboarding?.isCompleted ?? session?.onboarding?.currentStep === "complete");
 
   useEffect(() => {
-    if (MOCK_BACKEND || status !== "signed-in" || !session) {
+    if (MOCK_BACKEND || !canRoute) {
       return;
     }
 
     const responseSub = Notifications.addNotificationResponseReceivedListener((response) => {
       const url = response.notification.request.content.data?.url;
-      routeFromNotificationUrl(router, url);
+      routeFromNotificationUrl(router, url, canRoute);
     });
 
     if (!handledColdStart.current) {
@@ -59,14 +72,14 @@ export function usePushNotifications() {
       void Notifications.getLastNotificationResponseAsync().then((response) => {
         if (!response) return;
         const url = response.notification.request.content.data?.url;
-        routeFromNotificationUrl(router, url);
+        routeFromNotificationUrl(router, url, canRoute);
       });
     }
 
     return () => {
       responseSub.remove();
     };
-  }, [MOCK_BACKEND, router, session, status]);
+  }, [MOCK_BACKEND, canRoute, router, session, status]);
 
   useEffect(() => {
     if (MOCK_BACKEND) {

@@ -111,7 +111,7 @@ export default function SearchScreen() {
       }
       if (readingStatus === "saved" || readingStatus === "unsaved") {
         if (!isHydrated) {
-          return false;
+          return true;
         }
       }
       if (readingStatus === "saved") {
@@ -135,6 +135,23 @@ export default function SearchScreen() {
     return (
       <View style={{ paddingBottom: 8 }}>
         <MembershipSyncBanner embedded />
+        {!isHydrated && (readingStatus === "saved" || readingStatus === "unsaved") ? (
+          <View
+            style={{
+              marginHorizontal: 4,
+              marginBottom: 12,
+              padding: 14,
+              borderRadius: 16,
+              backgroundColor: palette.surfaceContainerLow,
+              borderWidth: 1,
+              borderColor: palette.outlineVariant + "33",
+            }}
+          >
+            <Text style={[type.labelSm, { color: palette.onSurfaceVariant }]}>
+              Syncing saved articles…
+            </Text>
+          </View>
+        ) : null}
         {/* Search input */}
         <View
           style={{

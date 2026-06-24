@@ -238,7 +238,15 @@ export default function ArticleScreen() {
   // Not found
   if (isArticleLoading) {
     return (
-      <View style={[styles.notFound, { backgroundColor: palette.background }]}> 
+      <View style={[styles.notFound, { backgroundColor: palette.background }]}>
+        <Pressable
+          onPress={() => router.back()}
+          style={[styles.notFoundButton, { alignSelf: "flex-start", marginBottom: 24, backgroundColor: palette.surfaceContainer }]}
+        >
+          <Text style={{ fontFamily: "Manrope_600SemiBold", fontSize: 14, color: palette.onSurface }}>
+            Back
+          </Text>
+        </Pressable>
         <Text
           style={{
             fontFamily: "Newsreader_500Medium",
@@ -358,11 +366,14 @@ export default function ArticleScreen() {
           </Pressable>
           <Pressable
             onPress={toggleBookmark}
+            disabled={savedState === null}
             accessibilityRole="button"
             accessibilityLabel={isSaved ? "Remove bookmark" : "Bookmark article"}
+            accessibilityState={{ disabled: savedState === null }}
             style={[
               styles.headerButton,
               { backgroundColor: palette.surfaceContainerLowest + "CC" },
+              savedState === null && { opacity: 0.4 },
             ]}
           >
             <Bookmark

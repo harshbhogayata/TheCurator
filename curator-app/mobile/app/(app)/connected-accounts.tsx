@@ -4,7 +4,6 @@ import { Check, Link2, Mail, Shield } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { useAuth } from "../../src/providers/auth-provider";
-import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
 import { useModalScrollPadding } from "../../src/lib/layout";
 
@@ -29,7 +28,6 @@ const providerCopy = {
 export default function ConnectedAccountsScreen() {
   const { palette } = useTheme();
   const { session } = useAuth();
-  const { showToast } = useToast();
   const modalScrollPadding = useModalScrollPadding();
 
   const connectedProviders = new Set(session?.identities.map((identity) => identity.provider) ?? []);
@@ -127,21 +125,35 @@ export default function ConnectedAccountsScreen() {
                       Primary
                     </Text>
                   </View>
-                ) : (
-                  <Pressable
-                    onPress={() => showToast("info", `${title} linking is coming soon.`)}
-                    style={({ pressed }) => [
+                ) : isConnected ? (
+                  <View
+                    style={[
                       styles.actionPill,
                       {
-                        backgroundColor: pressed ? palette.primary : palette.inverseSurface,
-                        borderColor: pressed ? palette.primary : palette.inverseSurface,
+                        backgroundColor: palette.surfaceContainer,
+                        borderColor: palette.outlineVariant + "26",
                       },
                     ]}
                   >
-                    <Text style={[styles.actionText, { color: palette.inversePrimary }]}>
-                      {isConnected ? "Connected" : "Connect Soon"}
+                    <Text style={[styles.actionText, { color: palette.onSurfaceVariant }]}>
+                      Connected
                     </Text>
-                  </Pressable>
+                  </View>
+                ) : (
+                  <View
+                    style={[
+                      styles.actionPill,
+                      {
+                        backgroundColor: palette.surfaceContainer,
+                        borderColor: palette.outlineVariant + "26",
+                        opacity: 0.7,
+                      },
+                    ]}
+                  >
+                    <Text style={[styles.actionText, { color: palette.onSurfaceVariant }]}>
+                      Coming Soon
+                    </Text>
+                  </View>
                 )}
               </View>
             );

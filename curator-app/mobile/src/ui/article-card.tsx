@@ -1,5 +1,6 @@
 import React, { memo, useCallback } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable as GesturePressable } from "react-native-gesture-handler";
 import { Image } from "expo-image";
 import { Bookmark, Headphones } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -24,6 +25,8 @@ interface ArticleCardProps {
   variant?: "default" | "compact" | "featured";
   onPress?: () => void;
   showSaveButton?: boolean;
+  /** Use inside swipe rows so horizontal pans are not stolen by the card press. */
+  gestureChild?: boolean;
 }
 
 export function getImageUrl(article: Article): string {
@@ -49,6 +52,7 @@ function ArticleCardInner({
   variant = "default",
   onPress,
   showSaveButton = true,
+  gestureChild = false,
 }: ArticleCardProps) {
   const { palette } = useTheme();
   const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
@@ -94,11 +98,11 @@ function ArticleCardInner({
   }, [savedState, isSaved, article.id, saveArticle, unsaveArticle]);
 
   if (variant === "compact") {
-    return (
-      <Animated.View style={pressAnimationStyle}>
-      <Pressable
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
+    const CardPressable = gestureChild ? GesturePressable : Pressable;
+    const compactCard = (
+      <CardPressable
+        onPressIn={gestureChild ? undefined : handlePressIn}
+        onPressOut={gestureChild ? undefined : handlePressOut}
         onPress={handleNavigate}
         style={styles.compactContainer}
         accessibilityRole="button"
@@ -160,9 +164,14 @@ function ArticleCardInner({
             />
           </Pressable>
         )}
-      </Pressable>
-      </Animated.View>
+      </CardPressable>
     );
+
+    if (gestureChild) {
+      return compactCard;
+    }
+
+    return <Animated.View style={pressAnimationStyle}>{compactCard}</Animated.View>;
   }
 
   // Default and Featured variants share the same layout

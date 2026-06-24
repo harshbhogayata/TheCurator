@@ -265,6 +265,30 @@ export async function fetchBriefs(): Promise<BriefItem[]> {
   return Array.isArray(payload) ? payload : payload.items;
 }
 
+async function fetchBriefPage(filters?: Record<string, unknown>): Promise<CursorListResponse<BriefItem>> {
+  if (mockBackendEnabled) {
+    return { items: mockBriefs, nextCursor: null };
+  }
+
+  const payload = await apiRequest<CursorListResponse<BriefItem> | BriefItem[]>(
+    `${API_PREFIX}/briefs${toQueryString({ limit: 50, ...filters })}`,
+  );
+  return Array.isArray(payload) ? { items: payload, nextCursor: null } : payload;
+}
+
+export async function fetchAllBriefs(filters?: Record<string, unknown>): Promise<BriefItem[]> {
+  const allItems: BriefItem[] = [];
+  let cursor: string | null = null;
+
+  do {
+    const page = await fetchBriefPage({ ...filters, cursor: cursor ?? undefined });
+    allItems.push(...page.items);
+    cursor = page.nextCursor;
+  } while (cursor);
+
+  return allItems;
+}
+
 export async function listSavedArticleIds(): Promise<string[]> {
   const payload = await apiRequest<SavedArticleIdsResponse>(`${API_PREFIX}/saves`);
   return payload.articleIds;

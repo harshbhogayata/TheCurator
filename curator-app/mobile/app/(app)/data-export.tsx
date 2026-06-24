@@ -17,13 +17,16 @@ export default function DataExportScreen() {
 
   const [exports, setExports] = useState<PrivacyExportPayload[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [requesting, setRequesting] = useState(false);
 
   const fetchExports = async () => {
+    setLoadError(null);
     try {
       const data = await listPrivacyExports();
       setExports(data);
     } catch {
+      setLoadError("Couldn't load exports.");
       showToast("error", "Failed to load exports.");
     } finally {
       setLoading(false);
@@ -92,6 +95,37 @@ export default function DataExportScreen() {
         <Text style={[styles.sectionTitle, { color: palette.onSurface }]}>
           Your Exports
         </Text>
+
+        {loadError ? (
+          <Pressable
+            onPress={() => {
+              setLoading(true);
+              void fetchExports();
+            }}
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: palette.errorContainer,
+              borderWidth: 1,
+              borderColor: palette.error + "40",
+            }}
+          >
+            <Text style={{ fontFamily: "Manrope_400Regular", fontSize: 14, color: palette.onErrorContainer }}>
+              {loadError}
+            </Text>
+            <Text
+              style={{
+                fontFamily: "Manrope_600SemiBold",
+                fontSize: 13,
+                color: palette.onErrorContainer,
+                marginTop: 4,
+              }}
+            >
+              Tap to retry
+            </Text>
+          </Pressable>
+        ) : null}
 
         {loading ? (
           <ActivityIndicator color={palette.primary} style={{ marginTop: 20 }} />

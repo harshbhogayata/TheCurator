@@ -36,6 +36,22 @@ function formatCategoryLabel(value: string): string {
     .replace(/\b\w/g, (char) => char.toUpperCase());
 }
 
+function articleLocalDay(article: Article): Date | null {
+  const raw = article.publishedAt ?? article.publishedDate;
+  if (!raw) return null;
+  const parsed = new Date(raw);
+  if (Number.isNaN(parsed.getTime())) return null;
+  const day = new Date(parsed);
+  day.setHours(0, 0, 0, 0);
+  return day;
+}
+
+function rotatePool<T>(pool: T[], offset: number, count: number): T[] {
+  if (pool.length === 0) return [];
+  const normalized = ((offset % pool.length) + pool.length) % pool.length;
+  return [...pool.slice(normalized), ...pool.slice(0, normalized)].slice(0, count);
+}
+
 export default function ExploreScreen() {
   const { palette } = useTheme();
   const { hasAdFree } = useSubscription();
@@ -70,11 +86,13 @@ export default function ExploreScreen() {
   const [viewMode, setViewMode] = useState<"today" | "global">("today");
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
+  const [heroRotation, setHeroRotation] = useState(0);
   const isLoading = isArticlesLoading || isCategoriesLoading;
   const isError = isArticlesError || isCategoriesError;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
+    setHeroRotation((current) => current + 1);
     void Promise.all([refetchArticles(), refetchCategories(), refetchForYou()]).finally(() =>
       setRefreshing(false),
     );
@@ -90,28 +108,29 @@ export default function ExploreScreen() {
   const topNarratives = useMemo(() => {
     if (viewMode === "global") {
       const pool = forYouArticles.length > 0 ? forYouArticles : articles;
-      return pool.slice(0, 2);
+      return rotatePool(pool, heroRotation, 2);
     }
 
     const cutoff = new Date();
+    cutoff.setHours(0, 0, 0, 0);
     cutoff.setDate(cutoff.getDate() - 2);
-    return articles
-      .filter((article) => {
-        const published = parsePublishedDate(article);
-        return published !== null && published >= cutoff;
-      })
-      .slice(0, 2);
-  }, [articles, forYouArticles, parsePublishedDate, viewMode]);
+    const pool = articles.filter((article) => {
+      const publishedDay = articleLocalDay(article);
+      return publishedDay !== null && publishedDay >= cutoff;
+    });
+    return rotatePool(pool, heroRotation, 2);
+  }, [articles, forYouArticles, heroRotation, viewMode]);
 
   const filteredExploreArticles = useMemo(() => {
-    let list = articles.slice(2);
+    const heroIds = new Set(topNarratives.map((article) => article.id));
+    let list = articles.filter((article) => !heroIds.has(article.id));
     if (selectedCategory !== "all") {
       list = list.filter(
         (a) => normalizeCategory(a.category) === selectedCategory
       );
     }
     return list;
-  }, [articles, selectedCategory]);
+  }, [articles, selectedCategory, topNarratives]);
 
   const listHeader = useMemo(() => {
     if (isLoading) {

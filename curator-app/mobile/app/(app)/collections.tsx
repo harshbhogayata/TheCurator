@@ -41,7 +41,8 @@ const PRESET_COLORS = ["#6366f1", "#ec4899", "#f59e0b", "#10b981", "#3b82f6", "#
 
 export default function CollectionsScreen() {
   const { palette } = useTheme();
-  const { collections, createCollection, deleteCollection } = useCollections();
+  const { collections, createCollection, deleteCollection, loadError, refreshCollections, isLoading } =
+    useCollections();
   const { data: allArticles = [] } = useArticles();
   const { showToast } = useToast();
   const router = useRouter();
@@ -108,6 +109,36 @@ export default function CollectionsScreen() {
         contentContainerStyle={{ paddingHorizontal: 16, paddingBottom: 48, paddingTop: modalScrollPadding }}
         showsVerticalScrollIndicator={false}
       >
+        {loadError ? (
+          <Pressable
+            onPress={() => void refreshCollections()}
+            style={{
+              marginBottom: 16,
+              padding: 16,
+              borderRadius: 20,
+              backgroundColor: palette.errorContainer,
+              borderWidth: 1,
+              borderColor: palette.error + "40",
+            }}
+          >
+            <Text style={[type.labelSm, { color: palette.onErrorContainer }]}>{loadError}</Text>
+            <Text
+              style={[
+                type.labelSm,
+                { color: palette.onErrorContainer, marginTop: 4, fontFamily: "Manrope_600SemiBold" },
+              ]}
+            >
+              Tap to retry
+            </Text>
+          </Pressable>
+        ) : null}
+
+        {isLoading && collections.length === 0 ? (
+          <View style={{ paddingVertical: 48, alignItems: "center" }}>
+            <Text style={[type.label, { color: palette.onSurfaceVariant }]}>Loading collections…</Text>
+          </View>
+        ) : null}
+
         {/* New Collection row */}
         <Pressable
           onPress={openCreate}

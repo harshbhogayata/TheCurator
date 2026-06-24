@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
-import { View, Text, ScrollView, Pressable, TextInput } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
+import { useState, useMemo, useCallback, useRef } from "react";
+import { View, Text, Pressable, TextInput, RefreshControl } from "react-native";
+import { FlatList, ScrollView } from "react-native-gesture-handler";
+import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { useRouter } from "expo-router";
 import {
   Search as SearchIcon,
@@ -24,6 +25,7 @@ import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
 import { CompactCardSkeleton } from "../../../src/ui/skeleton-loader";
 import { useSavedArticlesList } from "../../../src/hooks/use-articles";
 import { type } from "../../../src/ui/tokens/typography";
+import type { Article } from "../../../src/data/articles";
 
 export default function SavedScreen() {
   const { palette } = useTheme();
@@ -44,6 +46,16 @@ export default function SavedScreen() {
   const [selectionMode, setSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
   const [deleteTarget, setDeleteTarget] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await refreshSavedArticles();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [refreshSavedArticles]);
 
   // Always intersect query rows with live saved IDs (guards stale cache).
   const savedArticles = useMemo(
@@ -110,17 +122,83 @@ export default function SavedScreen() {
     setSelectionMode((prev) => !prev);
   }, [selectionMode]);
 
-  return (
-    <View style={{ flex: 1, backgroundColor: palette.background }}>
-      {/* Header */}
-      <Header title="Saved" />
+  const swipeRowRefs = useRef(new Map<string, SwipeableMethods>());
 
-      <ScrollView
-        style={{ flex: 1 }}
-        contentContainerStyle={{ paddingTop: headerOffset, paddingBottom: 128 }}
-        showsVerticalScrollIndicator={false}
-        keyboardShouldPersistTaps="handled"
-      >
+  const registerSwipeRow = useCallback((articleId: string, methods: SwipeableMethods | null) => {
+    if (methods) {
+      swipeRowRefs.current.set(articleId, methods);
+      return;
+    }
+    swipeRowRefs.current.delete(articleId);
+  }, []);
+
+  const handleSwipeRowOpen = useCallback((articleId: string) => {
+    swipeRowRefs.current.forEach((methods, id) => {
+      if (id !== articleId) {
+        methods.close();
+      }
+    });
+  }, []);
+
+  const closeAllSwipeRows = useCallback(() => {
+    swipeRowRefs.current.forEach((methods) => methods.close());
+  }, []);
+
+  const listData = showSavedLoading ? [] : filteredSavedArticles;
+
+  const renderSavedItem = useCallback(
+    ({ item: article }: { item: Article }) => {
+      const isSelected = selectedIds.includes(article.id);
+      return (
+        <View
+          style={{
+            flexDirection: "row",
+            alignItems: "center",
+            gap: 12,
+            paddingHorizontal: contentPadding,
+          }}
+        >
+          {selectionMode ? (
+            <Pressable onPress={() => toggleSelection(article.id)}>
+              {isSelected ? (
+                <CheckSquare size={20} color={palette.primary} />
+              ) : (
+                <Square size={20} color={palette.outline} />
+              )}
+            </Pressable>
+          ) : null}
+          <View style={{ flex: 1, minWidth: 0 }}>
+            {selectionMode ? (
+              <ArticleCard article={article} variant="compact" showSaveButton={false} />
+            ) : (
+              <SwipeableArticleCard
+                article={article}
+                onRemove={() => confirmDelete(article.id)}
+                enableSaveSwipe={false}
+                removeSwipeDirection="right"
+                onSwipeRowOpen={handleSwipeRowOpen}
+                registerSwipeRow={registerSwipeRow}
+              />
+            )}
+          </View>
+        </View>
+      );
+    },
+    [
+      confirmDelete,
+      contentPadding,
+      handleSwipeRowOpen,
+      palette,
+      registerSwipeRow,
+      selectedIds,
+      selectionMode,
+      toggleSelection,
+    ],
+  );
+
+  const listHeader = useMemo(
+    () => (
+      <>
         <MembershipSyncBanner embedded />
         {syncError ? (
           <Pressable
@@ -135,22 +213,19 @@ export default function SavedScreen() {
               borderColor: palette.error + "40",
             }}
           >
-            <Text style={[type.labelSm, { color: palette.onErrorContainer }]}>
-              {syncError}
-            </Text>
+            <Text style={[type.labelSm, { color: palette.onErrorContainer }]}>{syncError}</Text>
             <Text
               style={[
                 type.labelSm,
                 { color: palette.onErrorContainer, marginTop: 4, fontFamily: "Manrope_600SemiBold" },
               ]}
             >
-              Tap to retry
+              Pull down to retry
             </Text>
           </Pressable>
         ) : null}
 
-        {/* Storage limit banner (free users only) */}
-        {!hasUnlimitedSaves && !isTierResolving && (
+        {!hasUnlimitedSaves && !isTierResolving ? (
           <View
             style={{
               marginHorizontal: contentPadding,
@@ -169,10 +244,13 @@ export default function SavedScreen() {
                 marginBottom: 10,
               }}
             >
-              <Text style={[type.labelSm, { color: palette.onSurface }]}>
-                Storage
-              </Text>
-              <Text style={[type.labelSm, { fontFamily: "Manrope_500Medium", color: palette.onSurfaceVariant }]}>
+              <Text style={[type.labelSm, { color: palette.onSurface }]}>Storage</Text>
+              <Text
+                style={[
+                  type.labelSm,
+                  { fontFamily: "Manrope_500Medium", color: palette.onSurfaceVariant },
+                ]}
+              >
                 {savedCount}/{maxSaves}
               </Text>
             </View>
@@ -199,9 +277,8 @@ export default function SavedScreen() {
               />
             </View>
           </View>
-        )}
+        ) : null}
 
-        {/* Collections CTA */}
         <Pressable
           onPress={() => router.push("/(app)/collections" as any)}
           style={{
@@ -219,17 +296,19 @@ export default function SavedScreen() {
         >
           <Folder size={20} color={palette.primary} />
           <View style={{ flex: 1 }}>
-            <Text style={[type.label, { color: palette.onSurface }]}>
-              Collections
-            </Text>
-            <Text style={[type.labelSm, { fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant }]}>
+            <Text style={[type.label, { color: palette.onSurface }]}>Collections</Text>
+            <Text
+              style={[
+                type.labelSm,
+                { fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant },
+              ]}
+            >
               Organize your saved narratives
             </Text>
           </View>
         </Pressable>
 
-        {/* Bulk actions bar */}
-        {selectionMode && selectedIds.length > 0 && (
+        {selectionMode && selectedIds.length > 0 ? (
           <View
             style={{
               marginHorizontal: contentPadding,
@@ -245,23 +324,20 @@ export default function SavedScreen() {
             <Text style={[type.label, { fontFamily: "Manrope_500Medium", color: palette.onSurface }]}>
               {selectedIds.length} selected
             </Text>
-            <View style={{ flexDirection: "row", gap: 8 }}>
-              <Pressable
-                onPress={bulkDelete}
-                style={{
-                  paddingHorizontal: 12,
-                  paddingVertical: 8,
-                  borderRadius: 999,
-                  backgroundColor: palette.errorContainer,
-                }}
-              >
-                <Trash2 size={16} color={palette.error} />
-              </Pressable>
-            </View>
+            <Pressable
+              onPress={bulkDelete}
+              style={{
+                paddingHorizontal: 12,
+                paddingVertical: 8,
+                borderRadius: 999,
+                backgroundColor: palette.errorContainer,
+              }}
+            >
+              <Trash2 size={16} color={palette.error} />
+            </Pressable>
           </View>
-        )}
+        ) : null}
 
-        {/* Filter/search input */}
         <View
           style={{
             marginHorizontal: contentPadding,
@@ -292,8 +368,7 @@ export default function SavedScreen() {
           />
         </View>
 
-        {/* Category chips */}
-        {categoryChips.length > 1 && (
+        {categoryChips.length > 1 ? (
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
@@ -318,16 +393,20 @@ export default function SavedScreen() {
                     borderColor: active ? "transparent" : palette.outlineVariant + "33",
                   }}
                 >
-                  <Text style={[type.labelSm, { color: active ? palette.inverseOnSurface : palette.onSurfaceVariant }]}>
+                  <Text
+                    style={[
+                      type.labelSm,
+                      { color: active ? palette.inverseOnSurface : palette.onSurfaceVariant },
+                    ]}
+                  >
                     {cat}
                   </Text>
                 </Pressable>
               );
             })}
           </ScrollView>
-        )}
+        ) : null}
 
-        {/* Toggle selection mode button */}
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={selectionMode ? "Cancel selection" : "Select articles"}
@@ -346,79 +425,104 @@ export default function SavedScreen() {
           ) : (
             <Square size={16} color={palette.onSurfaceVariant} />
           )}
-          <Text style={[type.labelSm, { fontFamily: "Manrope_500Medium", color: palette.onSurfaceVariant }]}>
+          <Text
+            style={[
+              type.labelSm,
+              { fontFamily: "Manrope_500Medium", color: palette.onSurfaceVariant },
+            ]}
+          >
             {selectionMode ? "Cancel" : "Select"}
           </Text>
         </Pressable>
+        <View style={{ height: 16 }} />
+      </>
+    ),
+    [
+      bulkDelete,
+      categoryChips,
+      contentPadding,
+      filterQuery,
+      hasUnlimitedSaves,
+      isTierResolving,
+      maxSaves,
+      palette,
+      percentage,
+      refreshSavedArticles,
+      router,
+      savedCount,
+      selectedCategory,
+      selectedIds.length,
+      selectionMode,
+      syncError,
+      toggleSelectionMode,
+    ],
+  );
 
-        {/* Saved articles list */}
-        {showSavedLoading ? (
-          <View style={{ paddingHorizontal: contentPadding, marginTop: 16, gap: 16 }}>
-            <CompactCardSkeleton />
-            <CompactCardSkeleton />
-            <CompactCardSkeleton />
-          </View>
-        ) : filteredSavedArticles.length > 0 ? (
-          <View style={{ paddingHorizontal: contentPadding, marginTop: 16, gap: 16 }}>
-            {filteredSavedArticles.map((article) => {
-              const isSelected = selectedIds.includes(article.id);
-              return (
-                <View
-                  key={article.id}
-                  style={{
-                    flexDirection: "row",
-                    alignItems: "center",
-                    gap: 12,
-                  }}
-                >
-                  {selectionMode && (
-                    <Pressable onPress={() => toggleSelection(article.id)}>
-                      {isSelected ? (
-                        <CheckSquare size={20} color={palette.primary} />
-                      ) : (
-                        <Square size={20} color={palette.outline} />
-                      )}
-                    </Pressable>
-                  )}
-                  <View style={{ flex: 1, minWidth: 0 }}>
-                    {selectionMode ? (
-                      <ArticleCard
-                        article={article}
-                        variant="compact"
-                        showSaveButton={false}
-                      />
-                    ) : (
-                      <SwipeableArticleCard
-                        article={article}
-                        onRemove={() => confirmDelete(article.id)}
-                        enableSaveSwipe={false}
-                        removeSwipeDirection="right"
-                      />
-                    )}
-                  </View>
-                </View>
-              );
-            })}
-          </View>
-        ) : (
-          /* Empty state */
-          <View
-            style={{
-              alignItems: "center",
-              justifyContent: "center",
-              paddingVertical: 80,
-            }}
-          >
-            <Bookmark size={48} color={palette.outlineVariant} />
-            <Text style={[type.title, { color: palette.onSurface, marginTop: 16 }]}>
-              No saved articles
-            </Text>
-            <Text style={[type.label, { fontFamily: "Manrope_400Regular", color: palette.onSurfaceVariant, marginTop: 8, textAlign: "center", paddingHorizontal: 48 }]}>
-              Bookmark articles to read later.
-            </Text>
-          </View>
-        )}
-      </ScrollView>
+  const listEmpty = useCallback(() => {
+    if (showSavedLoading) {
+      return (
+        <View style={{ paddingHorizontal: contentPadding, marginTop: 16, gap: 16 }}>
+          <CompactCardSkeleton />
+          <CompactCardSkeleton />
+          <CompactCardSkeleton />
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={{
+          alignItems: "center",
+          justifyContent: "center",
+          paddingVertical: 80,
+          paddingHorizontal: contentPadding,
+        }}
+      >
+        <Bookmark size={48} color={palette.outlineVariant} />
+        <Text style={[type.title, { color: palette.onSurface, marginTop: 16 }]}>No saved articles</Text>
+        <Text
+          style={[
+            type.label,
+            {
+              fontFamily: "Manrope_400Regular",
+              color: palette.onSurfaceVariant,
+              marginTop: 8,
+              textAlign: "center",
+            },
+          ]}
+        >
+          Bookmark articles to read later.
+        </Text>
+      </View>
+    );
+  }, [contentPadding, palette.onSurface, palette.onSurfaceVariant, palette.outlineVariant, showSavedLoading]);
+
+  return (
+    <View style={{ flex: 1, backgroundColor: palette.background }}>
+      {/* Header */}
+      <Header title="Saved" />
+
+      <FlatList
+        data={listData}
+        keyExtractor={(item) => item.id}
+        renderItem={renderSavedItem}
+        ListHeaderComponent={listHeader}
+        ListEmptyComponent={listEmpty}
+        contentContainerStyle={{ paddingTop: headerOffset, paddingBottom: 128 }}
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+        ItemSeparatorComponent={() => <View style={{ height: 16 }} />}
+        onScrollBeginDrag={closeAllSwipeRows}
+        extraData={{ selectionMode, selectedIds, filterQuery, selectedCategory }}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={() => void onRefresh()}
+            tintColor={palette.primary}
+          />
+        }
+      />
 
       {/* Confirm dialog for delete */}
       <ConfirmDialog

@@ -3,10 +3,11 @@ import logging
 from celery import shared_task
 from django.conf import settings
 from django.core.mail import send_mail
+from django.utils import timezone
 from django.utils.html import escape
 
 from mobileapi.export_services import generate_data_export
-from mobileapi.models import Article, ArticleStatus
+from mobileapi.models import Article, ArticleStatus, Brief
 from mobileapi.personalization import personalized_category_slugs
 from mobileapi.push import notify_users
 from onboarding.models import NotificationFrequency, UserPreference
@@ -42,6 +43,14 @@ def _top_article():
     )
 
 
+def _today_brief():
+    return (
+        Brief.objects.filter(is_active=True, published_at=timezone.localdate())
+        .order_by("rank", "-created_at")
+        .first()
+    )
+
+
 @shared_task
 def send_daily_push_notifications():
     """Daily briefing push for users on the 'daily' notification cadence."""
@@ -55,16 +64,16 @@ def send_daily_push_notifications():
         if not user_ids:
             return
 
-        top_article = _top_article()
-        if not top_article:
-            logger.info("No articles available for daily push.")
+        brief = _today_brief()
+        if not brief:
+            logger.info("No brief available for daily push.")
             return
 
         delivered = notify_users(
             user_ids,
             title="Your Daily Curated Briefing",
-            body=f"Read today's top story: {top_article.title}",
-            url=f"/article/{top_article.id}",
+            body=brief.title,
+            url=f"/brief/{brief.id}",
         )
         logger.info("Sent daily push to %d device(s).", delivered)
     except Exception as exc:

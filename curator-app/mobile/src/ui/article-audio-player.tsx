@@ -50,6 +50,7 @@ function ArticleAudioPlayerInner({
     currentBriefId,
     positionMs,
     durationMs,
+    playbackSource,
     playBrief,
     pause,
     resume,
@@ -62,8 +63,8 @@ function ArticleAudioPlayerInner({
 
   const estimatedDurationSec = readTimeMinutes ? readTimeMinutes * 60 : null;
   const hasAudioMetadata = Boolean(audioUrl || durationSec || hasAudioAvailable);
-  const showPlayer = isBrief ? hasAudioMetadata : hasAudioMetadata || hasAudioAccess;
-  if (!showPlayer) return null;
+  const showPlayer = hasAudioMetadata;
+  if (!showPlayer && !canListen) return null;
 
   const displayDurationSec = durationSec ?? estimatedDurationSec;
 
@@ -71,6 +72,7 @@ function ArticleAudioPlayerInner({
   const isPlaying = isThisArticle && state === "playing";
   const isLoading = (isThisArticle && state === "loading") || isResolvingAudio;
   const isActive = isThisArticle && state !== "idle";
+  const isSpeechMode = playbackSource === "speech" && isActive;
 
   const effectiveDurationMs =
     isActive && durationMs > 0 ? durationMs : (displayDurationSec ?? 0) * 1000;
@@ -216,18 +218,22 @@ function ArticleAudioPlayerInner({
 
         {/* Controls */}
         <View style={styles.controlsRow}>
-          <Pressable
-            onPress={canListen ? skipBackward : () => setPaywallVisible(true)}
-            disabled={!isActive}
-            style={[
-              styles.controlButton,
-              { backgroundColor: palette.surfaceContainerLowest },
-              !isActive && { opacity: 0.4 },
-            ]}
-            accessibilityLabel="Skip back 15 seconds"
-          >
-            <SkipBack size={16} color={palette.onSurface} />
-          </Pressable>
+          {!isSpeechMode ? (
+            <Pressable
+              onPress={canListen ? skipBackward : () => setPaywallVisible(true)}
+              disabled={!isActive}
+              style={[
+                styles.controlButton,
+                { backgroundColor: palette.surfaceContainerLowest },
+                !isActive && { opacity: 0.4 },
+              ]}
+              accessibilityLabel="Skip back 15 seconds"
+            >
+              <SkipBack size={16} color={palette.onSurface} />
+            </Pressable>
+          ) : (
+            <View style={[styles.controlButton, { opacity: 0 }]} />
+          )}
 
           <Pressable
             onPress={handlePlayPause}
@@ -265,18 +271,22 @@ function ArticleAudioPlayerInner({
             )}
           </Pressable>
 
-          <Pressable
-            onPress={hasAudioAccess ? skipForward : () => setPaywallVisible(true)}
-            disabled={!isActive}
-            style={[
-              styles.controlButton,
-              { backgroundColor: palette.surfaceContainerLowest },
-              !isActive && { opacity: 0.4 },
-            ]}
-            accessibilityLabel="Skip forward 15 seconds"
-          >
-            <SkipForward size={16} color={palette.onSurface} />
-          </Pressable>
+          {!isSpeechMode ? (
+            <Pressable
+              onPress={hasAudioAccess ? skipForward : () => setPaywallVisible(true)}
+              disabled={!isActive}
+              style={[
+                styles.controlButton,
+                { backgroundColor: palette.surfaceContainerLowest },
+                !isActive && { opacity: 0.4 },
+              ]}
+              accessibilityLabel="Skip forward 15 seconds"
+            >
+              <SkipForward size={16} color={palette.onSurface} />
+            </Pressable>
+          ) : (
+            <View style={[styles.controlButton, { opacity: 0 }]} />
+          )}
 
           <View style={styles.titleCol}>
             <Text
