@@ -11,9 +11,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . .
-# collectstatic only needs settings import — use ephemeral sqlite at build time.
-ENV DATABASE_URL=sqlite:////tmp/collectstatic.sqlite3
-RUN python manage.py collectstatic --noinput
+RUN DATABASE_URL=sqlite:////tmp/collectstatic.sqlite3 python manage.py collectstatic --noinput
 
 USER appuser
 

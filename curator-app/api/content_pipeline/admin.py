@@ -14,6 +14,32 @@ from content_pipeline.services.fetchers import fetch_source_safely
 from content_pipeline.services.publish import PublishError, publish_draft
 
 
+class DraftQueueFilter(admin.SimpleListFilter):
+    """Filter drafts by editorial queue without breaking admin changelist queries."""
+
+    title = "queue"
+    parameter_name = "queue"
+
+    def lookups(self, request, model_admin):
+        return (
+            ("review", "Needs review (default)"),
+            ("all", "All drafts"),
+            ("published", "Published only"),
+            ("rejected", "Rejected only"),
+        )
+
+    def queryset(self, request, queryset):
+        value = self.value()
+        if value == "all":
+            return queryset
+        if value == "published":
+            return queryset.filter(status=DraftStatus.PUBLISHED)
+        if value == "rejected":
+            return queryset.filter(status=DraftStatus.REJECTED)
+        # Default: hide published/rejected noise.
+        return queryset.exclude(status__in=[DraftStatus.PUBLISHED, DraftStatus.REJECTED])
+
+
 @admin.register(Source)
 class SourceAdmin(admin.ModelAdmin):
     list_display = (
@@ -80,11 +106,12 @@ class ArticleDraftAdmin(admin.ModelAdmin):
         "created_at",
     )
     list_display_links = ("title",)
-    list_filter = ("status", "kind", "category", "is_breaking")
-    list_per_page = 500
-    list_max_show_all = 5000
+    list_filter = (DraftQueueFilter, "status", "category")
+    list_per_page = 200
+    list_max_show_all = 2000
     show_full_result_count = False
-    search_fields = ("title", "excerpt", "content")
+    search_fields = ("title", "excerpt")
+    ordering = ("-created_at",)
     readonly_fields = (
         "cluster",
         "llm_model",
@@ -133,26 +160,7 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     actions = ["approve_drafts", "publish_now", "reject_drafts", "send_back_to_review"]
 
     def get_queryset(self, request):
-        qs = super().get_queryset(request).select_related("category").order_by("-created_at")
-        if not request.GET.get("status__exact") and not request.GET.get("q"):
-            qs = qs.exclude(status__in=[DraftStatus.PUBLISHED, DraftStatus.REJECTED])
-        return qs
-
-    def changelist_view(self, request, extra_context=None):
-        in_review = ArticleDraft.objects.filter(
-            status__in=[DraftStatus.DRAFT, DraftStatus.IN_REVIEW]
-        ).count()
-        approved = ArticleDraft.objects.filter(status=DraftStatus.APPROVED).count()
-        showing_queue = not request.GET.get("status__exact") and not request.GET.get("q")
-        if showing_queue:
-            messages.info(
-                request,
-                f"Review queue: {in_review} need review, {approved} approved. "
-                "Use Status filter > Published to see live drafts.",
-            )
-        elif in_review:
-            messages.info(request, f"{in_review} draft(s) still need review.")
-        return super().changelist_view(request, extra_context=extra_context)
+        return super().get_queryset(request).select_related("category")
 
     @admin.display(description="Breaking")
     def breaking_badge(self, obj):
@@ -169,10 +177,11 @@ class ArticleDraftAdmin(admin.ModelAdmin):
             DraftStatus.PUBLISHED: "#1d4ed8",
             DraftStatus.REJECTED: "#b91c1c",
         }
+        label = obj.get_status_display()
         return format_html(
             '<span style="color:{};font-weight:600;">{}</span>',
             colors.get(obj.status, "#64748b"),
-            obj.get_status_display(),
+            label,
         )
 
     @admin.display(description="Preview")
