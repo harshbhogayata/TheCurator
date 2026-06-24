@@ -120,7 +120,13 @@ export default function ProfileScreen() {
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={[]}>
-        <PillPageHeader title="Profile" leadingAction="close" />
+        <PillPageHeader
+          title="Profile"
+          leadingAction="close"
+          showProfile
+          showBadge={false}
+          profileInteractive={false}
+        />
 
         <ScrollView
           style={{ flex: 1 }}
@@ -206,10 +212,7 @@ export default function ProfileScreen() {
                 }}
                 style={({ pressed }) => ({ flex: 1, opacity: pressed ? 0.92 : 1 })}
               >
-                <GlassCard
-                  borderRadius={28}
-                  style={styles.statCard}
-                >
+                <GlassCard borderRadius={24} style={styles.statCard}>
                   <Text style={[styles.statValue, { color: palette.primary }]}>
                     {item.value}
                   </Text>
@@ -231,7 +234,7 @@ export default function ProfileScreen() {
                 const Icon = item.icon;
 
                 return (
-                  <GlassCard key={item.label} borderRadius={999} style={styles.actionShell}>
+                  <GlassCard key={item.label} style={styles.actionShell}>
                     <Pressable
                       onPress={() => router.push(item.path)}
                       style={({ pressed }) => [
@@ -343,9 +346,9 @@ const styles = StyleSheet.create({
     marginBottom: 34,
   },
   statCard: {
-    minHeight: 118,
-    paddingHorizontal: 20,
-    paddingVertical: 18,
+    minHeight: 108,
+    paddingHorizontal: 18,
+    paddingVertical: 16,
     justifyContent: "center",
   },
   statLabel: {
@@ -370,9 +373,7 @@ const styles = StyleSheet.create({
   actionList: {
     gap: 12,
   },
-  actionShell: {
-    // Shadow handled by GlassCard outer wrapper.
-  },
+  actionShell: {},
   actionPressable: {
     width: "100%",
   },

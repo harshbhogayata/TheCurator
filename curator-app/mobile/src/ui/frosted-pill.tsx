@@ -1,26 +1,16 @@
 import { type PropsWithChildren } from "react";
-import { Platform, StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
-import { BlurView } from "expo-blur";
+import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 
 import { useTheme } from "../providers/theme-provider";
 
 interface FrostedPillProps extends PropsWithChildren {
   style?: StyleProp<ViewStyle>;
   borderColor: string;
-  blurIntensity?: number;
 }
 
-/** Header/modal pill with solid fill on Android where BlurView often renders transparent. */
-export function FrostedPill({
-  children,
-  style,
-  borderColor,
-  blurIntensity = 60,
-}: FrostedPillProps) {
-  const { palette, resolvedTheme } = useTheme();
-  const tint = resolvedTheme === "dark" ? "dark" : "light";
-  const isAndroid = Platform.OS === "android";
-  const fillColor = isAndroid ? palette.surfaceContainerLow : palette.surfaceContainerLowest;
+/** Solid header pill — same treatment as tab Header, without blur. */
+export function FrostedPill({ children, style, borderColor }: FrostedPillProps) {
+  const { palette } = useTheme();
 
   return (
     <View
@@ -28,28 +18,12 @@ export function FrostedPill({
         styles.pill,
         {
           borderColor,
-          backgroundColor: isAndroid ? fillColor : undefined,
+          backgroundColor: palette.surfaceContainerLowest,
         },
         style,
       ]}
     >
-      {isAndroid ? (
-        <View
-          pointerEvents="none"
-          style={[StyleSheet.absoluteFillObject, { backgroundColor: fillColor }]}
-        />
-      ) : (
-        <BlurView
-          pointerEvents="none"
-          intensity={blurIntensity}
-          tint={tint}
-          style={[
-            StyleSheet.absoluteFillObject,
-            { backgroundColor: palette.surfaceContainerLowest + "CC" },
-          ]}
-        />
-      )}
-      <View style={styles.content}>{children}</View>
+      {children}
     </View>
   );
 }
@@ -59,9 +33,5 @@ const styles = StyleSheet.create({
     borderRadius: 999,
     borderWidth: 2,
     overflow: "hidden",
-  },
-  content: {
-    position: "relative",
-    zIndex: 1,
   },
 });

@@ -23,6 +23,7 @@ import { PillPageHeader } from "../../src/ui/pill-page-header";
 import { useModalScrollPadding } from "../../src/lib/layout";
 import { userDisplayName } from "../../src/lib/user-display-name";
 import { useNavigateFromModal } from "../../src/lib/navigate-from-modal";
+import { type } from "../../src/ui/tokens/typography";
 
 const menuItems = [
   { icon: FolderOpen, label: "Collections", path: "/(app)/collections" as const },
@@ -91,61 +92,67 @@ export default function MenuScreen() {
           contentContainerStyle={[styles.scrollContent, { paddingTop: modalScrollPadding }]}
           showsVerticalScrollIndicator={false}
         >
-          <Pressable
-            onPress={() => navigateFromModal("/(app)/profile")}
-            style={({ pressed }) => ({ opacity: pressed ? 0.94 : 1, marginBottom: 28 })}
-          >
-            <GlassCard
-              borderRadius={38}
-              style={styles.profileCard}
-            >
-              <View
-                style={[
-                  styles.profileAvatarWrap,
-                  { borderColor: palette.outlineVariant + "40" },
+          <View style={styles.navList}>
+            <GlassCard>
+              <Pressable
+                onPress={() => navigateFromModal("/(app)/profile")}
+                style={({ pressed }) => [
+                  styles.menuPressable,
+                  {
+                    backgroundColor: pressed ? palette.surfaceContainerLow : "transparent",
+                  },
                 ]}
               >
-                <ProfileAvatar
-                  avatarUrl={session?.user?.avatarUrl}
-                  displayName={session?.user?.displayName}
-                  email={session?.user?.email}
-                  size={64}
-                />
-              </View>
+                <View style={styles.menuItem}>
+                  <View
+                    style={[
+                      styles.menuIcon,
+                      styles.profileIcon,
+                      { borderColor: palette.outlineVariant + "33" },
+                    ]}
+                  >
+                    <ProfileAvatar
+                      avatarUrl={session?.user?.avatarUrl}
+                      displayName={session?.user?.displayName}
+                      email={session?.user?.email}
+                      size={40}
+                    />
+                  </View>
 
-              <View style={styles.profileCopy}>
-                <Text style={[styles.profileName, { color: palette.onSurface }]} numberOfLines={1}>
-                  {displayName}
-                </Text>
-                <View style={styles.profileMetaRow}>
-                  <SubscriptionBadge size="sm" />
-                  <Text style={[styles.profileMeta, { color: palette.outline }]}>
-                    {memberLabel}
-                  </Text>
+                  <View style={styles.menuLabelWrap}>
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.menuLabel, { color: palette.onSurface }]}
+                    >
+                      {displayName}
+                    </Text>
+                    <View style={styles.profileMetaRow}>
+                      <SubscriptionBadge size="sm" />
+                      <Text
+                        numberOfLines={1}
+                        style={[styles.profileMeta, { color: palette.onSurfaceVariant }]}
+                      >
+                        {memberLabel}
+                      </Text>
+                    </View>
+                  </View>
+
+                  <ChevronRight size={18} color={palette.outlineVariant} strokeWidth={2.1} />
                 </View>
-              </View>
-
-              <ChevronRight
-                size={20}
-                color={palette.outlineVariant}
-                strokeWidth={2.2}
-                style={{ flexShrink: 0 }}
-              />
+              </Pressable>
             </GlassCard>
-          </Pressable>
 
-          <View style={styles.navList}>
             {menuItems.map((item) => {
               const Icon = item.icon;
 
               return (
-                <GlassCard key={item.label} borderRadius={30} style={styles.menuCard}>
+                <GlassCard key={item.label}>
                   <Pressable
                     onPress={() => navigateFromModal(item.path)}
                     style={({ pressed }) => [
                       styles.menuPressable,
                       {
-                        backgroundColor: pressed ? palette.surfaceContainerLow + "B3" : "transparent",
+                        backgroundColor: pressed ? palette.surfaceContainerLow : "transparent",
                       },
                     ]}
                   >
@@ -174,45 +181,43 @@ export default function MenuScreen() {
                 </GlassCard>
               );
             })}
-          </View>
 
-          <GlassCard borderRadius={30} style={styles.signOutCard}>
-            <Pressable
-              onPress={handleSignOut}
-              style={({ pressed }) => [
-                styles.menuPressable,
-                {
-                  backgroundColor: pressed
-                    ? palette.surfaceContainerLow + "B3"
-                    : "transparent",
-                },
-              ]}
-            >
-              <View style={styles.menuItem}>
-                <View
-                  style={[
-                    styles.menuIcon,
-                    { backgroundColor: palette.errorContainer },
-                  ]}
-                >
-                  <LogOut
-                    size={22}
-                    color={palette.onErrorContainer}
-                    strokeWidth={2.1}
-                  />
-                </View>
-
-                <View style={styles.menuLabelWrap}>
-                  <Text
-                    numberOfLines={1}
-                    style={[styles.menuLabel, { color: palette.error }]}
+            <GlassCard style={styles.signOutCard}>
+              <Pressable
+                onPress={handleSignOut}
+                style={({ pressed }) => [
+                  styles.menuPressable,
+                  {
+                    backgroundColor: pressed ? palette.surfaceContainerLow : "transparent",
+                  },
+                ]}
+              >
+                <View style={styles.menuItem}>
+                  <View
+                    style={[
+                      styles.menuIcon,
+                      { backgroundColor: palette.errorContainer },
+                    ]}
                   >
-                    Sign Out
-                  </Text>
+                    <LogOut
+                      size={22}
+                      color={palette.onErrorContainer}
+                      strokeWidth={2.1}
+                    />
+                  </View>
+
+                  <View style={styles.menuLabelWrap}>
+                    <Text
+                      numberOfLines={1}
+                      style={[styles.menuLabel, { color: palette.error }]}
+                    >
+                      Sign Out
+                    </Text>
+                  </View>
                 </View>
-              </View>
-            </Pressable>
-          </GlassCard>
+              </Pressable>
+            </GlassCard>
+          </View>
         </ScrollView>
       </SafeAreaView>
     </View>
@@ -232,47 +237,11 @@ const styles = StyleSheet.create({
     height: 220,
   },
   scrollContent: {
-    paddingHorizontal: 24,
+    paddingHorizontal: 20,
     paddingBottom: 42,
-  },
-  profileCard: {
-    padding: 22,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    minHeight: 112,
-  },
-  profileAvatarWrap: {
-    width: 68,
-    height: 68,
-    borderRadius: 34,
-    overflow: "hidden",
-    borderWidth: 2,
-  },
-  profileCopy: {
-    flex: 1,
-    minWidth: 0,
-  },
-  profileName: {
-    fontFamily: "Newsreader_500Medium",
-    fontSize: 26,
-    marginBottom: 6,
-  },
-  profileMetaRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-  },
-  profileMeta: {
-    fontFamily: "Manrope_500Medium",
-    fontSize: 13,
   },
   navList: {
     gap: 10,
-  },
-  menuCard: {
-    // Shadow handled by GlassCard outer wrapper.
   },
   menuPressable: {
     width: "100%",
@@ -292,18 +261,34 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 16,
     flexShrink: 0,
+    overflow: "hidden",
+  },
+  profileIcon: {
+    backgroundColor: "transparent",
+    borderWidth: 1,
   },
   menuLabelWrap: {
     flex: 1,
     minWidth: 0,
     justifyContent: "center",
+    gap: 4,
   },
   menuLabel: {
     fontFamily: "Manrope_500Medium",
     fontSize: 17,
     lineHeight: 22,
   },
+  profileMetaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  profileMeta: {
+    ...type.labelSm,
+    fontFamily: "Manrope_400Regular",
+  },
   signOutCard: {
-    marginTop: 28,
+    marginTop: 18,
   },
 });
