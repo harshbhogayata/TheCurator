@@ -6,7 +6,6 @@ import {
   Share,
   ScrollView,
   StyleSheet,
-  Alert,
   type NativeScrollEvent,
   type NativeSyntheticEvent,
 } from "react-native";
@@ -38,6 +37,7 @@ import { TypographySettings } from "../../../src/ui/typography-settings";
 import { ArticleCard, getImageUrl } from "../../../src/ui/article-card";
 import { ArticleAudioPlayer } from "../../../src/ui/article-audio-player";
 import { AddToCollectionModal } from "../../../src/ui/add-to-collection-modal";
+import { useUpgradeGate } from "../../../src/providers/upgrade-gate-provider";
 import { useArticle, useArticles } from "../../../src/hooks/use-articles";
 
 const MIN_READ_TIME_MS = 3_000;
@@ -54,6 +54,7 @@ export default function ArticleScreen() {
   const { fontSizeValue, lineHeightValue } = useReadingPreferences();
   const { recordArticleRead } = useReadingStats();
   const { hasCollections } = useSubscription();
+  const { requestUpgrade } = useUpgradeGate();
   const { data: article, isLoading: isArticleLoading, isError: isArticleError, refetch } = useArticle(id ?? "");
   const { data: allArticles = [] } = useArticles();
 
@@ -183,15 +184,14 @@ export default function ArticleScreen() {
 
   const openCollectionModal = useCallback(() => {
     if (!hasCollections) {
-      Alert.alert(
-        "Upgrade Required",
-        "Collections are available on Basic and above.",
-        [{ text: "OK" }],
-      );
+      requestUpgrade({
+        featureName: "collections",
+        requiredTier: "basic",
+      });
       return;
     }
     setCollectionModalVisible(true);
-  }, [hasCollections]);
+  }, [hasCollections, requestUpgrade]);
 
   // Share
   const shareArticle = useCallback(async () => {

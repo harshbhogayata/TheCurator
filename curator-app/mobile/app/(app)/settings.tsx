@@ -31,6 +31,7 @@ import { useTextSizePreference } from "../../src/hooks/use-text-size-preference"
 import { updatePreferences as updatePreferencesRemote } from "../../src/services/mobile-api";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { MembershipSyncBanner } from "../../src/ui/membership-sync-banner";
 import { type } from "../../src/ui/tokens/typography";
 
 const themeOptions: Array<{
@@ -141,7 +142,7 @@ function ActionRow({
   description,
   onPress,
 }: {
-  Icon: typeof User;
+  Icon: typeof Globe;
   title: string;
   description: string;
   onPress: () => void;
@@ -379,6 +380,7 @@ export default function SettingsScreen() {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
+        <MembershipSyncBanner embedded />
         <View
           style={[
             styles.membershipCard,
@@ -415,18 +417,18 @@ export default function SettingsScreen() {
             style={({ pressed }) => [
               styles.membershipButton,
               {
-                backgroundColor: pressed ? palette.primaryDim : palette.primary,
+                backgroundColor: pressed ? palette.primaryDim : palette.inverseSurface,
               },
             ]}
           >
             <View style={styles.membershipButtonContent}>
               <Text
                 numberOfLines={1}
-                style={[styles.membershipButtonText, { color: palette.primaryForeground }]}
+                style={[styles.membershipButtonText, { color: palette.inverseOnSurface }]}
               >
                 {tierCopy.action}
               </Text>
-              <ChevronRight size={18} color={palette.primaryForeground} />
+              <ChevronRight size={18} color={palette.inverseOnSurface} />
             </View>
           </Pressable>
         </View>

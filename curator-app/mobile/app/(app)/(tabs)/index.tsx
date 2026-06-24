@@ -20,7 +20,6 @@ import { useSubscription } from "../../../src/providers/subscription-provider";
 import { useAudio } from "../../../src/providers/audio-provider";
 import { useBriefs } from "../../../src/hooks/use-briefs";
 import { useTabScrollPaddingTop, TAB_HERO_GAP } from "../../../src/lib/layout";
-import { shape } from "../../../src/ui/tokens/spacing";
 import { Header } from "../../../src/ui/header";
 
 const EDITORIAL_QUOTE = "Truth is not a destination, but a distillation of perspectives.";
@@ -32,7 +31,9 @@ import { useToast } from "../../../src/providers/toast-provider";
 import type { BriefItem } from "../../../src/data/briefs";
 import { fetchBriefAudio } from "../../../src/services/mobile-api";
 import { ApiError } from "../../../src/services/api-client";
+import { briefAudioPromoCopy } from "../../../src/lib/tier-copy";
 import { PaywallModal } from "../../../src/ui/paywall-modal";
+import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
 
 export default function BriefsScreen() {
   const { palette } = useTheme();
@@ -95,7 +96,7 @@ export default function BriefsScreen() {
       edges={[]}
       style={{ flex: 1, backgroundColor: palette.background }}
     >
-      <Header title="Briefs" showBadge={false} />
+      <Header title="Brief" showBadge={false} />
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -113,48 +114,11 @@ export default function BriefsScreen() {
           />
         }
       >
+        <MembershipSyncBanner embedded />
+
         {!hasAdFree && (
           <View style={{ marginBottom: 16 }}>
             <AdBanner position="top" />
-          </View>
-        )}
-
-        {!hasBriefAudioAccess && (
-          <View
-            style={[
-              styles.paywallNotice,
-              {
-                backgroundColor: palette.primaryContainer + "80", // /50
-                borderColor: palette.outlineVariant + "26",
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.paywallIcon,
-                { backgroundColor: palette.primary },
-              ]}
-            >
-              <Lock size={20} color={palette.primaryForeground} />
-            </View>
-            <View style={{ flex: 1 }}>
-              <Text
-                style={[
-                  styles.paywallTitle,
-                  { color: palette.onSurface },
-                ]}
-              >
-                Unlock Audio Briefs
-              </Text>
-              <Text
-                style={[
-                  styles.paywallText,
-                  { color: palette.onSurfaceVariant },
-                ]}
-              >
-                Subscribe to Premium to listen to audio versions of all articles and briefs.
-              </Text>
-            </View>
           </View>
         )}
 
@@ -283,6 +247,22 @@ export default function BriefsScreen() {
                 )}
               </Pressable>
             </View>
+
+            {!hasBriefAudioAccess ? (
+              <Pressable onPress={() => setPaywallVisible(true)} style={{ marginTop: 16, paddingHorizontal: 8 }}>
+                <Text
+                  style={[
+                    styles.paywallText,
+                    { color: palette.onSurfaceVariant, textAlign: "center", fontSize: 13 },
+                  ]}
+                >
+                  {briefAudioPromoCopy()}{" "}
+                  <Text style={{ color: palette.primary, fontFamily: "Manrope_600SemiBold" }}>
+                    View plans
+                  </Text>
+                </Text>
+              </Pressable>
+            ) : null}
           </View>
         </View>
 
@@ -460,26 +440,6 @@ export default function BriefsScreen() {
 }
 
 const styles = StyleSheet.create({
-  paywallNotice: {
-    padding: 24,
-    borderWidth: 1,
-    ...shape.imageCard,
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 24,
-  },
-  paywallIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  paywallTitle: {
-    fontFamily: "Newsreader_500Medium_Italic",
-    fontSize: 20,
-    marginBottom: 8,
-  },
   paywallText: {
     fontFamily: "Manrope_400Regular",
     fontSize: 14,

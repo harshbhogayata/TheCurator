@@ -14,6 +14,8 @@ import { useHeaderOffset, useLayout } from "../../../src/lib/layout";
 import { useTheme } from "../../../src/providers/theme-provider";
 import { useSavedArticles } from "../../../src/providers/saved-articles-provider";
 import { useReadingStats } from "../../../src/providers/reading-stats-provider";
+import { ErrorState } from "../../../src/ui/error-state";
+import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import type { Article } from "../../../src/data/articles";
@@ -38,9 +40,15 @@ export default function SearchScreen() {
   const { isArticleSaved, isHydrated } = useSavedArticles();
   const { recentArticleIds, refreshReadingStats } = useReadingStats();
   const { q } = useLocalSearchParams<{ q?: string }>();
-  const { data: articles = [] } = useArticles();
+  const { data: articles = [], isError: isCatalogError, refetch: refetchCatalog } = useArticles();
   const { data: apiCategories = [] } = useCategories();
-  const { data: recentArticles = [] } = useArticlesByIds(recentArticleIds);
+  const { data: recentArticlesRaw = [] } = useArticlesByIds(recentArticleIds);
+  const recentArticles = useMemo(() => {
+    const byId = new Map(recentArticlesRaw.map((article) => [article.id, article]));
+    return recentArticleIds
+      .map((id) => byId.get(id))
+      .filter((article): article is Article => Boolean(article));
+  }, [recentArticleIds, recentArticlesRaw]);
 
   useFocusEffect(
     useCallback(() => {
@@ -61,7 +69,7 @@ export default function SearchScreen() {
   }, [searchQuery]);
 
   const isServerSearch = debouncedQuery.length >= 2;
-  const { data: serverResults = [], isFetching: isSearching } = useArticles(
+  const { data: serverResults = [], isFetching: isSearching, isError: isSearchError, refetch: refetchSearch } = useArticles(
     isServerSearch ? { q: debouncedQuery } : undefined,
   );
   const activeArticles = isServerSearch ? serverResults : articles;
@@ -121,9 +129,12 @@ export default function SearchScreen() {
     </View>
   ), []);
 
+  const hasLoadError = isCatalogError || (isServerSearch && isSearchError);
+
   const listHeader = useMemo(() => {
     return (
       <View style={{ paddingBottom: 8 }}>
+        <MembershipSyncBanner embedded />
         {/* Search input */}
         <View
           style={{
@@ -326,6 +337,16 @@ export default function SearchScreen() {
   ]);
 
   const listEmpty = useMemo(() => {
+    if (hasLoadError) {
+      return (
+        <ErrorState
+          title="Search could not load"
+          message="Check your connection and try again."
+          onRetry={() => void (isServerSearch ? refetchSearch() : refetchCatalog())}
+        />
+      );
+    }
+
     return (
       <View
         style={{
@@ -345,7 +366,7 @@ export default function SearchScreen() {
         </Text>
       </View>
     );
-  }, [palette, searchQuery]);
+  }, [debouncedQuery, hasLoadError, isServerSearch, palette, refetchCatalog, refetchSearch, searchQuery]);
 
   return (
     <View style={{ flex: 1, backgroundColor: palette.background }}>

@@ -14,6 +14,7 @@ import {
 import { useTheme } from "../../src/providers/theme-provider";
 import { useSubscription, type SubscriptionTier } from "../../src/providers/subscription-provider";
 import { usesRazorpayBilling } from "../../src/lib/billing-provider";
+import { shouldUseWebRazorpayCheckout } from "../../src/services/razorpay-checkout";
 import {
   formatPlanPriceParts,
   planCardPriceSuffix,
@@ -21,7 +22,7 @@ import {
   subscribeCtaTitle,
   type PlanId,
 } from "../../src/lib/plan-pricing";
-import { shouldUseWebRazorpayCheckout } from "../../src/services/razorpay-checkout";
+import { DONATE_PLAN_COPY } from "../../src/lib/tier-copy";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { useToast } from "../../src/providers/toast-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
@@ -37,66 +38,14 @@ interface Plan {
   name: string;
   price: number;
   period: string;
-  description: string;
-  benefits: string[];
   popular?: boolean;
 }
 
 const plans: Plan[] = [
-  {
-    id: "free",
-    name: "Free",
-    price: 0,
-    period: "",
-    description: "Ad-supported, always free",
-    benefits: [
-      "Access to all daily briefs",
-      "Save up to 25 articles",
-      "Ad-supported experience",
-    ],
-  },
-  {
-    id: "basic",
-    name: "Basic",
-    price: 499,
-    period: "/mo",
-    description: "Essential features for casual readers",
-    benefits: [
-      "Ad-free reading experience",
-      "Early access to daily briefs",
-      "Monthly newsletter",
-      "Save up to 100 articles",
-    ],
-  },
-  {
-    id: "premium",
-    name: "Premium",
-    price: 1499,
-    period: "/mo",
-    description: "Complete access for serious readers",
-    benefits: [
-      "Everything in Basic",
-      "Audio versions of all articles",
-      "Community forum access",
-      "Unlimited saves & collections",
-      "Exclusive source insights",
-    ],
-    popular: true,
-  },
-  {
-    id: "lifetime",
-    name: "Lifetime",
-    price: 24999,
-    period: "",
-    description: "One-time payment, lifetime access",
-    benefits: [
-      "Everything in Premium",
-      "Lifetime access - pay once",
-      "All future features included",
-      "Priority support",
-      "Recognition in credits",
-    ],
-  },
+  { id: "free", name: "Free", price: 0, period: "" },
+  { id: "basic", name: "Basic", price: 499, period: "/mo" },
+  { id: "premium", name: "Premium", price: 1499, period: "/mo", popular: true },
+  { id: "lifetime", name: "Lifetime", price: 24999, period: "" },
 ];
 
 const planIcons = {
@@ -142,7 +91,7 @@ function findPackageForPlan(packages: PurchasesPackage[], planId: Plan["id"]): P
 
 export default function DonateScreen() {
   const { palette } = useTheme();
-  const { tier, setTier, packages, purchasePackage, purchaseTier, downgradeToFree, isPurchasing } = useSubscription();
+  const { tier, setTier, packages, purchasePackage, purchaseTier, downgradeToFree, restorePurchases, isPurchasing, billingProvider } = useSubscription();
   const razorpayBilling = usesRazorpayBilling();
   const usesWebCheckout = razorpayBilling && shouldUseWebRazorpayCheckout();
   const { showToast } = useToast();
@@ -152,6 +101,16 @@ export default function DonateScreen() {
   const [selectedPlan, setSelectedPlan] = useState<Plan["id"]>("premium");
   const selectedPlanData = plans.find((plan) => plan.id === selectedPlan) ?? plans[2];
   const selectedPackage = findPackageForPlan(packages, selectedPlan);
+
+  const handleRestorePurchases = async () => {
+    const restored = await restorePurchases();
+    if (restored) {
+      showToast("success", "Your App Store or Play Store purchases have been restored.");
+      router.back();
+      return;
+    }
+    showToast("info", "No active subscriptions were found to restore on this device.");
+  };
 
   const handleSubscribe = async () => {
     const isExpoGo = Constants.appOwnership === "expo";
@@ -338,6 +297,7 @@ export default function DonateScreen() {
             const Icon = planIcons[plan.id];
             const isSelected = selectedPlan === plan.id;
             const isCurrent = tier === plan.id;
+            const planCopy = DONATE_PLAN_COPY[plan.id];
             const storePackage = findPackageForPlan(packages, plan.id);
             const priceParts = formatPlanPriceParts(plan.id, plan.price, plan.period, {
               razorpayBilling,
@@ -448,7 +408,7 @@ export default function DonateScreen() {
                         lineHeight: 18,
                       }}
                     >
-                      {plan.description}
+                      {planCopy.description}
                     </Text>
                   </View>
                 </View>
@@ -486,7 +446,7 @@ export default function DonateScreen() {
                 </View>
 
                 <View style={{ gap: 8 }}>
-                  {plan.benefits.map((benefit) => (
+                  {planCopy.benefits.map((benefit) => (
                     <View key={benefit} style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}>
                       <Check size={16} color={palette.primary} style={{ marginTop: 2 }} />
                       <Text
@@ -507,6 +467,34 @@ export default function DonateScreen() {
             );
           })}
         </View>
+
+        {billingProvider === "revenuecat" ? (
+          <Pressable
+            onPress={() => void handleRestorePurchases()}
+            disabled={isPurchasing}
+            style={({ pressed }) => ({
+              alignSelf: "center",
+              marginBottom: 20,
+              paddingVertical: 10,
+              paddingHorizontal: 18,
+              borderRadius: 999,
+              borderWidth: 1,
+              borderColor: palette.outlineVariant + "40",
+              backgroundColor: pressed ? palette.surfaceContainerLow : "transparent",
+              opacity: isPurchasing ? 0.6 : 1,
+            })}
+          >
+            <Text
+              style={{
+                fontFamily: "Manrope_600SemiBold",
+                fontSize: 14,
+                color: palette.onSurfaceVariant,
+              }}
+            >
+              Restore App Store / Play purchases
+            </Text>
+          </Pressable>
+        ) : null}
 
         {/* Impact */}
         <View

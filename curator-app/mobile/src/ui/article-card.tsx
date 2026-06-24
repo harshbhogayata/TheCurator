@@ -215,18 +215,6 @@ function ArticleCardInner({
             </Pressable>
           )}
 
-          {/* Audio available badge */}
-          {hasAudio ? (
-            <View
-              style={[
-                styles.audioBadge,
-                { backgroundColor: palette.surfaceContainerLowest + "CC" },
-              ]}
-            >
-              <Headphones size={12} color={palette.onSurface} />
-            </View>
-          ) : null}
-
           {/* Source badges at bottom */}
           <View style={styles.sourcesRow}>
             {article.sources.slice(0, 4).map((source, index) => (
@@ -341,17 +329,6 @@ const styles = StyleSheet.create({
     zIndex: 10,
     width: 36,
     height: 36,
-    borderRadius: 999,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  audioBadge: {
-    position: "absolute",
-    top: 12,
-    left: 12,
-    zIndex: 10,
-    width: 30,
-    height: 30,
     borderRadius: 999,
     alignItems: "center",
     justifyContent: "center",

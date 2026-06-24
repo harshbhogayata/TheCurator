@@ -36,7 +36,7 @@ export function useArticle(id: string) {
 }
 
 export function useArticlesByIds(ids: string[]) {
-  const stableKey = [...ids].sort().join(",");
+  const stableKey = ids.join(",");
   return useQuery({
     queryKey: ["articles", "byIds", stableKey],
     queryFn: () => fetchArticlesByIds(ids),

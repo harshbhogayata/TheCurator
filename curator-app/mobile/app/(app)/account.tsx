@@ -308,7 +308,7 @@ export default function AccountScreen() {
           </Pressable>
 
           <Pressable
-            onPress={() => router.push("/(app)/data-export" as any)}
+            onPress={() => router.push("/(app)/data-export")}
             style={({ pressed }) => [
               styles.connectedRow,
               {

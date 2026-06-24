@@ -137,7 +137,7 @@ export function AccountStep({
         }}
       >
         <Text style={[type.labelSm, { fontFamily: "Manrope_400Regular", fontSize: 13, lineHeight: 20, color: palette.onSurfaceVariant }]}>
-          You can refine this later from your account screen. For now, keep it simple and recognizable.
+          You can refine this later from Profile → Account Details. For now, keep it simple and recognizable.
         </Text>
       </View>
 

@@ -12,6 +12,8 @@ interface PillPageHeaderProps {
   onBackPress?: () => void;
 }
 
+const BACK_SLOT_WIDTH = 52;
+
 function PillPageHeaderInner({ title, onBackPress }: PillPageHeaderProps) {
   const { palette, resolvedTheme } = useTheme();
   const insets = useSafeAreaInsets();
@@ -29,58 +31,65 @@ function PillPageHeaderInner({ title, onBackPress }: PillPageHeaderProps) {
         },
       ]}
     >
-      <View style={styles.shadow}>
-        <Pressable
-          onPress={handleBackPress}
-          style={[
-            styles.iconPill,
-            {
-              borderColor: palette.outlineVariant + "4D",
-            },
-          ]}
-        >
-          <BlurView
-            intensity={72}
-            tint={tint}
+      <View style={styles.sideSlot}>
+        <View style={styles.shadow}>
+          <Pressable
+            onPress={handleBackPress}
             style={[
-              styles.blurFill,
-              { backgroundColor: palette.surfaceContainerLowest + "CC" },
+              styles.iconPill,
+              {
+                borderColor: palette.outlineVariant + "4D",
+              },
             ]}
-          />
-          <View style={styles.iconButton}>
-            <ArrowLeft size={20} color={palette.onSurface} strokeWidth={2.3} />
-          </View>
-        </Pressable>
-      </View>
-
-      <View style={[styles.shadow, styles.titleWrap]}>
-        <View
-          style={[
-            styles.titlePill,
-            {
-              borderColor: palette.outlineVariant + "4D",
-            },
-          ]}
-        >
-          <BlurView
-            intensity={72}
-            tint={tint}
-            style={[
-              styles.blurFill,
-              { backgroundColor: palette.surfaceContainerLowest + "CC" },
-            ]}
-          />
-          <Text
-            numberOfLines={2}
-            adjustsFontSizeToFit
-            minimumFontScale={0.78}
-            style={[styles.titleText, { color: palette.onSurface }]}
           >
-            {title}
-          </Text>
+          <BlurView
+            pointerEvents="none"
+            intensity={72}
+              tint={tint}
+              style={[
+                styles.blurFill,
+                { backgroundColor: palette.surfaceContainerLowest + "CC" },
+              ]}
+            />
+            <View style={styles.iconButton}>
+              <ArrowLeft size={20} color={palette.onSurface} strokeWidth={2.3} />
+            </View>
+          </Pressable>
         </View>
       </View>
 
+      <View style={styles.centerOverlay} pointerEvents="box-none">
+        <View style={[styles.shadow, styles.titleWrap]}>
+          <View
+            style={[
+              styles.titlePill,
+              {
+                borderColor: palette.outlineVariant + "4D",
+              },
+            ]}
+          >
+          <BlurView
+            pointerEvents="none"
+            intensity={72}
+              tint={tint}
+              style={[
+                styles.blurFill,
+                { backgroundColor: palette.surfaceContainerLowest + "CC" },
+              ]}
+            />
+            <Text
+              numberOfLines={2}
+              adjustsFontSizeToFit
+              minimumFontScale={0.78}
+              style={[styles.titleText, { color: palette.onSurface }]}
+            >
+              {title}
+            </Text>
+          </View>
+        </View>
+      </View>
+
+      <View style={styles.sideSlot} />
     </View>
   );
 }
@@ -91,9 +100,21 @@ const styles = StyleSheet.create({
   container: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 12,
+    justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingBottom: 14,
+    minHeight: 52,
+  },
+  sideSlot: {
+    width: BACK_SLOT_WIDTH,
+    zIndex: 2,
+  },
+  centerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    alignItems: "center",
+    justifyContent: "center",
+    paddingHorizontal: BACK_SLOT_WIDTH + 24,
+    zIndex: 1,
   },
   shadow: {
     shadowColor: "#000",
@@ -120,7 +141,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   titleWrap: {
-    flex: 1,
+    maxWidth: "100%",
     minWidth: 0,
   },
   titlePill: {

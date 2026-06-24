@@ -6,6 +6,13 @@ export const BRAND_SPLASH_BACKGROUND_DARK = "#14140f";
 
 const LOGO_MARK = require("../../assets/images/logo-icon.png");
 
+function isDarkBackground(backgroundColor: string) {
+  return (
+    backgroundColor === BRAND_SPLASH_BACKGROUND_DARK ||
+    backgroundColor.toLowerCase() === "#14140f"
+  );
+}
+
 interface BrandSplashProps {
   backgroundColor?: string;
   subtitle?: string;
@@ -21,10 +28,14 @@ export function BrandSplash({
   fontsReady = false,
   style,
 }: BrandSplashProps) {
+  const dark = isDarkBackground(backgroundColor);
+  const ink = dark ? "#f5f2eb" : "#2f2b26";
+  const muted = dark ? "#a8a095" : "#7a7167";
+
   return (
     <View style={[styles.root, { backgroundColor }, style]}>
-      <View style={styles.glowTop} />
-      <View style={styles.glowBottom} />
+      <View style={[styles.glowTop, dark && styles.glowTopDark]} />
+      <View style={[styles.glowBottom, dark && styles.glowBottomDark]} />
 
       <View style={styles.lockup}>
         <View style={styles.markFrame}>
@@ -39,6 +50,7 @@ export function BrandSplash({
         <Text
           style={[
             styles.wordmark,
+            { color: ink },
             fontsReady
               ? { fontFamily: "Newsreader_500Medium_Italic" }
               : styles.wordmarkFallback,
@@ -51,6 +63,7 @@ export function BrandSplash({
           <Text
             style={[
               styles.tagline,
+              { color: muted },
               fontsReady ? { fontFamily: "Manrope_500Medium" } : styles.taglineFallback,
             ]}
           >
@@ -62,6 +75,7 @@ export function BrandSplash({
           <Text
             style={[
               styles.subtitle,
+              { color: muted },
               fontsReady ? { fontFamily: "Manrope_400Regular" } : styles.subtitleFallback,
             ]}
           >
@@ -89,6 +103,9 @@ const styles = StyleSheet.create({
     borderRadius: 140,
     backgroundColor: "rgba(196, 164, 132, 0.22)",
   },
+  glowTopDark: {
+    backgroundColor: "rgba(196, 164, 132, 0.12)",
+  },
   glowBottom: {
     position: "absolute",
     bottom: -140,
@@ -98,44 +115,47 @@ const styles = StyleSheet.create({
     borderRadius: 160,
     backgroundColor: "rgba(176, 132, 92, 0.16)",
   },
+  glowBottomDark: {
+    backgroundColor: "rgba(176, 132, 92, 0.08)",
+  },
   lockup: {
     alignItems: "center",
     paddingHorizontal: 32,
-    marginTop: -24,
+    maxWidth: 360,
   },
   markFrame: {
-    width: 132,
-    height: 132,
+    width: 148,
+    height: 148,
     alignItems: "center",
     justifyContent: "center",
-    marginBottom: 20,
+    marginBottom: 22,
     shadowColor: "#2a241c",
-    shadowOffset: { width: 0, height: 14 },
-    shadowOpacity: 0.08,
-    shadowRadius: 24,
-    elevation: 6,
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.1,
+    shadowRadius: 20,
+    elevation: 5,
   },
   mark: {
-    width: 132,
-    height: 132,
+    width: 148,
+    height: 148,
   },
   wordmark: {
     fontSize: 34,
     lineHeight: 40,
-    color: "#2f2b26",
     letterSpacing: -0.5,
+    textAlign: "center",
   },
   wordmarkFallback: {
     fontWeight: "500",
     fontStyle: "italic",
   },
   tagline: {
-    marginTop: 8,
+    marginTop: 10,
     fontSize: 12,
     lineHeight: 18,
     letterSpacing: 2.4,
     textTransform: "uppercase",
-    color: "#7a7167",
+    textAlign: "center",
   },
   taglineFallback: {
     fontWeight: "500",
@@ -147,7 +167,6 @@ const styles = StyleSheet.create({
     textAlign: "center",
     fontSize: 15,
     lineHeight: 22,
-    color: "#7a7167",
   },
   subtitleFallback: {
     fontWeight: "400",

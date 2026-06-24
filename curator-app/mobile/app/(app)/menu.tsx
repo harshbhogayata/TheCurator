@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { useRouter } from "expo-router";
@@ -6,19 +5,15 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import {
   X,
-  Sparkles,
-  Compass,
   FolderOpen,
-  Bookmark,
   BarChart3,
   Heart,
   Settings,
   HelpCircle,
   LogOut,
-  Search,
-  User,
   Info,
   FileText,
+  ChevronRight,
 } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
@@ -27,15 +22,11 @@ import { useSubscription } from "../../src/providers/subscription-provider";
 import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { ProfileAvatar } from "../../src/ui/profile-avatar";
 import { userDisplayName } from "../../src/lib/user-display-name";
+import { useNavigateFromModal } from "../../src/lib/navigate-from-modal";
 
 const menuItems = [
-  { icon: Sparkles, label: "Daily Briefs", path: "/(app)/(tabs)" as const },
-  { icon: Compass, label: "Explore", path: "/(app)/(tabs)/explore" as const },
-  { icon: Search, label: "Search Articles", path: "/(app)/(tabs)/search" as const },
-  { icon: Bookmark, label: "Saved Articles", path: "/(app)/(tabs)/saved" as const },
   { icon: FolderOpen, label: "Collections", path: "/(app)/collections" as const },
   { icon: BarChart3, label: "Reading Stats", path: "/(app)/reading-stats" as const },
-  { icon: User, label: "Profile", path: "/(app)/profile" as const },
   { icon: Settings, label: "Settings", path: "/(app)/settings" as const },
   { icon: Heart, label: "Support Us", path: "/(app)/donate" as const },
   { icon: Info, label: "About The Curator", path: "/(app)/about" as const },
@@ -48,6 +39,8 @@ export default function MenuScreen() {
   const { session, signOut } = useAuth();
   const { tier } = useSubscription();
   const router = useRouter();
+  const navigateFromModal = useNavigateFromModal();
+
   const handleSignOut = () => {
     Alert.alert("Sign Out?", "You'll need to sign in again to access your saved articles.", [
       { text: "Cancel", style: "cancel" },
@@ -103,6 +96,7 @@ export default function MenuScreen() {
               ]}
             >
               <BlurView
+                pointerEvents="none"
                 intensity={80}
                 tint={tint}
                 style={[
@@ -126,6 +120,7 @@ export default function MenuScreen() {
               ]}
             >
               <BlurView
+                pointerEvents="none"
                 intensity={80}
                 tint={tint}
                 style={[
@@ -153,15 +148,18 @@ export default function MenuScreen() {
           contentContainerStyle={styles.scrollContent}
           showsVerticalScrollIndicator={false}
         >
-          <View
-            style={[
+          <Pressable
+            onPress={() => navigateFromModal("/(app)/profile")}
+            style={({ pressed }) => [
               styles.profileCard,
               {
                 borderColor: palette.outlineVariant + "26",
+                backgroundColor: pressed ? palette.surfaceContainerLow + "66" : "transparent",
               },
             ]}
           >
             <BlurView
+              pointerEvents="none"
               intensity={78}
               tint={tint}
               style={[
@@ -185,7 +183,7 @@ export default function MenuScreen() {
             </View>
 
             <View style={styles.profileCopy}>
-              <Text style={[styles.profileName, { color: palette.onSurface }]}>
+              <Text style={[styles.profileName, { color: palette.onSurface }]} numberOfLines={1}>
                 {displayName}
               </Text>
               <View style={styles.profileMetaRow}>
@@ -196,12 +194,13 @@ export default function MenuScreen() {
               </View>
             </View>
 
-            <Pressable onPress={() => router.replace("/(app)/account")}>
-              <Text style={[styles.editProfileText, { color: palette.primary }]}>
-                Edit Profile
-              </Text>
-            </Pressable>
-          </View>
+            <ChevronRight
+              size={20}
+              color={palette.outlineVariant}
+              strokeWidth={2.2}
+              style={{ flexShrink: 0 }}
+            />
+          </Pressable>
 
           <View style={styles.navList}>
             {menuItems.map((item) => {
@@ -216,6 +215,7 @@ export default function MenuScreen() {
                   ]}
                 >
                   <BlurView
+                    pointerEvents="none"
                     intensity={78}
                     tint={tint}
                     style={[
@@ -225,7 +225,7 @@ export default function MenuScreen() {
                   />
 
                   <Pressable
-                    onPress={() => router.replace(item.path)}
+                    onPress={() => navigateFromModal(item.path)}
                     style={({ pressed }) => [
                       styles.menuPressable,
                       {
@@ -251,6 +251,8 @@ export default function MenuScreen() {
                           {item.label}
                         </Text>
                       </View>
+
+                      <ChevronRight size={18} color={palette.outlineVariant} strokeWidth={2.1} />
                     </View>
                   </Pressable>
                 </View>
@@ -265,6 +267,7 @@ export default function MenuScreen() {
             ]}
           >
             <BlurView
+              pointerEvents="none"
               intensity={78}
               tint={tint}
               style={[
@@ -382,6 +385,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 16,
     marginBottom: 28,
+    minHeight: 112,
   },
   profileAvatarWrap: {
     width: 68,
@@ -392,6 +396,7 @@ const styles = StyleSheet.create({
   },
   profileCopy: {
     flex: 1,
+    minWidth: 0,
   },
   profileName: {
     fontFamily: "Newsreader_500Medium",
@@ -407,10 +412,6 @@ const styles = StyleSheet.create({
   profileMeta: {
     fontFamily: "Manrope_500Medium",
     fontSize: 13,
-  },
-  editProfileText: {
-    fontFamily: "Manrope_600SemiBold",
-    fontSize: 14,
   },
   navList: {
     gap: 10,

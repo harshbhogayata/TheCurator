@@ -61,7 +61,10 @@ interface SubscriptionContextValue {
   purchaseTier: (tier: Exclude<SubscriptionTier, "free">) => Promise<boolean>;
   downgradeToFree: () => Promise<string>;
   refreshTier: () => Promise<void>;
+  restorePurchases: () => Promise<boolean>;
   isPurchasing: boolean;
+  isTierResolving: boolean;
+  tierSyncDegraded: boolean;
 }
 
 // Set EXPO_PUBLIC_MOCK_PREMIUM=true in .env to unlock premium features locally.
@@ -123,8 +126,8 @@ const TIER_FEATURES: Record<
     briefAudio: true,
     unlimitedSaves: true,
     collections: true,
-    offline: true,
-    customThemes: true,
+    offline: false,
+    customThemes: false,
     maxSaves: Infinity,
     maxCollections: Infinity,
   },
@@ -134,8 +137,8 @@ const TIER_FEATURES: Record<
     briefAudio: true,
     unlimitedSaves: true,
     collections: true,
-    offline: true,
-    customThemes: true,
+    offline: false,
+    customThemes: false,
     maxSaves: Infinity,
     maxCollections: Infinity,
   },
@@ -152,14 +155,18 @@ function higherTier(a: SubscriptionTier, b: SubscriptionTier): SubscriptionTier 
   return TIER_RANK[a] >= TIER_RANK[b] ? a : b;
 }
 
-async function resolveSubscriptionTier(): Promise<SubscriptionTier> {
+async function resolveSubscriptionTier(): Promise<{
+  tier: SubscriptionTier;
+  backendOk: boolean;
+}> {
   let resolved: SubscriptionTier = MOCK_PREMIUM ? "premium" : "free";
+  let backendOk = true;
 
   try {
     const payload = await fetchEntitlement();
     resolved = payload.effectiveTier ?? payload.tier;
   } catch {
-    // Fall back to RevenueCat or mock defaults below.
+    backendOk = false;
   }
 
   if (!MOCK_BACKEND && Purchases && Platform.OS !== "web" && Constants.appOwnership !== "expo") {
@@ -167,11 +174,13 @@ async function resolveSubscriptionTier(): Promise<SubscriptionTier> {
       const customerInfo = await Purchases.getCustomerInfo();
       resolved = higherTier(resolved, tierFromCustomerInfo(customerInfo));
     } catch {
-      // RevenueCat unavailable; keep backend/mock tier.
+      if (!backendOk) {
+        return { tier: resolved, backendOk: false };
+      }
     }
   }
 
-  return resolved;
+  return { tier: resolved, backendOk };
 }
 
 const SubscriptionContext = createContext<SubscriptionContextValue | null>(null);
@@ -219,6 +228,8 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   const [tier, setTierState] = useState<SubscriptionTier>(MOCK_PREMIUM ? "premium" : "free");
   const [packages, setPackages] = useState<PurchasesPackage[]>([]);
   const [isPurchasing, setIsPurchasing] = useState(false);
+  const [isTierResolving, setIsTierResolving] = useState(!MOCK_BACKEND);
+  const [tierSyncDegraded, setTierSyncDegraded] = useState(false);
 
   const isExpoGo = Constants.appOwnership === "expo";
 
@@ -289,15 +300,19 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       }
 
       let cancelled = false;
+      setIsTierResolving(true);
       void resolveSubscriptionTier()
-        .then((resolved) => {
+        .then(({ tier: resolved, backendOk }) => {
           if (!cancelled) {
             setTierState(resolved);
+            setTierSyncDegraded(!backendOk && !usesRazorpayBilling());
+            setIsTierResolving(false);
           }
         })
         .catch(() => {
           if (!cancelled) {
-            // Keep current tier on transient refresh failures.
+            setTierSyncDegraded(!usesRazorpayBilling());
+            setIsTierResolving(false);
           }
         });
 
@@ -447,9 +462,35 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
   }, [isExpoGo, packages, purchasePackage, tier]);
 
   const refreshTier = useCallback(async () => {
-    const resolved = await resolveSubscriptionTier();
-    setTierState(resolved);
+    setIsTierResolving(true);
+    try {
+      const { tier: resolved, backendOk } = await resolveSubscriptionTier();
+      setTierState(resolved);
+      setTierSyncDegraded(!backendOk && !usesRazorpayBilling());
+    } finally {
+      setIsTierResolving(false);
+    }
   }, []);
+
+  const restorePurchases = useCallback(async () => {
+    if (MOCK_BACKEND || usesRazorpayBilling() || Platform.OS === "web" || !Purchases || isExpoGo) {
+      return false;
+    }
+
+    setIsPurchasing(true);
+    try {
+      const { customerInfo } = await Purchases.restorePurchases();
+      const restored = tierFromCustomerInfo(customerInfo);
+      setTierState((current) => higherTier(current, restored));
+      setTierSyncDegraded(false);
+      return restored !== "free";
+    } catch (error) {
+      console.error("Restore purchases failed:", error);
+      return false;
+    } finally {
+      setIsPurchasing(false);
+    }
+  }, [isExpoGo]);
 
   const downgradeToFree = useCallback(async () => {
     if (MOCK_BACKEND) {
@@ -497,9 +538,12 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
       purchaseTier,
       downgradeToFree,
       refreshTier,
+      restorePurchases,
       isPurchasing,
+      isTierResolving,
+      tierSyncDegraded,
     }),
-    [tier, setTier, features, packages, purchasePackage, purchaseTier, downgradeToFree, refreshTier, isPurchasing],
+    [tier, setTier, features, packages, purchasePackage, purchaseTier, downgradeToFree, refreshTier, restorePurchases, isPurchasing, isTierResolving, tierSyncDegraded],
   );
 
   return (

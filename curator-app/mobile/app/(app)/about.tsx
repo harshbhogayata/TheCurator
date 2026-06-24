@@ -59,7 +59,7 @@ export default function AboutScreen() {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: palette.background }}>
-      <PillPageHeader title="About" />
+      <PillPageHeader title="About The Curator" />
 
       <ScrollView
         style={{ flex: 1 }}

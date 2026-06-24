@@ -10,6 +10,7 @@ import { Lock, X } from "lucide-react-native";
 
 import { useTheme } from "../providers/theme-provider";
 import type { SubscriptionTier } from "../providers/subscription-provider";
+import { tierUpgradeLine } from "../lib/tier-copy";
 
 interface PaywallModalProps {
   visible: boolean;
@@ -17,15 +18,6 @@ interface PaywallModalProps {
   featureName: string;
   requiredTier: SubscriptionTier;
   onUpgrade?: () => void;
-}
-
-function tierLabel(tier: SubscriptionTier): string {
-  switch (tier) {
-    case "basic":    return "Basic";
-    case "premium":  return "Premium";
-    case "lifetime": return "Lifetime";
-    default:         return tier;
-  }
 }
 
 function PaywallModalInner({
@@ -86,7 +78,7 @@ function PaywallModalInner({
           Unlock {featureName}
         </Text>
         <Text style={[styles.description, { color: palette.onSurfaceVariant }]}>
-          Upgrade to {tierLabel(requiredTier)} to access this feature and more.
+          {tierUpgradeLine(featureName, requiredTier)}
         </Text>
 
         <Pressable
@@ -94,11 +86,11 @@ function PaywallModalInner({
           testID="paywall-upgrade"
           style={[
             styles.primaryButton,
-            { backgroundColor: palette.onSurface, shadowColor: "#000" },
+            { backgroundColor: palette.primary, shadowColor: "#000" },
           ]}
         >
-          <Text style={[styles.primaryButtonText, { color: palette.background }]}>
-            Upgrade Now
+          <Text style={[styles.primaryButtonText, { color: palette.primaryForeground }]}>
+            View Plans
           </Text>
         </Pressable>
 

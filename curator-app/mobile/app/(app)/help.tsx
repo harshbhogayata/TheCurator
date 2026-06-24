@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Pressable, ScrollView, Text, TextInput, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Search, ChevronDown, ChevronUp, Mail, MessageCircle } from "lucide-react-native";
+import { Search, ChevronDown, ChevronUp, Mail } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { SUPPORT_EMAIL } from "../../src/constants/site";
+import { buildHelpFaqs, openSupportEmail } from "../../src/lib/help-content";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { useToast } from "../../src/providers/toast-provider";
 
 interface FAQItem {
   question: string;
@@ -13,67 +15,12 @@ interface FAQItem {
   category: string;
 }
 
-const faqs: FAQItem[] = [
-  {
-    category: "Getting Started",
-    question: "What is The Curator?",
-    answer:
-      "The Curator is a premium journalism platform that synthesizes news from 10+ global sources into concise, balanced narratives. We distill complex stories into essential insights you need to stay informed.",
-  },
-  {
-    category: "Getting Started",
-    question: "How do I create an account?",
-    answer:
-      'Tap "Get Started" on the welcome screen, then create an account with your email and password. You\'ll have immediate access to free features, with the option to upgrade for premium content.',
-  },
-  {
-    category: "Subscription",
-    question: "What are the subscription tiers?",
-    answer:
-      "Free (ad-supported, 25 saves). Basic (₹499/month — ad-free, brief audio, 100 saves). Premium (₹1,499/month — full article audio, unlimited saves, collections). Lifetime (₹24,999 one-time — all Premium features). See Support Us for current pricing.",
-  },
-  {
-    category: "Subscription",
-    question: "Can I cancel my subscription?",
-    answer:
-      "Yes, you can cancel anytime from Settings. Your access continues until the end of your billing period. Lifetime subscriptions cannot be cancelled as they are one-time purchases.",
-  },
-  {
-    category: "Features",
-    question: "What are Audio Briefs?",
-    answer:
-      "Audio Briefs are narrated daily digests. Basic and above unlock brief audio. Premium and Lifetime unlock full article narration as well.",
-  },
-  {
-    category: "Features",
-    question: "How many articles can I save?",
-    answer:
-      "Free: 25 saves. Basic: 100 saves. Premium and Lifetime: unlimited saves with custom collections (Premium+).",
-  },
-  {
-    category: "Features",
-    question: "What are source insights?",
-    answer:
-      "Source insights show you which publications contributed to each narrative, helping you understand different perspectives and dig deeper into stories that interest you.",
-  },
-  {
-    category: "Technical",
-    question: "Which devices are supported?",
-    answer:
-      "The Curator is available as a mobile app for iOS and Android, as well as a web app for desktop browsers.",
-  },
-  {
-    category: "Technical",
-    question: "Is my data secure?",
-    answer:
-      "Yes. We use industry-standard encryption, secure servers, and never sell your personal data. Read our Privacy Policy for details.",
-  },
-];
-
 const categories = ["All", "Getting Started", "Subscription", "Features", "Technical"];
 
 export default function HelpScreen() {
   const { palette } = useTheme();
+  const { showToast } = useToast();
+  const faqs = useMemo(() => buildHelpFaqs(), []);
   const [searchQuery, setSearchQuery] = useState("");
   const [expandedIndex, setExpandedIndex] = useState<number | null>(null);
   const [selectedCategory, setSelectedCategory] = useState("All");
@@ -298,15 +245,22 @@ export default function HelpScreen() {
           </Text>
 
           <View style={{ gap: 10 }}>
-            <View
-              style={{
+            <Pressable
+              onPress={() => {
+                void openSupportEmail().catch(() => {
+                  showToast("error", "Could not open your email app.");
+                });
+              }}
+              style={({ pressed }) => ({
                 flexDirection: "row",
                 alignItems: "center",
                 gap: 12,
-                backgroundColor: palette.surfaceContainerLow,
+                backgroundColor: pressed ? palette.surfaceContainer : palette.surfaceContainerLow,
                 borderRadius: 16,
                 padding: 14,
-              }}
+                borderWidth: 1,
+                borderColor: palette.outlineVariant + "26",
+              })}
             >
               <View
                 style={{
@@ -320,7 +274,7 @@ export default function HelpScreen() {
               >
                 <Mail size={20} color={palette.onPrimaryContainer} />
               </View>
-              <View>
+              <View style={{ flex: 1 }}>
                 <Text style={{ fontFamily: "Manrope_500Medium", fontSize: 15, color: palette.onSurface }}>
                   Email Support
                 </Text>
@@ -328,39 +282,7 @@ export default function HelpScreen() {
                   {SUPPORT_EMAIL}
                 </Text>
               </View>
-            </View>
-
-            <View
-              style={{
-                flexDirection: "row",
-                alignItems: "center",
-                gap: 12,
-                backgroundColor: palette.surfaceContainerLow,
-                borderRadius: 16,
-                padding: 14,
-              }}
-            >
-              <View
-                style={{
-                  width: 40,
-                  height: 40,
-                  borderRadius: 20,
-                  backgroundColor: palette.secondaryContainer,
-                  alignItems: "center",
-                  justifyContent: "center",
-                }}
-              >
-                <MessageCircle size={20} color={palette.onSecondaryContainer} />
-              </View>
-              <View>
-                <Text style={{ fontFamily: "Manrope_500Medium", fontSize: 15, color: palette.onSurface }}>
-                  Live Chat
-                </Text>
-                <Text style={{ fontFamily: "Manrope_400Regular", fontSize: 13, color: palette.onSurfaceVariant }}>
-                  Available 9am-5pm EST
-                </Text>
-              </View>
-            </View>
+            </Pressable>
           </View>
         </View>
       </ScrollView>

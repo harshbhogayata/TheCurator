@@ -35,10 +35,11 @@ interface ReadingStatsContextValue {
   stats: ReadingStats;
   recordArticleRead: (readTimeMs: number, articleId?: string) => void;
   recordSave: () => void;
-  refreshReadingStats: () => void;
+  refreshReadingStats: () => Promise<void>;
   averageReadTimeMs: number;
   thisWeekArticles: number;
   recentArticleIds: string[];
+  statsLoadError: boolean;
 }
 
 const MOCK_BACKEND = __DEV__ && process.env.EXPO_PUBLIC_MOCK_BACKEND === "true";
@@ -191,6 +192,7 @@ const ReadingStatsContext = createContext<ReadingStatsContextValue | null>(null)
 export function ReadingStatsProvider({ children }: PropsWithChildren) {
   const userId = useAuthUserId();
   const [stats, setStats] = useState<ReadingStats>(DEFAULT_STATS);
+  const [statsLoadError, setStatsLoadError] = useState(false);
   const enqueueMutation = useRef(createSaveMutationQueue()).current;
 
   useEffect(() => {
@@ -220,10 +222,11 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
 
     if (!userId) {
       setStats(DEFAULT_STATS);
+      setStatsLoadError(false);
       return;
     }
 
-    setStats(DEFAULT_STATS);
+    setStatsLoadError(false);
 
     if (!MOCK_BACKEND) {
       void AsyncStorage.removeItem(STORAGE_KEY);
@@ -235,11 +238,12 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
       .then((payload) => {
         if (!cancelled) {
           setStats(payloadToStats(payload));
+          setStatsLoadError(false);
         }
       })
       .catch(() => {
         if (!cancelled) {
-          // Keep prior stats on transient failures — do not wipe Continue Reading.
+          setStatsLoadError(true);
         }
       });
 
@@ -248,17 +252,18 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
     };
   }, [userId]);
 
-  const refreshReadingStats = useCallback(() => {
+  const refreshReadingStats = useCallback((): Promise<void> => {
     if (MOCK_BACKEND || !userId) {
-      return;
+      return Promise.resolve();
     }
 
-    void fetchReadingStats()
+    return fetchReadingStats()
       .then((payload) => {
         setStats(payloadToStats(payload));
+        setStatsLoadError(false);
       })
       .catch(() => {
-        // Keep current stats on transient failures.
+        setStatsLoadError(true);
       });
   }, [userId]);
 
@@ -335,8 +340,9 @@ export function ReadingStatsProvider({ children }: PropsWithChildren) {
       averageReadTimeMs,
       thisWeekArticles,
       recentArticleIds: stats.recentArticleIds,
+      statsLoadError,
     }),
-    [stats, recordArticleRead, recordSave, refreshReadingStats, averageReadTimeMs, thisWeekArticles],
+    [stats, recordArticleRead, recordSave, refreshReadingStats, averageReadTimeMs, thisWeekArticles, statsLoadError],
   );
 
   return (

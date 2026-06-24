@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { Pressable, ScrollView, Text, View } from "react-native";
+import { useCallback, useState } from "react";
+import { Pressable, RefreshControl, ScrollView, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BookOpen, Clock, Bookmark, Target } from "lucide-react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -8,6 +8,7 @@ import { useTheme } from "../../src/providers/theme-provider";
 import { useReadingStats } from "../../src/providers/reading-stats-provider";
 import { useSavedArticles } from "../../src/providers/saved-articles-provider";
 import { PillPageHeader } from "../../src/ui/pill-page-header";
+import { ErrorState } from "../../src/ui/error-state";
 import { type } from "../../src/ui/tokens/typography";
 
 function formatTime(ms: number): string {
@@ -20,9 +21,15 @@ function formatTime(ms: number): string {
 
 export default function ReadingStatsScreen() {
   const { palette } = useTheme();
-  const { stats, averageReadTimeMs, thisWeekArticles } = useReadingStats();
+  const { stats, averageReadTimeMs, thisWeekArticles, statsLoadError, refreshReadingStats } = useReadingStats();
   const { savedCount } = useSavedArticles();
   const [timeframe, setTimeframe] = useState<"week" | "month">("week");
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = useCallback(() => {
+    setRefreshing(true);
+    void refreshReadingStats().finally(() => setRefreshing(false));
+  }, [refreshReadingStats]);
 
   // Generate bar data
   const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -53,7 +60,22 @@ export default function ReadingStatsScreen() {
         style={{ flex: 1 }}
         contentContainerStyle={{ paddingHorizontal: 20, paddingBottom: 40 }}
         showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={palette.primary}
+          />
+        }
       >
+        {statsLoadError ? (
+          <ErrorState
+            title="Reading stats could not load"
+            message="Pull to refresh or try again when your connection is stable."
+            onRetry={onRefresh}
+          />
+        ) : (
+          <>
         {/* Streak Card */}
         <LinearGradient
           colors={[palette.primary, palette.secondary, palette.tertiary]}
@@ -297,6 +319,8 @@ export default function ReadingStatsScreen() {
             </View>
           )}
         </View>
+          </>
+        )}
       </ScrollView>
     </SafeAreaView>
   );

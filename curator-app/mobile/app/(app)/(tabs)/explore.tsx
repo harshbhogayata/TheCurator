@@ -16,6 +16,8 @@ import { type } from "../../../src/ui/tokens/typography";
 
 import { useTheme } from "../../../src/providers/theme-provider";
 import { useSubscription } from "../../../src/providers/subscription-provider";
+import { ErrorState } from "../../../src/ui/error-state";
+import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import { AdBanner } from "../../../src/ui/ad-banner";
@@ -40,9 +42,9 @@ export default function ExploreScreen() {
 
   const scrollPaddingTop = useTabScrollPaddingTop();
   const { contentPadding } = useLayout();
-  const { data: articles = [], isLoading: isArticlesLoading, refetch: refetchArticles } = useArticles();
+  const { data: articles = [], isLoading: isArticlesLoading, isError: isArticlesError, refetch: refetchArticles } = useArticles();
   const { data: forYouArticles = [], refetch: refetchForYou } = useArticles({ feed: "for_you" });
-  const { data: apiCategories, isLoading: isCategoriesLoading, refetch: refetchCategories } = useCategories();
+  const { data: apiCategories, isLoading: isCategoriesLoading, isError: isCategoriesError, refetch: refetchCategories } = useCategories();
   const categoryOptions = useMemo(() => {
     if (apiCategories && apiCategories.length > 0) {
       return [
@@ -69,6 +71,7 @@ export default function ExploreScreen() {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [refreshing, setRefreshing] = useState(false);
   const isLoading = isArticlesLoading || isCategoriesLoading;
+  const isError = isArticlesError || isCategoriesError;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
@@ -114,6 +117,7 @@ export default function ExploreScreen() {
     if (isLoading) {
       return (
         <View style={{ gap: 32, paddingTop: 8 }}>
+          <MembershipSyncBanner embedded />
           <ArticleCardSkeleton />
           <ArticleCardSkeleton />
         </View>
@@ -122,6 +126,7 @@ export default function ExploreScreen() {
 
     return (
       <>
+        <MembershipSyncBanner embedded />
         {/* Top Narratives Header */}
         <View style={styles.narrativesHeader}>
           <Text
@@ -246,8 +251,22 @@ export default function ExploreScreen() {
     </View>
   ), [hasAdFree]);
 
-  const listEmpty = useMemo(() => (
-    isLoading ? null : (
+  const listEmpty = useMemo(() => {
+    if (isLoading) {
+      return null;
+    }
+
+    if (isError) {
+      return (
+        <ErrorState
+          title="Explore could not load"
+          message="Pull to refresh or try again when your connection is stable."
+          onRetry={() => void Promise.all([refetchArticles(), refetchCategories(), refetchForYou()])}
+        />
+      );
+    }
+
+    return (
       <View style={styles.emptyState}>
         <SearchIcon size={48} color={palette.outlineVariant} />
         <Text style={[styles.emptyTitle, { color: palette.onSurface }]}>
@@ -257,8 +276,8 @@ export default function ExploreScreen() {
           Try adjusting your filters or explore different categories.
         </Text>
       </View>
-    )
-  ), [isLoading, palette]);
+    );
+  }, [isError, isLoading, palette, refetchArticles, refetchCategories, refetchForYou]);
 
   return (
     <SafeAreaView edges={[]} style={{ flex: 1, backgroundColor: palette.background }}>

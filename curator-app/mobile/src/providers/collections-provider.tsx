@@ -11,7 +11,6 @@ import {
 } from "react";
 
 import type { Collection } from "../lib/types";
-import { Alert } from "react-native";
 import {
   addArticleToCollectionRemote,
   createCollectionRemote,
@@ -24,6 +23,7 @@ import { useAuthUserId, useCanSyncUserData } from "../hooks/use-auth-user";
 import { invalidateArticlesByIdsQueries } from "../lib/query-client";
 import { createSaveMutationQueue, subscribeArticlesUnsaved } from "../lib/saved-articles-sync";
 import { useSubscription } from "./subscription-provider";
+import { useUpgradeGate } from "./upgrade-gate-provider";
 import { useToast } from "./toast-provider";
 
 interface CollectionsContextValue {
@@ -56,6 +56,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const userId = useAuthUserId();
   const canSync = useCanSyncUserData();
   const { hasCollections, maxCollections } = useSubscription();
+  const { requestUpgrade } = useUpgradeGate();
   const { showToast } = useToast();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -179,11 +180,10 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       icon = "folder",
     ): Collection => {
       if (!hasCollections) {
-        Alert.alert(
-          "Upgrade Required",
-          "Collections are available on Basic and above. Upgrade to organize your reading.",
-          [{ text: "OK" }],
-        );
+        requestUpgrade({
+          featureName: "collections",
+          requiredTier: "basic",
+        });
         return {
           id: "",
           name,
@@ -199,11 +199,10 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
         Number.isFinite(maxCollections) &&
         collectionsRef.current.length >= maxCollections
       ) {
-        Alert.alert(
-          "Limit Reached",
-          `You've reached the limit of ${maxCollections} collections on your current tier.`,
-          [{ text: "OK" }],
-        );
+        requestUpgrade({
+          featureName: "more collections",
+          requiredTier: "premium",
+        });
         return {
           id: "",
           name,
@@ -254,7 +253,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
 
       return newCollection;
     },
-    [canSync, flushPendingAdds, hasCollections, maxCollections, persistMock],
+    [canSync, flushPendingAdds, hasCollections, maxCollections, persistMock, requestUpgrade],
   );
 
   const updateCollection = useCallback(
@@ -317,11 +316,10 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const addArticleToCollection = useCallback(
     (collectionId: string, articleId: string) => {
       if (!hasCollections) {
-        Alert.alert(
-          "Upgrade Required",
-          "Collections are available on Basic and above.",
-          [{ text: "OK" }],
-        );
+        requestUpgrade({
+          featureName: "collections",
+          requiredTier: "basic",
+        });
         return;
       }
 
@@ -377,7 +375,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
           showToast("error", "Couldn't add to collection. Try again.");
         });
     },
-    [canSync, enqueueMutation, hasCollections, persistMock, showToast],
+    [canSync, enqueueMutation, hasCollections, persistMock, requestUpgrade, showToast],
   );
 
   const addArticleToCollections = useCallback(

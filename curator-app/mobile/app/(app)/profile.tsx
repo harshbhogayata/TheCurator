@@ -1,18 +1,19 @@
-import { useState } from "react";
-import { Alert, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { useRouter } from "expo-router";
 import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
+import { useNavigateFromModal } from "../../src/lib/navigate-from-modal";
 import { AvatarUploadError, isAvatarUploadAvailable } from "../../src/services/avatar-upload";
 import {
   ChevronRight,
   CreditCard,
   Shield,
-  Trash2,
   Link2,
   Camera,
+  User,
+  BarChart3,
 } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
@@ -24,24 +25,28 @@ import { SubscriptionBadge } from "../../src/ui/subscription-badge";
 import { ProfileAvatar } from "../../src/ui/profile-avatar";
 import { EmailVerificationBanner } from "../../src/ui/email-verification-banner";
 import { Header } from "../../src/ui/header";
+import { useHeaderOffset } from "../../src/lib/layout";
 import { userDisplayName } from "../../src/lib/user-display-name";
 import { type } from "../../src/ui/tokens/typography";
-import { ApiError } from "../../src/services/api-client";
 import { useToast } from "../../src/providers/toast-provider";
 
 const profileActions = [
+  { icon: User, label: "Account Details", path: "/(app)/account" as const },
+  { icon: BarChart3, label: "Reading Stats", path: "/(app)/reading-stats" as const },
   { icon: CreditCard, label: "Manage Subscription", path: "/(app)/donate" as const },
   { icon: Link2, label: "Connected Accounts", path: "/(app)/connected-accounts" as const },
-  { icon: Shield, label: "Privacy Settings", path: "/(app)/privacy" as const },
+  { icon: Shield, label: "Privacy Policy", path: "/(app)/privacy" as const },
 ];
 
 export default function ProfileScreen() {
   const { palette, resolvedTheme } = useTheme();
-  const { session, deleteAccount, signOut, updateProfileAvatar } = useAuth();
+  const { session, updateProfileAvatar } = useAuth();
   const { tier } = useSubscription();
   const { savedCount } = useSavedArticles();
   const { stats } = useReadingStats();
   const router = useRouter();
+  const navigateFromModal = useNavigateFromModal();
+  const headerOffset = useHeaderOffset();
   const { showToast } = useToast();
   
   const handlePickImage = async () => {
@@ -69,50 +74,6 @@ export default function ProfileScreen() {
       console.error("Image pick error", error);
       showToast("error", "Failed to update profile picture");
     }
-  };
-
-  const handleDeleteAccount = () => {
-    Alert.alert(
-      "Delete Account?",
-      "This will permanently delete your account, saved articles, and preferences. This cannot be undone.",
-      [
-        { text: "Cancel", style: "cancel" },
-        {
-          text: "Delete",
-          style: "destructive",
-          onPress: () =>
-            void deleteAccount().catch((error) => {
-              const code =
-                error instanceof ApiError &&
-                typeof error.details === "object" &&
-                error.details !== null &&
-                "code" in error.details
-                  ? error.details.code
-                  : null;
-
-              if (code === "reauth_required") {
-                Alert.alert(
-                  "Sign In Again",
-                  "For security, sign out and sign back in before deleting your account.",
-                  [
-                    { text: "Not Now", style: "cancel" },
-                    {
-                      text: "Sign Out",
-                      style: "destructive",
-                      onPress: () => {
-                        void signOut().finally(() => router.replace("/(auth)/welcome"));
-                      },
-                    },
-                  ],
-                );
-                return;
-              }
-
-              showToast("error", "Couldn't delete your account right now. Please try again.");
-            }),
-        },
-      ]
-    );
   };
 
   const displayName = userDisplayName(session?.user);
@@ -160,11 +121,11 @@ export default function ProfileScreen() {
       />
 
       <SafeAreaView style={{ flex: 1 }} edges={[]}>
-        <Header title="The Curator" showBadge={false} />
+        <Header title="Profile" showMenu={false} showProfile={false} showBadge={false} />
 
         <ScrollView
           style={{ flex: 1 }}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[styles.scrollContent, { paddingTop: headerOffset }]}
           showsVerticalScrollIndicator={false}
         >
           <EmailVerificationBanner />
@@ -229,20 +190,29 @@ export default function ProfileScreen() {
 
           <View style={styles.statsGrid}>
             {[
-              { label: "Summaries Read", value: stats.totalArticlesRead },
-              { label: "Sources Saved", value: savedCount },
+              { label: "Articles Read", value: stats.totalArticlesRead, path: "/(app)/reading-stats" as const },
+              { label: "Articles Saved", value: savedCount, path: "/(app)/(tabs)/saved" as const },
             ].map((item) => (
-              <View
+              <Pressable
                 key={item.label}
-                style={[
+                onPress={() => {
+                  if (item.path.includes("(tabs)")) {
+                    navigateFromModal(item.path);
+                    return;
+                  }
+                  router.push(item.path);
+                }}
+                style={({ pressed }) => [
                   styles.statCard,
                   {
                     borderColor: palette.outlineVariant + "26",
                     shadowColor: "#000",
+                    opacity: pressed ? 0.92 : 1,
                   },
                 ]}
               >
                 <BlurView
+                  pointerEvents="none"
                   intensity={72}
                   tint={tint}
                   style={[
@@ -256,7 +226,7 @@ export default function ProfileScreen() {
                 <Text style={[styles.statLabel, { color: palette.onSurfaceVariant }]}>
                   {item.label}
                 </Text>
-              </View>
+              </Pressable>
             ))}
           </View>
 
@@ -278,6 +248,7 @@ export default function ProfileScreen() {
                     ]}
                   >
                     <BlurView
+                      pointerEvents="none"
                       intensity={72}
                       tint={tint}
                       style={[
@@ -322,32 +293,6 @@ export default function ProfileScreen() {
               })}
             </View>
           </View>
-
-          <View style={[styles.actionShell, { borderColor: palette.error + "50" }]}>
-            <BlurView
-              intensity={72}
-              tint={tint}
-              style={[StyleSheet.absoluteFillObject, { backgroundColor: palette.errorContainer + "B8" }]}
-            />
-            <Pressable
-              onPress={handleDeleteAccount}
-              style={({ pressed }) => [
-                styles.actionPressable,
-                { backgroundColor: pressed ? palette.error + "20" : "transparent" },
-              ]}
-            >
-              <View style={styles.actionRow}>
-                <View style={[styles.actionIcon, { backgroundColor: palette.errorContainer }]}>
-                  <Trash2 size={20} color={palette.onErrorContainer} strokeWidth={2.1} />
-                </View>
-                <View style={styles.actionCopy}>
-                  <Text numberOfLines={1} style={[styles.actionLabel, { color: palette.onErrorContainer }]}>
-                    Delete Account
-                  </Text>
-                </View>
-              </View>
-            </Pressable>
-          </View>
         </ScrollView>
 
       </SafeAreaView>
@@ -369,8 +314,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     paddingHorizontal: 20,
-    paddingTop: 148,
-    paddingBottom: 150,
+    paddingBottom: 40,
   },
   heroSection: {
     alignItems: "center",

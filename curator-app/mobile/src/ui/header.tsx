@@ -46,7 +46,7 @@ function HeaderInner({
         },
       ]}
     >
-      {showMenu && (
+      {showMenu ? (
         <View style={styles.shadow}>
           <Pressable
             onPress={handleMenuPress}
@@ -59,6 +59,7 @@ function HeaderInner({
             ]}
           >
             <BlurView
+              pointerEvents="none"
               intensity={60}
               tint={tint}
               style={[
@@ -71,10 +72,11 @@ function HeaderInner({
             </View>
           </Pressable>
         </View>
+      ) : (
+        <View style={styles.sideSpacer} />
       )}
 
-      {/* Center: Title long pill */}
-      <View style={[styles.shadow, { flex: 1 }]}>
+      <View style={[styles.shadow, styles.titleFlex]}>
         <View
           style={[
             styles.pill,
@@ -85,6 +87,7 @@ function HeaderInner({
           ]}
         >
           <BlurView
+            pointerEvents="none"
             intensity={60}
             tint={tint}
             style={[
@@ -96,18 +99,14 @@ function HeaderInner({
             numberOfLines={1}
             adjustsFontSizeToFit
             minimumFontScale={0.82}
-            style={[
-              styles.titleText,
-              { color: palette.onSurface },
-            ]}
+            style={[styles.titleText, { color: palette.onSurface }]}
           >
             {title}
           </Text>
         </View>
       </View>
 
-      {/* Right: Badge + Avatar pill */}
-      {showProfile && (
+      {showProfile ? (
         <View style={styles.shadow}>
           <Pressable
             onPress={handleProfilePress}
@@ -120,6 +119,7 @@ function HeaderInner({
             ]}
           >
             <BlurView
+              pointerEvents="none"
               intensity={60}
               tint={tint}
               style={[
@@ -137,6 +137,8 @@ function HeaderInner({
             />
           </Pressable>
         </View>
+      ) : (
+        <View style={styles.sideSpacer} />
       )}
     </View>
   );
@@ -154,6 +156,10 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
+  },
+  sideSpacer: {
+    width: 40,
+    height: 40,
   },
   pill: {
     borderRadius: 999,
@@ -178,8 +184,11 @@ const styles = StyleSheet.create({
     alignItems: "center",
     justifyContent: "center",
   },
-  titlePill: {
+  titleFlex: {
     flex: 1,
+    minWidth: 0,
+  },
+  titlePill: {
     minWidth: 0,
     minHeight: 52,
     paddingHorizontal: 14,
@@ -200,11 +209,5 @@ const styles = StyleSheet.create({
     gap: 6,
     paddingHorizontal: 10,
     paddingVertical: 8,
-  },
-  avatar: {
-    width: 30,
-    height: 30,
-    borderRadius: 999,
-    borderWidth: 1,
   },
 });

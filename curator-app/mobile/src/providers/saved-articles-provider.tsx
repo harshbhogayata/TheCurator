@@ -10,13 +10,13 @@ import {
   useState,
 } from "react";
 
-import { Alert } from "react-native";
 import {
   clearSavedArticlesRemote,
   listSavedArticleIds,
   saveArticleById,
   unsaveArticleById,
 } from "../services/mobile-api";
+import { parseEntitlementError } from "../lib/parse-entitlement-error";
 import {
   clearSavedArticlesCaches,
   dropArticleFromSavedCaches,
@@ -31,6 +31,7 @@ import { notifyReadingStatsRefresh } from "../lib/stats-sync";
 import { mockBackendEnabled } from "../lib/dev-flags";
 import { useAuth } from "./auth-provider";
 import { useSubscription } from "./subscription-provider";
+import { useUpgradeGate } from "./upgrade-gate-provider";
 import { useToast } from "./toast-provider";
 
 interface SavedArticlesContextValue {
@@ -54,6 +55,7 @@ const SavedArticlesContext = createContext<SavedArticlesContextValue | null>(nul
 export function SavedArticlesProvider({ children }: PropsWithChildren) {
   const { session } = useAuth();
   const { hasUnlimitedSaves, maxSaves } = useSubscription();
+  const { requestUpgrade } = useUpgradeGate();
   const { showToast } = useToast();
   const userId = session?.user?.id ?? null;
 
@@ -168,11 +170,10 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
         }
 
         if (!hasUnlimitedSaves && prev.length >= maxSaves) {
-          Alert.alert(
-            "Limit Reached",
-            `You've reached the limit of ${maxSaves} saved articles on your current tier. Upgrade to save more!`,
-            [{ text: "OK" }],
-          );
+          requestUpgrade({
+            featureName: "more saved articles",
+            requiredTier: "premium",
+          });
           return prev;
         }
 
@@ -193,13 +194,21 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
         .then((ids) => {
           syncFromServer(ids);
         })
-        .catch(() => {
+        .catch((error) => {
           setSavedArticleIds(previousIds);
           dropArticleFromSavedCaches(id);
+          const entitlement = parseEntitlementError(error);
+          if (entitlement.isEntitlement) {
+            requestUpgrade({
+              featureName: "more saved articles",
+              requiredTier: entitlement.requiredTier,
+            });
+            return;
+          }
           showToast("error", "Couldn't save this article. Try again.");
         });
     },
-    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, showToast, syncFromServer, userId],
+    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, requestUpgrade, showToast, syncFromServer, userId],
   );
 
   const unsaveArticles = useCallback(

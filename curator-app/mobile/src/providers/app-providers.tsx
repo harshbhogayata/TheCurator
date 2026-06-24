@@ -10,6 +10,7 @@ import { ReadingPreferencesProvider } from "./reading-preferences-provider";
 import { ReadingStatsProvider } from "./reading-stats-provider";
 import { SavedArticlesProvider } from "./saved-articles-provider";
 import { SubscriptionProvider } from "./subscription-provider";
+import { UpgradeGateProvider } from "./upgrade-gate-provider";
 import { ThemeProvider } from "./theme-provider";
 import { ToastProvider } from "./toast-provider";
 
@@ -24,15 +25,17 @@ export function AppProviders({ children }: PropsWithChildren) {
           <ToastProvider>
             <BottomSheetModalProvider>
               <SubscriptionProvider>
-                <SavedArticlesProvider>
-                  <CollectionsProvider>
-                    <ReadingPreferencesProvider>
-                      <ReadingStatsProvider>
-                        <AudioProvider>{children}</AudioProvider>
-                      </ReadingStatsProvider>
-                    </ReadingPreferencesProvider>
-                  </CollectionsProvider>
-                </SavedArticlesProvider>
+                <UpgradeGateProvider>
+                  <SavedArticlesProvider>
+                    <CollectionsProvider>
+                      <ReadingPreferencesProvider>
+                        <ReadingStatsProvider>
+                          <AudioProvider>{children}</AudioProvider>
+                        </ReadingStatsProvider>
+                      </ReadingPreferencesProvider>
+                    </CollectionsProvider>
+                  </SavedArticlesProvider>
+                </UpgradeGateProvider>
               </SubscriptionProvider>
             </BottomSheetModalProvider>
           </ToastProvider>
