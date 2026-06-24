@@ -19,6 +19,7 @@ import { useSavedArticles } from "../../../src/providers/saved-articles-provider
 import { useSubscription } from "../../../src/providers/subscription-provider";
 import { Header } from "../../../src/ui/header";
 import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
+import { UnverifiedTrialBanner } from "../../../src/ui/unverified-trial-banner";
 import { ArticleCard } from "../../../src/ui/article-card";
 import { SwipeableArticleCard } from "../../../src/ui/swipeable-article-card";
 import { ConfirmDialog } from "../../../src/ui/confirm-dialog";
@@ -200,6 +201,7 @@ export default function SavedScreen() {
     () => (
       <>
         <MembershipSyncBanner embedded />
+        <UnverifiedTrialBanner embedded />
         {syncError ? (
           <Pressable
             onPress={() => void refreshSavedArticles()}

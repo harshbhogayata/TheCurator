@@ -5,6 +5,7 @@ import { type PropsWithChildren } from "react";
 import { asyncStoragePersister, queryClient } from "../lib/query-client";
 import { AudioProvider } from "./audio-provider";
 import { AuthProvider } from "./auth-provider";
+import { EmailVerificationGateProvider } from "./email-verification-gate-provider";
 import { CollectionsProvider } from "./collections-provider";
 import { ReadingPreferencesProvider } from "./reading-preferences-provider";
 import { ReadingStatsProvider } from "./reading-stats-provider";
@@ -24,6 +25,7 @@ export function AppProviders({ children }: PropsWithChildren) {
         <AuthProvider>
           <ToastProvider>
             <BottomSheetModalProvider>
+              <EmailVerificationGateProvider>
               <SubscriptionProvider>
                 <UpgradeGateProvider>
                   <SavedArticlesProvider>
@@ -37,6 +39,7 @@ export function AppProviders({ children }: PropsWithChildren) {
                   </SavedArticlesProvider>
                 </UpgradeGateProvider>
               </SubscriptionProvider>
+              </EmailVerificationGateProvider>
             </BottomSheetModalProvider>
           </ToastProvider>
         </AuthProvider>

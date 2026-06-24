@@ -34,6 +34,7 @@ import { ApiError } from "../../../src/services/api-client";
 import { briefAudioPromoCopy } from "../../../src/lib/tier-copy";
 import { PaywallModal } from "../../../src/ui/paywall-modal";
 import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
+import { UnverifiedTrialBanner } from "../../../src/ui/unverified-trial-banner";
 
 export default function BriefsScreen() {
   const { palette } = useTheme();
@@ -121,6 +122,7 @@ export default function BriefsScreen() {
         }
       >
         <MembershipSyncBanner embedded />
+        <UnverifiedTrialBanner embedded />
 
         {!hasAdFree && (
           <View style={{ marginBottom: 16 }}>

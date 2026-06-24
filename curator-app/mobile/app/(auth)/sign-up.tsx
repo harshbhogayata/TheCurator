@@ -17,7 +17,11 @@ import { PrimaryButton } from "../../src/ui/primary-button";
 import { StatusBanner } from "../../src/ui/status-banner";
 
 const schema = z.object({
-  displayName: z.string().max(60, "Keep your name under 60 characters.").optional(),
+  displayName: z
+    .string()
+    .trim()
+    .min(1, "Enter your name.")
+    .max(60, "Keep your name under 60 characters."),
   email: z.email("Enter a valid email."),
   password: z.string().min(8, "Use at least 8 characters."),
 });
@@ -69,7 +73,7 @@ export default function SignUpScreen() {
           <AuthCard
             eyebrow="Create account"
             title="Join The Curator"
-            description="Create your account, then we'll tailor your experience."
+            description="Use a real inbox — we'll send a verification link before full access unlocks."
           >
             {errorMessage ? <StatusBanner tone="error" message={errorMessage} /> : null}
 
@@ -78,11 +82,12 @@ export default function SignUpScreen() {
               name="displayName"
               render={({ field: { onChange, value } }) => (
                 <InputField
-                  label="Display name"
+                  label="Your name"
                   value={value ?? ""}
                   onChangeText={(v) => { clearError(); onChange(v); }}
-                  hint="Optional."
+                  hint="Shown in the app and on your profile."
                   placeholder="Harsh"
+                  error={errors.displayName?.message}
                   icon={<User size={14} color={palette.outline} />}
                 />
               )}
@@ -99,6 +104,7 @@ export default function SignUpScreen() {
                   autoCorrect={false}
                   keyboardType="email-address"
                   error={errors.email?.message}
+                  hint="We'll email a verification link here."
                   placeholder="you@curator.app"
                   icon={<Mail size={14} color={palette.outline} />}
                 />

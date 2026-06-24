@@ -25,6 +25,7 @@ import { invalidateArticlesByIdsQueries } from "../lib/query-client";
 import { createSaveMutationQueue, subscribeArticlesUnsaved } from "../lib/saved-articles-sync";
 import { useSubscription } from "./subscription-provider";
 import { useUpgradeGate } from "./upgrade-gate-provider";
+import { useEmailVerificationGate } from "./email-verification-gate-provider";
 import { useToast } from "./toast-provider";
 
 interface CollectionsContextValue {
@@ -60,6 +61,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
   const canSync = useCanSyncUserData();
   const { maxCollections } = useSubscription();
   const { requestUpgrade } = useUpgradeGate();
+  const { requireVerifiedEmail } = useEmailVerificationGate();
   const { showToast } = useToast();
   const [collections, setCollections] = useState<Collection[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -191,6 +193,17 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
       color = "#6366f1",
       icon = "folder",
     ): Collection => {
+      if (!requireVerifiedEmail("collection")) {
+        return {
+          id: "",
+          name,
+          description,
+          color,
+          icon,
+          articleIds: [],
+          createdAt: new Date().toISOString(),
+        };
+      }
       if (
         Number.isFinite(maxCollections) &&
         collectionsRef.current.length >= maxCollections
@@ -257,7 +270,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
 
       return newCollection;
     },
-    [canSync, flushPendingAdds, maxCollections, persistMock, requestUpgrade, showToast],
+    [canSync, flushPendingAdds, maxCollections, persistMock, requestUpgrade, requireVerifiedEmail, showToast],
   );
 
   const updateCollection = useCallback(
@@ -319,6 +332,9 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
 
   const addArticleToCollection = useCallback(
     (collectionId: string, articleId: string) => {
+      if (!requireVerifiedEmail("collection")) {
+        return;
+      }
       const target = collectionsRef.current.find((collection) => collection.id === collectionId);
       if (target?.articleIds.includes(articleId)) {
         return;
@@ -371,7 +387,7 @@ export function CollectionsProvider({ children }: PropsWithChildren) {
           showToast("error", "Couldn't add to collection. Try again.");
         });
     },
-    [canSync, enqueueMutation, persistMock, showToast],
+    [canSync, enqueueMutation, persistMock, requireVerifiedEmail, showToast],
   );
 
   const addArticleToCollections = useCallback(

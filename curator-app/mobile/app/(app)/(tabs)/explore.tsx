@@ -18,6 +18,7 @@ import { useTheme } from "../../../src/providers/theme-provider";
 import { useSubscription } from "../../../src/providers/subscription-provider";
 import { ErrorState } from "../../../src/ui/error-state";
 import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
+import { UnverifiedTrialBanner } from "../../../src/ui/unverified-trial-banner";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import { AdBanner } from "../../../src/ui/ad-banner";
@@ -137,6 +138,7 @@ export default function ExploreScreen() {
       return (
         <View style={{ gap: 32, paddingTop: 8 }}>
           <MembershipSyncBanner embedded />
+          <UnverifiedTrialBanner embedded />
           <ArticleCardSkeleton />
           <ArticleCardSkeleton />
         </View>
@@ -146,6 +148,7 @@ export default function ExploreScreen() {
     return (
       <>
         <MembershipSyncBanner embedded />
+        <UnverifiedTrialBanner embedded />
         {/* Top Narratives Header */}
         <View style={styles.narrativesHeader}>
           <Text

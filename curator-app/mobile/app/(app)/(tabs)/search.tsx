@@ -16,6 +16,7 @@ import { useSavedArticles } from "../../../src/providers/saved-articles-provider
 import { useReadingStats } from "../../../src/providers/reading-stats-provider";
 import { ErrorState } from "../../../src/ui/error-state";
 import { MembershipSyncBanner } from "../../../src/ui/membership-sync-banner";
+import { UnverifiedTrialBanner } from "../../../src/ui/unverified-trial-banner";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import type { Article } from "../../../src/data/articles";
@@ -135,6 +136,7 @@ export default function SearchScreen() {
     return (
       <View style={{ paddingBottom: 8 }}>
         <MembershipSyncBanner embedded />
+        <UnverifiedTrialBanner embedded />
         {!isHydrated && (readingStatus === "saved" || readingStatus === "unsaved") ? (
           <View
             style={{

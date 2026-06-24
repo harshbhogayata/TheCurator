@@ -39,6 +39,7 @@ import { ArticleAudioPlayer } from "../../../src/ui/article-audio-player";
 import { AddToCollectionModal } from "../../../src/ui/add-to-collection-modal";
 import { useUpgradeGate } from "../../../src/providers/upgrade-gate-provider";
 import { useArticle, useArticles } from "../../../src/hooks/use-articles";
+import { useEmailVerificationGate } from "../../../src/providers/email-verification-gate-provider";
 
 const MIN_READ_TIME_MS = 3_000;
 const SCROLL_PERSIST_MIN_Y = 50;
@@ -57,6 +58,8 @@ export default function ArticleScreen() {
   const { requestUpgrade } = useUpgradeGate();
   const { data: article, isLoading: isArticleLoading, isError: isArticleError, refetch } = useArticle(id ?? "");
   const { data: allArticles = [] } = useArticles();
+  const { registerArticleOpen } = useEmailVerificationGate();
+  const [articleGateAllowed, setArticleGateAllowed] = useState(true);
 
   const [typographyVisible, setTypographyVisible] = useState(false);
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
@@ -73,6 +76,11 @@ export default function ArticleScreen() {
   useEffect(() => {
     isArticleSavedRef.current = isArticleSaved;
   }, [isArticleSaved]);
+
+  useEffect(() => {
+    if (!article?.id) return;
+    setArticleGateAllowed(registerArticleOpen(article.id));
+  }, [article?.id, registerArticleOpen]);
 
   // Related articles: same category first, pad with others to always reach 3
   const relatedArticles = useMemo(() => {
@@ -320,6 +328,44 @@ export default function ArticleScreen() {
             Go Back
           </Text>
         </Pressable>
+      </View>
+    );
+  }
+
+  if (!articleGateAllowed) {
+    return (
+      <View style={[styles.notFound, { backgroundColor: palette.background }]}>
+        <Pressable
+          onPress={() => router.back()}
+          style={[styles.notFoundButton, { alignSelf: "flex-start", marginBottom: 24, backgroundColor: palette.surfaceContainer }]}
+        >
+          <Text style={{ fontFamily: "Manrope_600SemiBold", fontSize: 14, color: palette.onSurface }}>
+            Back
+          </Text>
+        </Pressable>
+        <Text
+          style={{
+            fontFamily: "Newsreader_500Medium",
+            fontSize: 24,
+            color: palette.onSurface,
+            marginBottom: 12,
+            textAlign: "center",
+          }}
+        >
+          Verify your email to keep reading
+        </Text>
+        <Text
+          style={{
+            fontFamily: "Manrope_400Regular",
+            fontSize: 15,
+            color: palette.onSurfaceVariant,
+            textAlign: "center",
+            lineHeight: 22,
+            paddingHorizontal: 24,
+          }}
+        >
+          You've used your 3 free stories. Confirm your inbox to unlock unlimited reading.
+        </Text>
       </View>
     );
   }

@@ -5,6 +5,7 @@ import Animated, { FadeIn } from "react-native-reanimated";
 import { categoryOptions, type UserPreferences } from "../lib/types";
 import { useTheme } from "../providers/theme-provider";
 import { PrimaryButton } from "../ui/primary-button";
+import { EmailVerificationBanner } from "../ui/email-verification-banner";
 import { ProfileAvatar } from "../ui/profile-avatar";
 import { type } from "../ui/tokens/typography";
 
@@ -358,10 +359,18 @@ export function ReadingStep({
 type CompletionViewProps = {
   completionCircleSize: number;
   completionName: string;
+  needsVerify?: boolean;
+  trialArticleLimit?: number;
   onStartReading: () => void;
 };
 
-export function CompletionView({ completionCircleSize, completionName, onStartReading }: CompletionViewProps) {
+export function CompletionView({
+  completionCircleSize,
+  completionName,
+  needsVerify = false,
+  trialArticleLimit = 3,
+  onStartReading,
+}: CompletionViewProps) {
   const { palette } = useTheme();
 
   return (
@@ -403,6 +412,15 @@ export function CompletionView({ completionCircleSize, completionName, onStartRe
             <CelebrationBenefitItem key={f.key} title={f.title} description={f.description} Icon={f.Icon} />
           ))}
         </View>
+
+        {needsVerify ? (
+          <View style={{ width: "100%", gap: 12 }}>
+            <Text style={[type.label, { fontFamily: "Manrope_400Regular", fontSize: 15, lineHeight: 22, textAlign: "center", color: palette.onSurfaceVariant }]}>
+              Verify your email to unlock saves and collections. Until then, you can read up to {trialArticleLimit} stories.
+            </Text>
+            <EmailVerificationBanner compact />
+          </View>
+        ) : null}
 
         <View style={{ width: "100%" }}>
           <PrimaryButton

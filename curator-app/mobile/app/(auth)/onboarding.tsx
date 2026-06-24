@@ -19,6 +19,7 @@ import {
   PreferencesStep,
   ReadingStep,
 } from "../../src/onboarding/steps";
+import { needsEmailVerification, UNVERIFIED_ARTICLE_READ_LIMIT } from "../../src/lib/email-verification";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useReadingPreferences } from "../../src/providers/reading-preferences-provider";
 import { useTheme } from "../../src/providers/theme-provider";
@@ -247,6 +248,7 @@ export default function OnboardingScreen() {
   };
 
   const completionName = displayName.trim() || session.user.displayName?.trim() || "Reader";
+  const needsVerify = needsEmailVerification(session);
 
   return (
     <Screen tabBarPadding={false}>
@@ -255,6 +257,8 @@ export default function OnboardingScreen() {
           <CompletionView
             completionCircleSize={completionCircleSize}
             completionName={completionName}
+            needsVerify={needsVerify}
+            trialArticleLimit={UNVERIFIED_ARTICLE_READ_LIMIT}
             onStartReading={() => router.replace("/(app)/(tabs)")}
           />
         ) : (

@@ -32,6 +32,7 @@ import { mockBackendEnabled } from "../lib/dev-flags";
 import { useAuth } from "./auth-provider";
 import { useSubscription } from "./subscription-provider";
 import { useUpgradeGate } from "./upgrade-gate-provider";
+import { useEmailVerificationGate } from "./email-verification-gate-provider";
 import { useToast } from "./toast-provider";
 
 interface SavedArticlesContextValue {
@@ -56,6 +57,7 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
   const { session } = useAuth();
   const { hasUnlimitedSaves, maxSaves, tier } = useSubscription();
   const { requestUpgrade } = useUpgradeGate();
+  const { requireVerifiedEmail } = useEmailVerificationGate();
   const { showToast } = useToast();
   const userId = session?.user?.id ?? null;
 
@@ -160,6 +162,9 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
         showToast("info", "Sign in to save articles.");
         return;
       }
+      if (!requireVerifiedEmail("save")) {
+        return;
+      }
 
       let shouldPersist = false;
       const previousIds = [...savedArticleIdsRef.current];
@@ -209,7 +214,7 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
           showToast("error", "Couldn't save this article. Try again.");
         });
     },
-    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, requestUpgrade, showToast, syncFromServer, tier, userId],
+    [enqueueMutation, hasUnlimitedSaves, maxSaves, persistMock, requestUpgrade, requireVerifiedEmail, showToast, syncFromServer, tier, userId],
   );
 
   const unsaveArticles = useCallback(
