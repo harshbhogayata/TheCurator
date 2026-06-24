@@ -1,5 +1,4 @@
 from django.contrib import admin, messages
-from django.db.models import Case, IntegerField, When
 from django.utils import timezone
 from django.utils.html import format_html, format_html_join
 
@@ -84,7 +83,7 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     list_filter = ("status", "kind", "category", "is_breaking")
     list_per_page = 500
     list_max_show_all = 5000
-    show_full_result_count = True
+    show_full_result_count = False
     search_fields = ("title", "excerpt", "content")
     readonly_fields = (
         "cluster",
@@ -134,26 +133,9 @@ class ArticleDraftAdmin(admin.ModelAdmin):
     actions = ["approve_drafts", "publish_now", "reject_drafts", "send_back_to_review"]
 
     def get_queryset(self, request):
-        qs = (
-            super()
-            .get_queryset(request)
-            .select_related("category")
-            .annotate(
-                review_priority=Case(
-                    When(status=DraftStatus.IN_REVIEW, then=0),
-                    When(status=DraftStatus.DRAFT, then=1),
-                    When(status=DraftStatus.APPROVED, then=2),
-                    default=3,
-                    output_field=IntegerField(),
-                )
-            )
-            .order_by("review_priority", "-created_at")
-        )
-        # Default to editorial queue — hide published/rejected unless status filter set.
+        qs = super().get_queryset(request).select_related("category").order_by("-created_at")
         if not request.GET.get("status__exact") and not request.GET.get("q"):
-            qs = qs.exclude(
-                status__in=[DraftStatus.PUBLISHED, DraftStatus.REJECTED]
-            )
+            qs = qs.exclude(status__in=[DraftStatus.PUBLISHED, DraftStatus.REJECTED])
         return qs
 
     def changelist_view(self, request, extra_context=None):
@@ -166,20 +148,17 @@ class ArticleDraftAdmin(admin.ModelAdmin):
             messages.info(
                 request,
                 f"Review queue: {in_review} need review, {approved} approved. "
-                "Use Status filter → Published to see live drafts.",
+                "Use Status filter > Published to see live drafts.",
             )
         elif in_review:
-            messages.info(
-                request,
-                f"{in_review} draft(s) still need review.",
-            )
+            messages.info(request, f"{in_review} draft(s) still need review.")
         return super().changelist_view(request, extra_context=extra_context)
 
     @admin.display(description="Breaking")
     def breaking_badge(self, obj):
         if obj.is_breaking:
             return format_html('<span style="color:#b91c1c;font-weight:600;">Yes</span>')
-        return "—"
+        return "-"
 
     @admin.display(description="Status")
     def status_badge(self, obj):
@@ -215,14 +194,11 @@ class ArticleDraftAdmin(admin.ModelAdmin):
         )
         self.message_user(request, f"Approved {count} draft(s).")
 
-    @admin.action(description="Publish now (creates live content + narration)")
+    @admin.action(description="Publish now (creates live content; audio via pipeline)")
     def publish_now(self, request, queryset):
         import logging
 
         from content_pipeline.services.post_publish import (
-            compute_article_relations_sync,
-            generate_article_audio_sync,
-            generate_brief_audio_sync,
             resolve_article_image_sync,
             resolve_brief_image_sync,
         )
@@ -247,8 +223,6 @@ class ArticleDraftAdmin(admin.ModelAdmin):
             try:
                 if draft.kind == DraftKind.ARTICLE:
                     resolve_article_image_sync(content)
-                    generate_article_audio_sync(str(content.id))
-                    compute_article_relations_sync(str(content.id))
                     if draft.is_breaking:
                         from mobileapi.tasks import send_breaking_news_alert
 
@@ -258,18 +232,20 @@ class ArticleDraftAdmin(admin.ModelAdmin):
                             send_breaking_news_alert(str(content.id))
                 else:
                     resolve_brief_image_sync(content)
-                    generate_brief_audio_sync(str(content.id))
             except Exception as exc:
-                logger.exception("Post-publish failed for %s", draft.id)
+                logger.exception("Post-publish image failed for %s", draft.id)
                 self.message_user(
                     request,
-                    f"Published “{draft.title}” but image/audio step failed: {exc}. "
-                    "Run `python manage.py run_pipeline` to backfill.",
+                    f"Published “{draft.title}” but image step failed: {exc}",
                     level=messages.WARNING,
                 )
             published += 1
         if published:
-            self.message_user(request, f"Published {published} draft(s).")
+            self.message_user(
+                request,
+                f"Published {published} draft(s). Audio/relations fill in on the next "
+                "run_pipeline (hourly cron or shell).",
+            )
 
     @admin.action(description="Reject")
     def reject_drafts(self, request, queryset):
