@@ -24,6 +24,11 @@ class Command(BaseCommand):
         parser.add_argument("--article-id", help="Generate audio for a single article id.")
         parser.add_argument("--brief-id", help="Generate audio for a single brief id.")
         parser.add_argument(
+            "--latest-brief",
+            action="store_true",
+            help="Regenerate the most recently published active brief (no UUID needed).",
+        )
+        parser.add_argument(
             "--all-missing",
             action="store_true",
             help="Generate audio for every active article/brief missing audio_url.",
@@ -70,6 +75,17 @@ class Command(BaseCommand):
                 Brief.objects.filter(id=options["brief_id"]),
                 options,
             )
+        elif options["latest_brief"]:
+            brief = (
+                Brief.objects.filter(is_active=True)
+                .exclude(summary="")
+                .order_by("-published_at", "rank")
+                .first()
+            )
+            if brief is None:
+                raise CommandError("No active brief found.")
+            self.stdout.write(f"Latest brief: {brief.title} ({brief.id})")
+            processed += self._process_briefs(Brief.objects.filter(id=brief.id), options)
         elif options["all_missing"]:
             if not options["briefs_only"]:
                 articles = Article.objects.filter(is_active=True).exclude(content="")
@@ -83,7 +99,9 @@ class Command(BaseCommand):
                     briefs = briefs.filter(Q(audio_url="") | Q(audio_url__isnull=True))
                 processed += self._process_briefs(briefs.order_by("-published_at", "rank"), options)
         else:
-            raise CommandError("Pass --article-id, --brief-id, or --all-missing.")
+            raise CommandError(
+                "Pass --article-id, --brief-id, --latest-brief, or --all-missing."
+            )
 
         self.stdout.write(self.style.SUCCESS(f"Done. Processed {processed} narration file(s)."))
 

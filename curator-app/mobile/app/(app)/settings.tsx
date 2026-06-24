@@ -7,14 +7,11 @@ import {
   BookMarked,
   ChevronRight,
   Globe,
-  Heart,
-  Link2,
   LogOut,
   Monitor,
   Moon,
   Sparkles,
   Sun,
-  User,
   Zap,
 } from "lucide-react-native";
 
@@ -432,28 +429,6 @@ export default function SettingsScreen() {
               <ChevronRight size={18} color={palette.primaryForeground} />
             </View>
           </Pressable>
-        </View>
-
-        <SectionHeading label="Account" />
-        <View style={styles.sectionStack}>
-          <ActionRow
-            Icon={User}
-            title="Profile & Account"
-            description="Update your display name and account information."
-            onPress={() => router.push("/(app)/account")}
-          />
-          <ActionRow
-            Icon={Link2}
-            title="Connected Accounts"
-            description="Manage linked sign-in methods and account recovery access."
-            onPress={() => router.push("/(app)/connected-accounts")}
-          />
-          <ActionRow
-            Icon={Heart}
-            title="Support The Curator"
-            description="Choose a membership plan and keep the product independent."
-            onPress={() => router.push("/(app)/donate")}
-          />
         </View>
 
         <SectionHeading label="Alerts & Delivery" />
