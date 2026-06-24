@@ -4,14 +4,14 @@ from django.conf import settings
 from django.core.management import call_command
 from django.core.management.base import BaseCommand
 
-from content_pipeline.services.currents import is_currents_source
+from content_pipeline.services.api_registry import is_news_api_source
 from content_pipeline.models import Source
 
 
 class Command(BaseCommand):
     help = (
         "Phase 0 bootstrap: migrate, seed categories/content, RSS sources, "
-        "and Currents API sources when CURRENTS_API_KEY is set."
+        "and licensed news API sources (Currents, Guardian, GNews, etc.)."
     )
 
     def add_arguments(self, parser):
@@ -37,16 +37,8 @@ class Command(BaseCommand):
         self.stdout.write("Seeding RSS pipeline sources (rss_permitted)...")
         call_command("seed_pipeline_sources", verbosity=1)
 
-        if settings.CURRENTS_API_KEY:
-            self.stdout.write("Seeding Currents API sources...")
-            call_command("seed_currents_sources", verbosity=1)
-        else:
-            self.stdout.write(
-                self.style.WARNING(
-                    "CURRENTS_API_KEY not set — skipped seed_currents_sources. "
-                    "Add key on Railway then re-run this command."
-                )
-            )
+        self.stdout.write("Seeding licensed news API source catalog...")
+        call_command("seed_currents_sources", verbosity=1)
 
         self._print_integration_hints()
 
@@ -59,9 +51,16 @@ class Command(BaseCommand):
     def _print_integration_hints(self) -> None:
         pexels = bool(settings.PEXELS_API_KEY)
         unsplash = bool(settings.UNSPLASH_ACCESS_KEY)
-        currents = bool(settings.CURRENTS_API_KEY)
-        currents_sources = sum(
-            1 for source in Source.objects.filter(is_active=True) if is_currents_source(source)
+        api_keys = {
+            "currents": bool(settings.CURRENTS_API_KEY),
+            "guardian": bool(settings.GUARDIAN_API_KEY),
+            "gnews": bool(settings.GNEWS_API_KEY),
+            "apitube": bool(settings.APITUBE_API_KEY),
+            "mediastack": bool(settings.MEDIASTACK_API_KEY),
+            "worldnews": bool(settings.WORLDNEWS_API_KEY),
+        }
+        api_sources = sum(
+            1 for source in Source.objects.filter(is_active=True) if is_news_api_source(source)
         )
 
         self.stdout.write("")
@@ -70,8 +69,10 @@ class Command(BaseCommand):
         self.stdout.write(
             f"  Unsplash (optional): {'ok' if unsplash else 'not configured (Pexels-only fallback)'}"
         )
+        configured = [name for name, ok in api_keys.items() if ok]
         self.stdout.write(
-            f"  Currents (optional):   "
-            f"{'ok' if currents and currents_sources else 'key missing or no sources seeded'}"
+            f"  News APIs:             "
+            f"{', '.join(configured) if configured else 'no API keys set'} "
+            f"({api_sources} sources in catalog)"
         )
         self.stdout.write("  Kokoro TTS:            deferred (use TTS_PROVIDER=openai for now)")

@@ -2,7 +2,7 @@
 
 Supported source kinds:
 - ``rss``: any RSS/Atom feed (parsed with feedparser).
-- ``api``: JSON Feed URL **or** Currents API (`api.currentsapi.services` in URL).
+- ``api``: licensed news APIs (Currents, Guardian, GNews, APITube, Mediastack, World News).
 """
 
 import hashlib
@@ -14,7 +14,7 @@ import requests
 from django.utils import timezone
 
 from content_pipeline.models import RawItem, Source, SourceKind, SourceLicenseStatus
-from content_pipeline.services.currents import fetch_currents_entries, is_currents_source
+from content_pipeline.services.api_registry import fetch_news_api_entries, is_news_api_source
 
 logger = logging.getLogger(__name__)
 
@@ -122,8 +122,8 @@ def fetch_source(source: Source):
     """Fetch a source and persist new RawItems. Returns count of new items."""
     if source.kind == SourceKind.RSS:
         entries = _parse_rss(source)
-    elif is_currents_source(source):
-        entries = fetch_currents_entries(source)
+    elif is_news_api_source(source):
+        entries = fetch_news_api_entries(source)
     else:
         entries = _parse_json_feed(source)
 

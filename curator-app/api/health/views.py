@@ -86,16 +86,47 @@ def _kokoro_status() -> str:
     return _integration_status("kokoro", configured=True, ping=ping)
 
 
+def _news_api_status(provider: str, key_setting: str, budget_fn) -> dict:
+    configured = bool((getattr(settings, key_setting, "") or "").strip())
+    if not configured:
+        return {"status": "not_configured", "budget_remaining": None}
+    return {"status": "ok", "budget_remaining": budget_fn()}
+
+
 def _currents_status() -> dict:
     from content_pipeline.services.currents import currents_budget_remaining
 
-    configured = bool((getattr(settings, "CURRENTS_API_KEY", "") or "").strip())
-    if not configured:
-        return {"status": "not_configured", "budget_remaining": None}
-    return {
-        "status": "ok",
-        "budget_remaining": currents_budget_remaining(),
-    }
+    return _news_api_status("currents", "CURRENTS_API_KEY", currents_budget_remaining)
+
+
+def _guardian_status() -> dict:
+    from content_pipeline.services.guardian_api import guardian_budget_remaining
+
+    return _news_api_status("guardian", "GUARDIAN_API_KEY", guardian_budget_remaining)
+
+
+def _gnews_status() -> dict:
+    from content_pipeline.services.gnews_api import gnews_budget_remaining
+
+    return _news_api_status("gnews", "GNEWS_API_KEY", gnews_budget_remaining)
+
+
+def _apitube_status() -> dict:
+    from content_pipeline.services.apitube_api import apitube_budget_remaining
+
+    return _news_api_status("apitube", "APITUBE_API_KEY", apitube_budget_remaining)
+
+
+def _mediastack_status() -> dict:
+    from content_pipeline.services.mediastack_api import mediastack_budget_remaining
+
+    return _news_api_status("mediastack", "MEDIASTACK_API_KEY", mediastack_budget_remaining)
+
+
+def _worldnews_status() -> dict:
+    from content_pipeline.services.worldnews_api import worldnews_budget_remaining
+
+    return _news_api_status("worldnews", "WORLDNEWS_API_KEY", worldnews_budget_remaining)
 
 
 def _pipeline_status() -> str:
@@ -179,6 +210,11 @@ class HealthView(views.APIView):
                 "unsplash": _unsplash_status(),
                 "kokoro": _kokoro_status(),
                 "currents": _currents_status(),
+                "guardian": _guardian_status(),
+                "gnews": _gnews_status(),
+                "apitube": _apitube_status(),
+                "mediastack": _mediastack_status(),
+                "worldnews": _worldnews_status(),
             },
             "tts": _tts_status(),
         }

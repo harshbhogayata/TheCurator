@@ -7,16 +7,17 @@ Free tier: 1,000 requests/day — tracked via Django cache.
 from __future__ import annotations
 
 import logging
-from datetime import date
-from urllib.parse import parse_qs, urlparse
 
 import requests
 from django.conf import settings
-from django.core.cache import cache
+
+from content_pipeline.services.api_budget import budget_remaining, record_request
+from content_pipeline.services.api_common import normalize_entry, parse_iso_datetime, parse_source_config
 
 logger = logging.getLogger(__name__)
 
 CURRENTS_BASE_URL = "https://api.currentsapi.services/v1/latest-news"
+PROVIDER = "currents"
 # Maps Currents API category slugs → Curator category slugs (see /v1/available/categories).
 CURRENTS_TO_CURATOR_CATEGORY = {
     "general": "news",
@@ -64,7 +65,9 @@ CURRENTS_TO_CURATOR_CATEGORY = {
 }
 
 
-CACHE_KEY_PREFIX = "currents_requests"
+def currents_budget_remaining() -> int:
+    limit = int(getattr(settings, "CURRENTS_DAILY_REQUEST_BUDGET", 1000))
+    return budget_remaining(PROVIDER, limit)
 
 
 def map_currents_category(currents_category: str) -> str:
@@ -73,44 +76,10 @@ def map_currents_category(currents_category: str) -> str:
     return CURRENTS_TO_CURATOR_CATEGORY.get(key, "news")
 
 
-
 def is_currents_source(source) -> bool:
     """True when a pipeline Source row represents Currents API."""
     url = (source.url or "").strip().lower()
     return url.startswith("currents://") or "currentsapi.services" in url
-
-
-def _budget_cache_key() -> str:
-    return f"{CACHE_KEY_PREFIX}:{date.today().isoformat()}"
-
-
-def currents_budget_remaining() -> int:
-    limit = int(getattr(settings, "CURRENTS_DAILY_REQUEST_BUDGET", 1000))
-    used = int(cache.get(_budget_cache_key(), 0) or 0)
-    return max(0, limit - used)
-
-
-def _record_currents_request() -> None:
-    key = _budget_cache_key()
-    try:
-        if cache.add(key, 1, timeout=86_400):
-            return
-        cache.incr(key)
-    except Exception:
-        # Cache optional — do not block ingest.
-        pass
-
-
-def _parse_currents_config(source) -> dict[str, str]:
-    """Read language/country/category from currents://latest?language=en&country=IN."""
-    url = (source.url or "").strip()
-    if url.startswith("currents://"):
-        parsed = urlparse(url)
-        params = {k: v[0] for k, v in parse_qs(parsed.query).items() if v}
-        return params
-
-    parsed = urlparse(url)
-    return {k: v[0] for k, v in parse_qs(parsed.query).items() if v}
 
 
 def fetch_currents_entries(source) -> list[dict]:
@@ -123,7 +92,7 @@ def fetch_currents_entries(source) -> list[dict]:
         logger.warning("Currents API daily request budget exhausted.")
         return []
 
-    config = _parse_currents_config(source)
+    config = parse_source_config(source)
     params = {
         "apiKey": api_key,
         "language": config.get("language", getattr(settings, "CURRENTS_DEFAULT_LANGUAGE", "en")),
@@ -142,7 +111,7 @@ def fetch_currents_entries(source) -> list[dict]:
         timeout=30,
     )
     response.raise_for_status()
-    _record_currents_request()
+    record_request(PROVIDER)
 
     payload = response.json()
     if payload.get("status") != "ok":
@@ -150,27 +119,15 @@ def fetch_currents_entries(source) -> list[dict]:
 
     items = []
     for article in payload.get("news") or []:
-        published = None
-        raw_published = article.get("published")
-        if raw_published:
-            from datetime import datetime, timezone as dt_timezone
-
-            try:
-                published = datetime.fromisoformat(str(raw_published).replace("Z", "+00:00"))
-                if published.tzinfo is None:
-                    published = published.replace(tzinfo=dt_timezone.utc)
-            except ValueError:
-                published = None
-
         items.append(
-            {
-                "external_id": str(article.get("id", "")),
-                "url": (article.get("url") or "").strip(),
-                "title": (article.get("title") or "").strip(),
-                "summary": (article.get("description") or "").strip(),
-                "author": (article.get("author") or "").strip(),
-                "image_url": (article.get("image") or "none") if article.get("image") != "none" else "",
-                "published_at": published,
-            }
+            normalize_entry(
+                external_id=str(article.get("id", "")),
+                url=article.get("url", ""),
+                title=article.get("title", ""),
+                summary=article.get("description", ""),
+                author=article.get("author", ""),
+                image_url=(article.get("image") or "none") if article.get("image") != "none" else "",
+                published_at=parse_iso_datetime(article.get("published")),
+            )
         )
     return items

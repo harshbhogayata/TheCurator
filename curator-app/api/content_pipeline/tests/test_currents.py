@@ -32,10 +32,10 @@ class CurrentsSourceTests(SimpleTestCase):
 
 @override_settings(CURRENTS_API_KEY="test-key", CURRENTS_DAILY_REQUEST_BUDGET=1000)
 class CurrentsFetcherTests(SimpleTestCase):
-    @patch("content_pipeline.services.currents.cache")
+    @patch("content_pipeline.services.currents.record_request")
+    @patch("content_pipeline.services.api_budget.budget_remaining", return_value=100)
     @patch("content_pipeline.services.currents.requests.get")
-    def test_fetch_currents_entries_parses_news(self, mock_get, mock_cache):
-        mock_cache.get.return_value = 0
+    def test_fetch_currents_entries_parses_news(self, mock_get, _budget, _record):
         mock_get.return_value = MagicMock(
             status_code=200,
             json=lambda: {
@@ -72,9 +72,8 @@ class CurrentsFetcherTests(SimpleTestCase):
             fetch_currents_entries(source)
 
     @override_settings(CURRENTS_DAILY_REQUEST_BUDGET=1)
-    @patch("content_pipeline.services.currents.cache")
-    def test_budget_exhausted_returns_empty(self, mock_cache):
-        mock_cache.get.return_value = 1
+    @patch("content_pipeline.services.currents.budget_remaining", return_value=0)
+    def test_budget_exhausted_returns_empty(self, _budget):
         source = MagicMock(url="https://api.currentsapi.services/v1/latest-news")
         self.assertEqual(fetch_currents_entries(source), [])
         self.assertEqual(currents_budget_remaining(), 0)
