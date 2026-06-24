@@ -220,9 +220,9 @@ def publish_ready_drafts():
             continue
 
         if draft.kind == DraftKind.ARTICLE:
+            resolve_article_image_sync(content)
             generate_article_audio_sync(str(content.id))
             compute_article_relations_sync(str(content.id))
-            resolve_article_image_sync(content)
             if draft.is_breaking:
                 from mobileapi.tasks import send_breaking_news_alert
 
