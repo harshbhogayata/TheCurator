@@ -11,6 +11,8 @@ from mobileapi.audio_services import (
     default_tts_voice,
     generate_audio_for_article,
     generate_audio_for_brief,
+    resolve_tts_provider,
+    storage_backend,
 )
 from mobileapi.models import Article, Brief
 
@@ -103,7 +105,55 @@ class Command(BaseCommand):
                 "Pass --article-id, --brief-id, --latest-brief, or --all-missing."
             )
 
+        if processed == 0 and options["all_missing"]:
+            self._print_zero_results_help(options)
+
         self.stdout.write(self.style.SUCCESS(f"Done. Processed {processed} narration file(s)."))
+
+    def _print_zero_results_help(self, options):
+        """Explain why --all-missing found nothing to do."""
+        self.stdout.write("")
+        self.stdout.write(self.style.WARNING("No narration files were generated. Diagnostics:"))
+        self.stdout.write(f"  TTS provider: {resolve_tts_provider()}")
+        self.stdout.write(f"  Storage backend: {storage_backend() or 'not configured'}")
+        self.stdout.write(f"  audio_generation_configured: {audio_storage_configured()}")
+
+        if not options["briefs_only"]:
+            active_articles = Article.objects.filter(is_active=True)
+            with_content = active_articles.exclude(content="")
+            missing_audio = with_content.filter(Q(audio_url="") | Q(audio_url__isnull=True))
+            self.stdout.write(
+                f"  Articles: {active_articles.count()} active, "
+                f"{with_content.count()} with body text, "
+                f"{missing_audio.count()} missing audio_url"
+            )
+            latest = active_articles.order_by("-created_at").first()
+            if latest:
+                self.stdout.write(
+                    f"  Latest article: {latest.title!r} "
+                    f"(content={len(latest.content or '')} chars, "
+                    f"audio_url={'set' if latest.audio_url else 'empty'})"
+                )
+
+        if not options["articles_only"]:
+            active_briefs = Brief.objects.filter(is_active=True)
+            with_summary = active_briefs.exclude(summary="")
+            missing_audio = with_summary.filter(Q(audio_url="") | Q(audio_url__isnull=True))
+            self.stdout.write(
+                f"  Briefs: {active_briefs.count()} active, "
+                f"{with_summary.count()} with summary, "
+                f"{missing_audio.count()} missing audio_url"
+            )
+
+        self.stdout.write("")
+        self.stdout.write(
+            "Common causes: (1) audio already generated on deploy (railway.toml runs this on boot), "
+            "(2) published draft has empty body text, (3) TTS not configured in production "
+            "(need KOKORO_TTS_URL or OPENAI_API_KEY — Edge is dev-only). "
+            "Run: python manage.py verify_audio_storage"
+        )
+        self.stdout.write("  Or target one item: python manage.py generate_content_audio --article-id <uuid> --dry-run")
+        self.stdout.write("")
 
     def _process_articles(self, queryset, options):
         if options["limit"]:
