@@ -237,17 +237,28 @@ class ArticleDraftAdmin(admin.ModelAdmin):
 
         logger = logging.getLogger(__name__)
         published = 0
+        skipped = 0
         for draft in queryset:
             try:
-                content = publish_draft(draft, reviewed_by=request.user)
+                content = publish_draft(
+                    draft,
+                    reviewed_by=request.user,
+                    editorial_publish=True,
+                )
             except PublishError as exc:
-                self.message_user(request, f"{draft.title}: {exc}", level=messages.WARNING)
+                skipped += 1
+                self.message_user(
+                    request,
+                    f"“{draft.title}”: {exc}",
+                    level=messages.WARNING,
+                )
                 continue
             except Exception as exc:
+                skipped += 1
                 logger.exception("Publish failed for draft %s", draft.id)
                 self.message_user(
                     request,
-                    f"{draft.title}: publish error — {exc}",
+                    f"“{draft.title}”: publish error — {exc}",
                     level=messages.ERROR,
                 )
                 continue
@@ -272,11 +283,25 @@ class ArticleDraftAdmin(admin.ModelAdmin):
                     level=messages.WARNING,
                 )
             published += 1
-        if published:
             self.message_user(
                 request,
-                f"Published {published} draft(s). Audio/relations fill in on the next "
-                "run_pipeline (hourly cron or shell).",
+                f"Published “{draft.title}”.",
+                level=messages.SUCCESS,
+            )
+
+        if published == 0 and skipped == 0:
+            self.message_user(request, "No drafts selected.", level=messages.WARNING)
+        elif published == 0:
+            self.message_user(
+                request,
+                f"No drafts published ({skipped} skipped). See messages above.",
+                level=messages.ERROR,
+            )
+        elif published:
+            self.message_user(
+                request,
+                f"Published {published} draft(s). Audio fills in on run_pipeline or "
+                "generate_content_audio.",
             )
 
     @admin.action(description="Reject")

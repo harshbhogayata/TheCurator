@@ -21,8 +21,11 @@ def _draft_source_names(draft):
 
 
 @transaction.atomic
-def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
+def publish_draft(draft: ArticleDraft, *, reviewed_by=None, editorial_publish: bool = False):
     """Turn an approved/in-review draft into a live Article or Brief.
+
+    ``editorial_publish=True`` is used by the admin "Publish now" action and
+    allows in-review (and draft) rows through without a separate approve step.
 
     Returns the created content object. Narration is enqueued separately by
     the caller (Celery task) so publishing never blocks on TTS.
@@ -35,11 +38,14 @@ def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
     from django.conf import settings
 
     allowed_statuses = {DraftStatus.APPROVED}
-    if settings.PIPELINE_AUTO_PUBLISH and settings.DEBUG:
+    if editorial_publish:
+        allowed_statuses |= {DraftStatus.DRAFT, DraftStatus.IN_REVIEW}
+    elif settings.PIPELINE_AUTO_PUBLISH and settings.DEBUG:
         allowed_statuses.add(DraftStatus.IN_REVIEW)
     if draft.status not in allowed_statuses:
         raise PublishError(
-            f"Draft must be approved before publishing (current status: {draft.status})."
+            f"Draft must be approved before publishing (current status: {draft.status}). "
+            "Use Approve first, or Publish now from the admin action list."
         )
 
     now = timezone.now()
