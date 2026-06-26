@@ -24,8 +24,8 @@
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:558391728349:web:c074c33fd517dd5b46a334",
         "EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID": "com.curator.mobile",
         "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE": "com.curator.mobile",
-        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "",
-        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": ""
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "558391728349-enla335lsi9erhnjcjl4vpj7kd19m76b.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": "558391728349-8unl2rg201n1uh0d4h2mupe2o5vamohi.apps.googleusercontent.com"
       }
     },
     "development": {
