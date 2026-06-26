@@ -1,4 +1,5 @@
 {
+  "$schema": "https://raw.githubusercontent.com/expo/eas-cli/main/packages/eas-json/schema/eas.schema.json",
   "cli": {
     "version": ">= 16.23.0",
     "appVersionSource": "remote"
@@ -57,14 +58,6 @@
       "env": {
         "APP_ENV": "production"
       }
-    }
-  },
-  "update": {
-    "preview": {
-      "channel": "preview"
-    },
-    "production": {
-      "channel": "production"
     }
   },
   "submit": {

@@ -13,6 +13,12 @@
 # Run all flows:
 #   cd curator-app/mobile && npm run test:e2e
 #
+# EAS Update (OTA — no native build credit needed):
+#   npm run eas:env:preview          # sync .env → EAS preview environment first
+#   npm run eas:update:preview -- -m "Your update message"
+#
+# Requires a preview APK already installed (channel: preview, runtime 1.0.0).
+#
 # CI (manual): GitHub Actions → CI → Run workflow → maestro-smoke job.
 #   Set repo secrets MAESTRO_TEST_EMAIL and MAESTRO_TEST_PASSWORD.
 #   Requires a device/emulator with the preview APK installed, or Maestro Cloud.

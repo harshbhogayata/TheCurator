@@ -13,9 +13,9 @@
     "test:e2e": "maestro test .maestro/smoke.yaml",
     "test:e2e:auth": "maestro test .maestro/flows/auth.yaml",
     "test:e2e:audio": "maestro test .maestro/flows/brief-audio-paywall.yaml .maestro/flows/article-audio-paywall.yaml",
-    "eas:env:preview": "eas-cli env:push preview --path .env --force",
-    "eas:update:preview": "eas-cli update --channel preview --environment preview --message",
-    "eas:build:preview": "eas-cli build --profile preview --platform android",
+    "eas:env:preview": "npx eas-cli env:push preview --path .env --force",
+    "eas:update:preview": "npx eas-cli update --channel preview --environment preview --platform android",
+    "eas:build:preview": "npx eas-cli build --profile preview --platform android",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -82,7 +82,6 @@
     "@babel/core": "^7.28.0",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.10",
-    "eas-cli": "^20.4.0",
     "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   },
