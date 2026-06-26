@@ -1,4 +1,5 @@
 from django.test import TestCase
+from django.utils import timezone
 from unittest.mock import patch
 
 from billing.models import RazorpayWebhookEvent, StripeWebhookEvent
@@ -234,6 +235,8 @@ class MobileDonateHandoffTests(TestCase):
             password="x",
             firebase_uid="handoff-uid",
         )
+        self.user.email_verified_at = timezone.now()
+        self.user.save(update_fields=["email_verified_at"])
 
     def test_build_handoff_includes_plan_in_url(self):
         from billing.handoff import build_mobile_donate_handoff

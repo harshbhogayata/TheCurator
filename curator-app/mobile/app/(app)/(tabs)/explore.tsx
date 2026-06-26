@@ -24,7 +24,7 @@ import { ArticleCard } from "../../../src/ui/article-card";
 import { AdBanner } from "../../../src/ui/ad-banner";
 import { ArticleCardSkeleton } from "../../../src/ui/skeleton-loader";
 import type { Article } from "../../../src/data/articles";
-import { useArticles } from "../../../src/hooks/use-articles";
+import { flattenArticlePages, useInfiniteArticles } from "../../../src/hooks/use-infinite-articles";
 import { useCategories } from "../../../src/hooks/use-categories";
 
 function normalizeCategory(value: string): string {
@@ -59,8 +59,33 @@ export default function ExploreScreen() {
 
   const scrollPaddingTop = useTabScrollPaddingTop();
   const { contentPadding } = useLayout();
-  const { data: articles = [], isLoading: isArticlesLoading, isError: isArticlesError, refetch: refetchArticles } = useArticles();
-  const { data: forYouArticles = [], refetch: refetchForYou } = useArticles({ feed: "for_you" });
+  const [viewMode, setViewMode] = useState<"today" | "global">("today");
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [refreshing, setRefreshing] = useState(false);
+  const [heroRotation, setHeroRotation] = useState(0);
+
+  const articleFilters = useMemo(() => {
+    const filters: Record<string, unknown> = {};
+    if (viewMode === "global") {
+      filters.feed = "for_you";
+    }
+    if (selectedCategory !== "all") {
+      filters.category = selectedCategory;
+    }
+    return filters;
+  }, [selectedCategory, viewMode]);
+
+  const {
+    data: articlePages,
+    isLoading: isArticlesLoading,
+    isError: isArticlesError,
+    refetch: refetchArticles,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
+  } = useInfiniteArticles(articleFilters);
+
+  const articles = useMemo(() => flattenArticlePages(articlePages), [articlePages]);
   const { data: apiCategories, isLoading: isCategoriesLoading, isError: isCategoriesError, refetch: refetchCategories } = useCategories();
   const categoryOptions = useMemo(() => {
     if (apiCategories && apiCategories.length > 0) {
@@ -84,20 +109,16 @@ export default function ExploreScreen() {
       })),
     ];
   }, [apiCategories, articles]);
-  const [viewMode, setViewMode] = useState<"today" | "global">("today");
-  const [selectedCategory, setSelectedCategory] = useState("all");
-  const [refreshing, setRefreshing] = useState(false);
-  const [heroRotation, setHeroRotation] = useState(0);
   const isLoading = isArticlesLoading || isCategoriesLoading;
   const isError = isArticlesError || isCategoriesError;
 
   const onRefresh = useCallback(() => {
     setRefreshing(true);
     setHeroRotation((current) => current + 1);
-    void Promise.all([refetchArticles(), refetchCategories(), refetchForYou()]).finally(() =>
+    void Promise.all([refetchArticles(), refetchCategories()]).finally(() =>
       setRefreshing(false),
     );
-  }, [refetchArticles, refetchCategories, refetchForYou]);
+  }, [refetchArticles, refetchCategories]);
 
   const parsePublishedDate = useCallback((article: Article) => {
     const raw = article.publishedAt ?? article.publishedDate;
@@ -108,8 +129,7 @@ export default function ExploreScreen() {
 
   const topNarratives = useMemo(() => {
     if (viewMode === "global") {
-      const pool = forYouArticles.length > 0 ? forYouArticles : articles;
-      return rotatePool(pool, heroRotation, 2);
+      return rotatePool(articles, heroRotation, 2);
     }
 
     const cutoff = new Date();
@@ -120,7 +140,7 @@ export default function ExploreScreen() {
       return publishedDay !== null && publishedDay >= cutoff;
     });
     return rotatePool(pool, heroRotation, 2);
-  }, [articles, forYouArticles, heroRotation, viewMode]);
+  }, [articles, heroRotation, viewMode]);
 
   const filteredExploreArticles = useMemo(() => {
     const heroIds = new Set(topNarratives.map((article) => article.id));
@@ -283,7 +303,7 @@ export default function ExploreScreen() {
         <ErrorState
           title="Explore could not load"
           message="Pull to refresh or try again when your connection is stable."
-          onRetry={() => void Promise.all([refetchArticles(), refetchCategories(), refetchForYou()])}
+          onRetry={() => void Promise.all([refetchArticles(), refetchCategories()])}
         />
       );
     }
@@ -299,7 +319,22 @@ export default function ExploreScreen() {
         </Text>
       </View>
     );
-  }, [isError, isLoading, palette, refetchArticles, refetchCategories, refetchForYou]);
+  }, [isError, isLoading, palette, refetchArticles, refetchCategories]);
+
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [fetchNextPage, hasNextPage, isFetchingNextPage]);
+
+  const listFooter = useMemo(() => {
+    if (!isFetchingNextPage) return null;
+    return (
+      <View style={{ paddingVertical: 24, alignItems: "center" }}>
+        <Text style={[type.caption, { color: palette.onSurfaceVariant }]}>Loading more…</Text>
+      </View>
+    );
+  }, [isFetchingNextPage, palette]);
 
   return (
     <SafeAreaView edges={[]} style={{ flex: 1, backgroundColor: palette.background }}>
@@ -311,6 +346,9 @@ export default function ExploreScreen() {
         renderItem={renderItem}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
+        ListFooterComponent={listFooter}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
         showsVerticalScrollIndicator={false}
         contentContainerStyle={{
           paddingTop: scrollPaddingTop,

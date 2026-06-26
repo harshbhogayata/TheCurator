@@ -13,6 +13,10 @@
 # Run all flows:
 #   cd curator-app/mobile && npm run test:e2e
 #
+# CI (manual): GitHub Actions → CI → Run workflow → maestro-smoke job.
+#   Set repo secrets MAESTRO_TEST_EMAIL and MAESTRO_TEST_PASSWORD.
+#   Requires a device/emulator with the preview APK installed, or Maestro Cloud.
+#
 # Run individually:
 #   maestro test .maestro/flows/auth.yaml
 #   maestro test .maestro/flows/brief-audio-paywall.yaml

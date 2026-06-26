@@ -8,6 +8,7 @@ import Animated, {
 
 import { useTheme } from "../providers/theme-provider";
 import { useReduceMotion } from "../hooks/use-motion";
+import { UI_MAX_FONT_SIZE_MULTIPLIER } from "./tokens/accessibility";
 import { spring } from "./tokens/motion";
 import { tap } from "../lib/haptics";
 
@@ -112,6 +113,7 @@ export function PrimaryButton({
             {iconPosition === "left" ? resolvedIcon : null}
             <Text
               numberOfLines={1}
+              maxFontSizeMultiplier={UI_MAX_FONT_SIZE_MULTIPLIER}
               style={{
                 color: colors.color,
                 fontFamily: "Manrope_600SemiBold",

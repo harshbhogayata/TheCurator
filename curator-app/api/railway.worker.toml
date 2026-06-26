@@ -1,0 +1,7 @@
+# Railway worker service — Celery worker + beat (optional; use railway.cron.toml instead for pipeline-only).
+# Requires CELERY_BROKER_URL (Redis) and the same Django env as the web API.
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "celery -A config worker -l info --beat"

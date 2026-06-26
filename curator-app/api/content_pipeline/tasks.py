@@ -180,7 +180,7 @@ def publish_ready_drafts():
     """
     now = timezone.now()
     queryset = ArticleDraft.objects.filter(status=DraftStatus.APPROVED)
-    if settings.PIPELINE_AUTO_PUBLISH:
+    if settings.PIPELINE_AUTO_PUBLISH and settings.DEBUG:
         queryset = ArticleDraft.objects.filter(
             status__in=[DraftStatus.APPROVED, DraftStatus.IN_REVIEW]
         )

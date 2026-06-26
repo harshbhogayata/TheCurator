@@ -6,6 +6,7 @@ import { Controller, useForm } from "react-hook-form";
 import { z } from "zod";
 import { ArrowLeft, Mail } from "lucide-react-native";
 
+import { useAndroidBackNavigation } from "../../src/hooks/use-android-back-navigation";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useTheme } from "../../src/providers/theme-provider";
 import { AuthCard } from "../../src/ui/auth-card";
@@ -23,6 +24,7 @@ type ForgotPasswordValues = z.infer<typeof schema>;
 export default function ForgotPasswordScreen() {
   const { palette } = useTheme();
   const nav = useRouter();
+  useAndroidBackNavigation("/sign-in");
   const { requestPasswordReset, isBusy, errorMessage, clearError } = useAuth();
   const {
     control,

@@ -130,7 +130,16 @@ def refresh_entitlement_from_revenuecat(user, entitlement: UserEntitlement) -> U
     subscriber = payload.get("subscriber") or {}
     active_entitlements = (subscriber.get("entitlements") or {}).get("active") or {}
     resolved_tier = _resolve_tier_from_revenuecat_active_entitlements(active_entitlements)
+
+    update_fields = ["updated_at"]
     if resolved_tier == SubscriptionTier.FREE:
+        if entitlement.tier != SubscriptionTier.LIFETIME:
+            entitlement.tier = SubscriptionTier.FREE
+            entitlement.product_id = ""
+            entitlement.expires_at = None
+            entitlement.will_renew = False
+            update_fields.extend(["tier", "product_id", "expires_at", "will_renew"])
+        entitlement.save(update_fields=update_fields)
         return entitlement
 
     latest_expiration = None
@@ -148,7 +157,6 @@ def refresh_entitlement_from_revenuecat(user, entitlement: UserEntitlement) -> U
             latest_expiration = expires_at
             latest_product_id = product_id
 
-    update_fields = ["updated_at"]
     if TIER_RANK[resolved_tier] > TIER_RANK.get(entitlement.tier, 0):
         entitlement.tier = resolved_tier
         update_fields.append("tier")
@@ -231,7 +239,15 @@ def process_revenuecat_webhook(payload):
     )
 
     if user:
-        entitlement, _ = UserEntitlement.objects.get_or_create(user=user)
-        _apply_entitlement_event(entitlement, event)
+        environment = (event.get("environment") or "").upper()
+        if not settings.DEBUG and environment == "SANDBOX":
+            logger.info(
+                "Ignoring RevenueCat sandbox entitlement update for user %s (event %s).",
+                user.id,
+                event_id,
+            )
+        else:
+            entitlement, _ = UserEntitlement.objects.get_or_create(user=user)
+            _apply_entitlement_event(entitlement, event)
 
     return webhook_event, True

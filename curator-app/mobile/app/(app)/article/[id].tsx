@@ -25,6 +25,14 @@ import {
   FolderPlus,
 } from "lucide-react-native";
 
+import {
+  ARTICLE_FONT_SIZE_MAP,
+  ARTICLE_LINE_HEIGHT_MAP,
+  loadArticleTypography,
+  saveArticleTypography,
+  type ArticleTypographyPreferences,
+} from "../../../src/lib/article-typography";
+import type { LineHeight, TextSize } from "../../../src/lib/types";
 import { useLayout } from "../../../src/lib/layout";
 import { useTheme } from "../../../src/providers/theme-provider";
 import { useAuth } from "../../../src/providers/auth-provider";
@@ -37,9 +45,11 @@ import { TypographySettings } from "../../../src/ui/typography-settings";
 import { ArticleCard, getImageUrl } from "../../../src/ui/article-card";
 import { ArticleAudioPlayer } from "../../../src/ui/article-audio-player";
 import { AddToCollectionModal } from "../../../src/ui/add-to-collection-modal";
+import { ArticleLoadingView } from "../../../src/ui/article-loading-view";
 import { useUpgradeGate } from "../../../src/providers/upgrade-gate-provider";
 import { useArticle, useArticles } from "../../../src/hooks/use-articles";
 import { useEmailVerificationGate } from "../../../src/providers/email-verification-gate-provider";
+import { UNVERIFIED_ARTICLE_READ_LIMIT } from "../../../src/lib/email-verification";
 
 const MIN_READ_TIME_MS = 3_000;
 const SCROLL_PERSIST_MIN_Y = 50;
@@ -52,16 +62,18 @@ export default function ArticleScreen() {
   const { maxContentWidth } = useLayout();
   const { session } = useAuth();
   const { isArticleSaved, saveArticle, unsaveArticle, isHydrated } = useSavedArticles();
-  const { fontSizeValue, lineHeightValue } = useReadingPreferences();
+  const { preferences: globalReadingPrefs, fontSizeValue: globalFontSizeValue, lineHeightValue: globalLineHeightValue } = useReadingPreferences();
   const { recordArticleRead } = useReadingStats();
   const { hasCollections } = useSubscription();
   const { requestUpgrade } = useUpgradeGate();
   const { data: article, isLoading: isArticleLoading, isError: isArticleError, refetch } = useArticle(id ?? "");
   const { data: allArticles = [] } = useArticles();
-  const { registerArticleOpen } = useEmailVerificationGate();
-  const [articleGateAllowed, setArticleGateAllowed] = useState(true);
+  const { registerArticleOpen, isGateHydrated, needsVerify } = useEmailVerificationGate();
+  const [articleGateAllowed, setArticleGateAllowed] = useState(false);
+  const [gateResolved, setGateResolved] = useState(false);
 
   const [typographyVisible, setTypographyVisible] = useState(false);
+  const [articleTypography, setArticleTypography] = useState<ArticleTypographyPreferences | null>(null);
   const [collectionModalVisible, setCollectionModalVisible] = useState(false);
   const [scrollProgress, setScrollProgress] = useState(0);
 
@@ -79,8 +91,57 @@ export default function ArticleScreen() {
 
   useEffect(() => {
     if (!article?.id) return;
+    if (needsVerify && !isGateHydrated) {
+      setGateResolved(false);
+      return;
+    }
     setArticleGateAllowed(registerArticleOpen(article.id));
-  }, [article?.id, registerArticleOpen]);
+    setGateResolved(true);
+  }, [article?.id, isGateHydrated, needsVerify, registerArticleOpen]);
+
+  useEffect(() => {
+    if (!id) return;
+    let cancelled = false;
+    void loadArticleTypography(id).then((prefs) => {
+      if (!cancelled) setArticleTypography(prefs);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  const fontSizeValue = articleTypography
+    ? ARTICLE_FONT_SIZE_MAP[articleTypography.fontSize]
+    : globalFontSizeValue;
+  const lineHeightValue = articleTypography
+    ? ARTICLE_LINE_HEIGHT_MAP[articleTypography.lineHeight]
+    : globalLineHeightValue;
+
+  const handleArticleFontSizeChange = useCallback(
+    (size: TextSize) => {
+      if (!id) return;
+      const next: ArticleTypographyPreferences = {
+        fontSize: size,
+        lineHeight: articleTypography?.lineHeight ?? globalReadingPrefs.lineHeight,
+      };
+      setArticleTypography(next);
+      void saveArticleTypography(id, next);
+    },
+    [articleTypography, globalReadingPrefs.lineHeight, id],
+  );
+
+  const handleArticleLineHeightChange = useCallback(
+    (height: LineHeight) => {
+      if (!id) return;
+      const next: ArticleTypographyPreferences = {
+        fontSize: articleTypography?.fontSize ?? globalReadingPrefs.fontSize,
+        lineHeight: height,
+      };
+      setArticleTypography(next);
+      void saveArticleTypography(id, next);
+    },
+    [articleTypography, globalReadingPrefs.fontSize, id],
+  );
 
   // Related articles: same category first, pad with others to always reach 3
   const relatedArticles = useMemo(() => {
@@ -243,30 +304,9 @@ export default function ArticleScreen() {
     pendingScrollY.current = null;
   }, []);
 
-  // Not found
-  if (isArticleLoading) {
-    return (
-      <View style={[styles.notFound, { backgroundColor: palette.background }]}>
-        <Pressable
-          onPress={() => router.back()}
-          style={[styles.notFoundButton, { alignSelf: "flex-start", marginBottom: 24, backgroundColor: palette.surfaceContainer }]}
-        >
-          <Text style={{ fontFamily: "Manrope_600SemiBold", fontSize: 14, color: palette.onSurface }}>
-            Back
-          </Text>
-        </Pressable>
-        <Text
-          style={{
-            fontFamily: "Newsreader_500Medium",
-            fontSize: 24,
-            color: palette.onSurface,
-            marginBottom: 16,
-          }}
-        >
-          Loading article...
-        </Text>
-      </View>
-    );
+  // Loading
+  if (isArticleLoading || (needsVerify && article && !gateResolved)) {
+    return <ArticleLoadingView />;
   }
 
   if (isArticleError) {
@@ -332,7 +372,7 @@ export default function ArticleScreen() {
     );
   }
 
-  if (!articleGateAllowed) {
+  if (!articleGateAllowed && gateResolved) {
     return (
       <View style={[styles.notFound, { backgroundColor: palette.background }]}>
         <Pressable
@@ -364,7 +404,7 @@ export default function ArticleScreen() {
             paddingHorizontal: 24,
           }}
         >
-          You've used your 3 free stories. Confirm your inbox to unlock unlimited reading.
+          You've used your {UNVERIFIED_ARTICLE_READ_LIMIT} free stories. Confirm your inbox to unlock unlimited reading.
         </Text>
       </View>
     );
@@ -669,6 +709,10 @@ export default function ArticleScreen() {
       <TypographySettings
         visible={typographyVisible}
         onClose={() => setTypographyVisible(false)}
+        scope="article"
+        articleTypography={articleTypography}
+        onArticleFontSizeChange={handleArticleFontSizeChange}
+        onArticleLineHeightChange={handleArticleLineHeightChange}
       />
     </View>
   );

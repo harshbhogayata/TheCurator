@@ -145,17 +145,6 @@ function toQueryString(filters?: Record<string, unknown>): string {
   return query ? `?${query}` : "";
 }
 
-export async function fetchArticles(filters?: Record<string, unknown>): Promise<Article[]> {
-  if (mockBackendEnabled) {
-    return filterMockArticles(filters);
-  }
-
-  const payload = await apiRequest<CursorListResponse<Article> | Article[]>(
-    `${API_PREFIX}/articles${toQueryString({ limit: 50, ...filters })}`,
-  );
-  return Array.isArray(payload) ? payload : payload.items;
-}
-
 async function fetchArticlePage(filters?: Record<string, unknown>): Promise<CursorListResponse<Article>> {
   if (mockBackendEnabled) {
     return { items: filterMockArticles(filters), nextCursor: null };
@@ -166,6 +155,14 @@ async function fetchArticlePage(filters?: Record<string, unknown>): Promise<Curs
   );
   return Array.isArray(payload) ? { items: payload, nextCursor: null } : payload;
 }
+
+export async function fetchArticles(filters?: Record<string, unknown>): Promise<Article[]> {
+  const page = await fetchArticlePage(filters);
+  return page.items;
+}
+
+export { type CursorListResponse };
+export { fetchArticlePage };
 
 export async function fetchAllArticles(filters?: Record<string, unknown>): Promise<Article[]> {
   const allItems: Article[] = [];

@@ -39,13 +39,20 @@ python manage.py seed_currents_sources   # if CURRENTS_API_KEY is set
 
 ## Hourly cron (recommended without Celery beat)
 
-In Railway → your API service → **Cron**:
+Create a **second Railway service** using `api/railway.cron.toml` (Settings → Config file path). Share the same env vars as the web API.
+
+| File | Schedule | Command |
+|------|----------|---------|
+| `railway.cron.toml` | `5 * * * *` (hourly at :05) | `python manage.py run_pipeline` |
+| `railway.worker.toml` | always on | `celery -A config worker -l info --beat` |
+
+Or configure cron in the Railway UI:
 
 ```bash
-cd api && python manage.py run_pipeline
+python manage.py run_pipeline
 ```
 
-Schedule: `0 * * * *` (every hour).
+Schedule: `5 * * * *` (every hour at :05, aligned with Celery beat in `config/celery.py`).
 
 `run_pipeline` is synchronous: fetch → cluster → LLM draft → publish (when `PIPELINE_AUTO_PUBLISH=true` or drafts are approved in admin).
 
@@ -58,7 +65,7 @@ celery -A config worker -l info
 celery -A config beat -l info
 ```
 
-Beat schedule is defined in `content_pipeline/tasks.py`.
+Beat schedule is defined in `config/celery.py`. Use `railway.worker.toml` for a dedicated worker service.
 
 ## Verify
 

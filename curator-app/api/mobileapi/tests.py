@@ -21,6 +21,8 @@ from users.models import User
 class MobileApiContractTests(TestCase):
     def setUp(self):
         self.user = User.objects.create_user(email="reader@example.com", password="testpass123")
+        self.user.email_verified_at = timezone.now()
+        self.user.save(update_fields=["email_verified_at"])
         self.client = APIClient()
         self.client.force_authenticate(user=self.user)
 
@@ -336,6 +338,20 @@ class MobileApiContractTests(TestCase):
         self.assertEqual(response.status_code, 403)
         self.assertEqual(response.data["code"], "entitlement_required")
         self.assertEqual(response.data["requiredTier"], SubscriptionTier.BASIC)
+
+    def test_unverified_user_cannot_save_articles(self):
+        self.user.email_verified_at = None
+        self.user.save(update_fields=["email_verified_at"])
+
+        response = self.client.post(
+            "/api/mobile/v1/saves",
+            {"articleId": str(self.article.id)},
+            format="json",
+            HTTP_IDEMPOTENCY_KEY="verify-email-save-test",
+        )
+
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.data["code"], "email_verification_required")
 
     def test_collection_limit_is_enforced_for_free_users(self):
         for index in range(3):

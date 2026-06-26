@@ -11,6 +11,7 @@ import Animated, {
 } from "react-native-reanimated";
 import { useRouter } from "expo-router";
 
+import { useEmailVerificationGate } from "../providers/email-verification-gate-provider";
 import { useTheme } from "../providers/theme-provider";
 import { useSavedArticles } from "../providers/saved-articles-provider";
 import { useReduceMotion } from "../hooks/use-motion";
@@ -56,6 +57,7 @@ function ArticleCardInner({
 }: ArticleCardProps) {
   const { palette } = useTheme();
   const { isArticleSaved, saveArticle, unsaveArticle } = useSavedArticles();
+  const { canOpenArticle, showVerifyPrompt } = useEmailVerificationGate();
   const router = useRouter();
 
   const scale = useSharedValue(1);
@@ -78,14 +80,19 @@ function ArticleCardInner({
   }, [scale, reduceMotion]);
 
   const handleNavigate = useCallback(() => {
+    if (!canOpenArticle(article.id)) {
+      showVerifyPrompt("article_limit");
+      return;
+    }
     if (onPress) {
       onPress();
     } else {
       router.push(`/(app)/article/${article.id}`);
     }
-  }, [onPress, router, article.id]);
+  }, [article.id, canOpenArticle, onPress, router, showVerifyPrompt]);
 
-  const handleBookmarkPress = useCallback(() => {
+  const handleBookmarkPress = useCallback((event?: { stopPropagation?: () => void }) => {
+    event?.stopPropagation?.();
     if (savedState === null) {
       return;
     }

@@ -23,7 +23,9 @@
         "EXPO_PUBLIC_FIREBASE_MESSAGING_SENDER_ID": "558391728349",
         "EXPO_PUBLIC_FIREBASE_APP_ID": "1:558391728349:web:c074c33fd517dd5b46a334",
         "EXPO_PUBLIC_FIREBASE_IOS_BUNDLE_ID": "com.curator.mobile",
-        "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE": "com.curator.mobile"
+        "EXPO_PUBLIC_FIREBASE_ANDROID_PACKAGE": "com.curator.mobile",
+        "EXPO_PUBLIC_GOOGLE_WEB_CLIENT_ID": "",
+        "EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID": ""
       }
     },
     "development": {
@@ -55,6 +57,14 @@
       "env": {
         "APP_ENV": "production"
       }
+    }
+  },
+  "update": {
+    "preview": {
+      "channel": "preview"
+    },
+    "production": {
+      "channel": "production"
     }
   },
   "submit": {

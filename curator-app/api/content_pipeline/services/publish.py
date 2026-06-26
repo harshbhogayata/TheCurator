@@ -32,6 +32,16 @@ def publish_draft(draft: ArticleDraft, *, reviewed_by=None):
     if draft.status == DraftStatus.REJECTED:
         raise PublishError("Cannot publish a rejected draft.")
 
+    from django.conf import settings
+
+    allowed_statuses = {DraftStatus.APPROVED}
+    if settings.PIPELINE_AUTO_PUBLISH and settings.DEBUG:
+        allowed_statuses.add(DraftStatus.IN_REVIEW)
+    if draft.status not in allowed_statuses:
+        raise PublishError(
+            f"Draft must be approved before publishing (current status: {draft.status})."
+        )
+
     now = timezone.now()
     published = None
 

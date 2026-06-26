@@ -3,6 +3,8 @@ export const queryKeys = {
     all: ["articles"] as const,
     list: (filters?: Record<string, unknown>) =>
       ["articles", "list", filters] as const,
+    infinite: (filters?: Record<string, unknown>) =>
+      ["articles", "infinite", filters] as const,
     detail: (id: string) => ["articles", id] as const,
   },
   briefs: {

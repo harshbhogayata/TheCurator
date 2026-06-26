@@ -7,6 +7,7 @@ import { useRouter } from "expo-router";
 
 import { useTheme } from "../providers/theme-provider";
 import { useAuth } from "../providers/auth-provider";
+import { UI_MAX_FONT_SIZE_MULTIPLIER } from "./tokens/accessibility";
 import { SubscriptionBadge } from "./subscription-badge";
 import { ProfileAvatar } from "./profile-avatar";
 
@@ -97,6 +98,7 @@ function HeaderInner({
           />
           <Text
             numberOfLines={1}
+            maxFontSizeMultiplier={UI_MAX_FONT_SIZE_MULTIPLIER}
             adjustsFontSizeToFit
             minimumFontScale={0.82}
             style={[styles.titleText, { color: palette.onSurface }]}

@@ -8,12 +8,14 @@ import { useState } from "react";
 import { z } from "zod";
 import { ArrowLeft, User, Mail, Lock } from "lucide-react-native";
 
+import { useAndroidBackNavigation } from "../../src/hooks/use-android-back-navigation";
 import { useAuth } from "../../src/providers/auth-provider";
 import { SITE_URL } from "../../src/constants/site";
 import { useTheme } from "../../src/providers/theme-provider";
 import { AuthCard } from "../../src/ui/auth-card";
 import { InputField } from "../../src/ui/input-field";
 import { PrimaryButton } from "../../src/ui/primary-button";
+import { OAuthSignInButtons } from "../../src/ui/oauth-sign-in-buttons";
 import { StatusBanner } from "../../src/ui/status-banner";
 
 const schema = z.object({
@@ -31,16 +33,25 @@ type SignUpValues = z.infer<typeof schema>;
 export default function SignUpScreen() {
   const { palette } = useTheme();
   const router = useRouter();
+  useAndroidBackNavigation("/welcome");
   const { signUpWithEmail, isBusy, errorMessage, clearError } = useAuth();
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(false);
   const {
     control,
     handleSubmit,
-    formState: { errors, isSubmitting },
+    watch,
+    formState: { errors, isSubmitting, isValid },
   } = useForm<SignUpValues>({
     resolver: zodResolver(schema),
+    mode: "onChange",
+    reValidateMode: "onChange",
     defaultValues: { displayName: "", email: "", password: "" },
   });
+
+  const passwordValue = watch("password");
+  const passwordTooShort = passwordValue.length > 0 && passwordValue.length < 8;
 
   const onSubmit = handleSubmit(async (values) => {
     await signUpWithEmail({
@@ -76,6 +87,7 @@ export default function SignUpScreen() {
             description="Use a real inbox — we'll send a verification link before full access unlocks."
           >
             {errorMessage ? <StatusBanner tone="error" message={errorMessage} /> : null}
+            {oauthError ? <StatusBanner tone="error" message={oauthError} /> : null}
 
             <Controller
               control={control}
@@ -120,7 +132,7 @@ export default function SignUpScreen() {
                   onChangeText={(v) => { clearError(); onChange(v); }}
                   secureTextEntry
                   autoCapitalize="none"
-                  error={errors.password?.message}
+                  error={errors.password?.message ?? (passwordTooShort ? "Use at least 8 characters." : undefined)}
                   hint="At least 8 characters."
                   placeholder="Create a password"
                   icon={<Lock size={14} color={palette.outline} />}
@@ -178,9 +190,22 @@ export default function SignUpScreen() {
         <View style={[styles.stickyFooter, { backgroundColor: palette.background, borderTopColor: palette.outlineVariant + "40" }]}>
           <PrimaryButton
             label="Create account"
-            loading={isBusy || isSubmitting}
-            disabled={!agreedToTerms}
+            loading={isBusy || isSubmitting || oauthBusy}
+            disabled={!agreedToTerms || !isValid || passwordTooShort || oauthBusy}
             onPress={onSubmit}
+          />
+          <View style={styles.divider}>
+            <View style={[styles.dividerLine, { backgroundColor: palette.outlineVariant + "40" }]} />
+            <Text style={[styles.dividerText, { color: palette.outline }]}>or continue with</Text>
+            <View style={[styles.dividerLine, { backgroundColor: palette.outlineVariant + "40" }]} />
+          </View>
+          <OAuthSignInButtons
+            disabled={!agreedToTerms || isBusy || isSubmitting || oauthBusy}
+            onBusyChange={setOauthBusy}
+            onError={(message) => {
+              clearError();
+              setOauthError(message);
+            }}
           />
           <View style={styles.divider}>
             <View style={[styles.dividerLine, { backgroundColor: palette.outlineVariant + "40" }]} />

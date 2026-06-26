@@ -6,6 +6,8 @@ from rest_framework import status
 
 from rest_framework.permissions import AllowAny, IsAuthenticated
 
+from common.permissions import EmailVerifiedForWrites
+
 from rest_framework.response import Response
 
 from rest_framework.throttling import ScopedRateThrottle
@@ -46,7 +48,7 @@ _ALLOWED_TIERS = {
 
 class CheckoutSessionView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EmailVerifiedForWrites]
 
 
 
@@ -138,7 +140,7 @@ class VerifyCheckoutView(APIView):
 
 
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EmailVerifiedForWrites]
 
 
 
@@ -192,7 +194,7 @@ class VerifyCheckoutView(APIView):
 
 class PortalSessionView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EmailVerifiedForWrites]
 
 
 
@@ -274,7 +276,7 @@ class PortalSessionView(APIView):
 class CreateOrderView(APIView):
     """Razorpay Standard Checkout — POST /api/create-order."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EmailVerifiedForWrites]
 
     def post(self, request):
         tier = str(request.data.get("tier", "")).strip().lower()
@@ -348,7 +350,7 @@ class CreateOrderView(APIView):
 class VerifyPaymentView(APIView):
     """Razorpay Standard Checkout — POST /api/verify-payment."""
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EmailVerifiedForWrites]
 
     def post(self, request):
         order_id = request.data.get("razorpay_order_id")
@@ -384,7 +386,7 @@ class VerifyPaymentView(APIView):
 
 class MobileHandoffCreateView(APIView):
 
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, EmailVerifiedForWrites]
 
 
 

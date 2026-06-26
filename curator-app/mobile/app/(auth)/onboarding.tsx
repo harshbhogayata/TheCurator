@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Text, useWindowDimensions, View } from "react-native";
 import Animated, { FadeIn } from "react-native-reanimated";
 
+import { useAndroidBackNavigation } from "../../src/hooks/use-android-back-navigation";
 import { pickProfileImageUri } from "../../src/lib/pick-profile-image";
 import { AvatarUploadError, isAvatarUploadAvailable } from "../../src/services/avatar-upload";
 import {
@@ -30,6 +31,7 @@ import { type } from "../../src/ui/tokens/typography";
 
 export default function OnboardingScreen() {
   const router = useRouter();
+  useAndroidBackNavigation("/welcome");
   const { palette, setPreference } = useTheme();
   const { showToast } = useToast();
   const {
@@ -134,7 +136,6 @@ export default function OnboardingScreen() {
 
   const handleBack = () => {
     clearError();
-    if (localStep === "notifications") { setLocalStep("categories"); return; }
     const prev = getPreviousStep(localStep);
     if (prev) setLocalStep(prev);
   };
@@ -153,7 +154,14 @@ export default function OnboardingScreen() {
     } catch { if (step === "reading") setCompletionIntent(false); }
   };
 
-  const savePreferences = async () => {
+  const continuePreferences = async () => {
+    clearError();
+    try {
+      await updateOnboardingPreferences(preferences, { skipNotifications: false });
+    } catch { /* errorMessage surfaced by AuthProvider */ }
+  };
+
+  const skipPreferences = async () => {
     clearError();
     try {
       await updateOnboardingPreferences(preferences, {
@@ -228,8 +236,8 @@ export default function OnboardingScreen() {
           onPreferencesChange={handlePreferencesChange}
           onThemeChange={handleThemeChange}
           onBack={handleBack}
-          onSkip={savePreferences}
-          onContinue={savePreferences}
+          onSkip={() => { void skipPreferences(); }}
+          onContinue={() => { void continuePreferences(); }}
           isBusy={isBusy}
         />
       );

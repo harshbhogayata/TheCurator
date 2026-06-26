@@ -152,6 +152,16 @@ export function SavedArticlesProvider({ children }: PropsWithChildren) {
     };
   }, [syncFromServer, userId]);
 
+  useEffect(() => {
+    if (!syncError || MOCK_BACKEND || !userId) {
+      return;
+    }
+    const timer = setInterval(() => {
+      void refreshSavedArticles();
+    }, 30_000);
+    return () => clearInterval(timer);
+  }, [refreshSavedArticles, syncError, userId]);
+
   const persistMock = useCallback((ids: string[]) => {
     void AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
   }, []);

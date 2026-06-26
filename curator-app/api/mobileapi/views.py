@@ -16,6 +16,7 @@ from rest_framework.throttling import ScopedRateThrottle
 from common.errors import EntitlementRequired
 from common.etag import etag_response
 from common.pagination import CursorPage
+from common.permissions import EmailVerifiedForWrites
 from onboarding.models import UserPreference
 
 from mobileapi.category_catalog import CONTENT_CATEGORY_CATALOG, resolve_catalog_category_name
@@ -61,6 +62,8 @@ from mobileapi.serializers import (
 )
 
 logger = logging.getLogger(__name__)
+
+AUTH_WRITE = [permissions.IsAuthenticated, EmailVerifiedForWrites]
 
 
 def _parse_int(raw_value, fallback, min_value=0, max_value=100):
@@ -490,7 +493,7 @@ class BriefListView(views.APIView):
 
 
 class SavedArticleCollectionView(ScopedThrottleMixin, views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
 
     def get_throttles(self):
         if self.request.method == "DELETE":
@@ -538,7 +541,7 @@ class SavedArticleCollectionView(ScopedThrottleMixin, views.APIView):
 
 
 class SavedArticleDetailView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
     throttle_scope = "writes"
 
     def delete(self, request, article_id):
@@ -548,7 +551,7 @@ class SavedArticleDetailView(views.APIView):
 
 
 class CollectionListView(ScopedThrottleMixin, views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
 
     def get(self, request):
         queryset = UserCollection.objects.filter(user=request.user)
@@ -577,7 +580,7 @@ class CollectionListView(ScopedThrottleMixin, views.APIView):
 
 
 class CollectionDetailView(ScopedThrottleMixin, views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
 
     def patch(self, request, collection_id):
         collection = get_object_or_404(UserCollection, user=request.user, id=collection_id)
@@ -599,7 +602,7 @@ class CollectionDetailView(ScopedThrottleMixin, views.APIView):
 
 
 class CollectionArticleView(ScopedThrottleMixin, views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
 
     def post(self, request, collection_id):
         idempotency_token, idempotent_response = _idempotency_preflight(request, required=True)
@@ -717,7 +720,7 @@ class CategoryListView(views.APIView):
 
 
 class PreferenceView(ScopedThrottleMixin, views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
 
     def get(self, request):
         preferences, _ = UserPreference.objects.get_or_create(user=request.user)
@@ -733,7 +736,7 @@ class PreferenceView(ScopedThrottleMixin, views.APIView):
 
 
 class DeviceCollectionView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
     throttle_scope = "writes"
 
     def post(self, request):
@@ -786,7 +789,7 @@ class DeviceCollectionView(views.APIView):
 
 
 class DeviceDetailView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
     throttle_scope = "writes"
 
     def delete(self, request, device_id):
@@ -798,7 +801,7 @@ class DeviceDetailView(views.APIView):
 
 
 class FeedbackCreateView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
     throttle_scope = "feedback"
 
     def post(self, request):
@@ -824,7 +827,7 @@ class FeedbackCreateView(views.APIView):
 
 
 class PrivacyExportRequestView(views.APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = AUTH_WRITE
     throttle_scope = "sensitive"
 
     def post(self, request):
@@ -881,8 +884,8 @@ class EntitlementQAOverrideView(views.APIView):
     throttle_scope = "sensitive"
 
     def patch(self, request):
-        if not request.user.is_staff:
-            raise exceptions.PermissionDenied("Staff access required.")
+        if not request.user.is_superuser:
+            raise exceptions.PermissionDenied("Superuser access required.")
 
         serializer = EntitlementQAOverrideSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)

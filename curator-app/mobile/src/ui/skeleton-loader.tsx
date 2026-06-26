@@ -146,6 +146,56 @@ function BriefCardSkeletonInner() {
 
 export const BriefCardSkeleton = memo(BriefCardSkeletonInner);
 
+// Preset: Article detail screen skeleton
+function ArticleDetailSkeletonInner() {
+  return (
+    <View style={styles.articleDetail}>
+      <SkeletonBox width={88} height={28} borderRadius={999} />
+      <SkeletonBox width="72%" height={36} borderRadius={8} style={{ marginTop: 20 }} />
+      <SkeletonBox width="48%" height={36} borderRadius={8} />
+      <View style={styles.articleDetailMeta}>
+        <SkeletonBox width={72} height={10} borderRadius={4} />
+        <SkeletonBox width={88} height={10} borderRadius={4} />
+        <SkeletonBox width={56} height={10} borderRadius={4} />
+      </View>
+      <SkeletonBox
+        width="100%"
+        height={256}
+        borderRadius={0}
+        style={{
+          marginTop: 8,
+          borderTopLeftRadius: 60,
+          borderTopRightRadius: 30,
+          borderBottomRightRadius: 80,
+          borderBottomLeftRadius: 40,
+        }}
+      />
+      <View style={styles.articleDetailSources}>
+        <SkeletonBox width={64} height={10} borderRadius={4} />
+        <View style={styles.articleDetailSourceRow}>
+          <SkeletonBox width={72} height={24} borderRadius={999} />
+          <SkeletonBox width={96} height={24} borderRadius={999} />
+        </View>
+      </View>
+      <SkeletonBox width="100%" height={52} borderRadius={16} />
+      <View style={styles.articleDetailBody}>
+        <SkeletonBox width="100%" height={18} borderRadius={4} />
+        <SkeletonBox width="100%" height={18} borderRadius={4} />
+        <SkeletonBox width="92%" height={18} borderRadius={4} />
+        <SkeletonBox width="100%" height={16} borderRadius={4} style={{ marginTop: 8 }} />
+        <SkeletonBox width="100%" height={16} borderRadius={4} />
+        <SkeletonBox width="100%" height={16} borderRadius={4} />
+        <SkeletonBox width="78%" height={16} borderRadius={4} />
+        <SkeletonBox width="100%" height={16} borderRadius={4} style={{ marginTop: 8 }} />
+        <SkeletonBox width="96%" height={16} borderRadius={4} />
+        <SkeletonBox width="88%" height={16} borderRadius={4} />
+      </View>
+    </View>
+  );
+}
+
+export const ArticleDetailSkeleton = memo(ArticleDetailSkeletonInner);
+
 const styles = StyleSheet.create({
   articleCard: {
     gap: 0,
@@ -178,5 +228,27 @@ const styles = StyleSheet.create({
   briefContent: {
     flex: 1,
     gap: 8,
+  },
+  articleDetail: {
+    paddingHorizontal: 16,
+    gap: 0,
+  },
+  articleDetailMeta: {
+    flexDirection: "row",
+    gap: 12,
+    marginTop: 20,
+    marginBottom: 8,
+  },
+  articleDetailSources: {
+    marginTop: 28,
+    gap: 10,
+  },
+  articleDetailSourceRow: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  articleDetailBody: {
+    marginTop: 28,
+    gap: 10,
   },
 });

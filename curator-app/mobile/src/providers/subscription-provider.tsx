@@ -324,6 +324,11 @@ export function SubscriptionProvider({ children }: PropsWithChildren) {
 
       const hydrateAndResolve = async () => {
         try {
+          const cached = await AsyncStorage.getItem(storageKey);
+          if (!cancelled && cached && isValidTier(cached)) {
+            setTierState(cached);
+          }
+
           const { tier: resolved, backendOk } = await resolveSubscriptionTier(session);
           if (!cancelled) {
             setTierState(resolved);

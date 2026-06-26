@@ -6,6 +6,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -21,6 +22,7 @@ export type VerifyGateReason = "article_limit" | "save" | "collection" | "genera
 
 interface EmailVerificationGateContextValue {
   needsVerify: boolean;
+  isGateHydrated: boolean;
   openedArticleCount: number;
   remainingArticleReads: number;
   isLockedOut: boolean;
@@ -55,20 +57,36 @@ export function EmailVerificationGateProvider({ children }: PropsWithChildren) {
   const [hydrated, setHydrated] = useState(false);
   const [modalReason, setModalReason] = useState<VerifyGateReason | null>(null);
 
+  const openedArticleIdsRef = useRef<string[]>([]);
+  const hydratedRef = useRef(false);
+
+  useEffect(() => {
+    openedArticleIdsRef.current = openedArticleIds;
+  }, [openedArticleIds]);
+
+  useEffect(() => {
+    hydratedRef.current = hydrated;
+  }, [hydrated]);
+
   useEffect(() => {
     let cancelled = false;
     setHydrated(false);
+    hydratedRef.current = false;
 
     if (!userId || !needsVerify) {
       setOpenedArticleIds([]);
+      openedArticleIdsRef.current = [];
       setHydrated(true);
+      hydratedRef.current = true;
       return;
     }
 
     void loadOpenedArticleIds(userId).then((ids) => {
       if (!cancelled) {
         setOpenedArticleIds(ids);
+        openedArticleIdsRef.current = ids;
         setHydrated(true);
+        hydratedRef.current = true;
       }
     });
 
@@ -81,6 +99,7 @@ export function EmailVerificationGateProvider({ children }: PropsWithChildren) {
     if (!needsVerify && userId) {
       void AsyncStorage.removeItem(unverifiedArticleStorageKey(userId));
       setOpenedArticleIds([]);
+      openedArticleIdsRef.current = [];
     }
   }, [needsVerify, userId]);
 
@@ -90,29 +109,32 @@ export function EmailVerificationGateProvider({ children }: PropsWithChildren) {
 
   const canOpenArticle = useCallback(
     (articleId: string) => {
-      if (!needsVerify || !hydrated) return true;
-      if (openedArticleIds.includes(articleId)) return true;
-      return openedArticleIds.length < UNVERIFIED_ARTICLE_READ_LIMIT;
+      if (!needsVerify) return true;
+      if (!hydratedRef.current) return false;
+      if (openedArticleIdsRef.current.includes(articleId)) return true;
+      return openedArticleIdsRef.current.length < UNVERIFIED_ARTICLE_READ_LIMIT;
     },
-    [hydrated, needsVerify, openedArticleIds],
+    [needsVerify],
   );
 
   const registerArticleOpen = useCallback(
     (articleId: string) => {
-      if (!needsVerify || !hydrated || !userId) return true;
-      if (openedArticleIds.includes(articleId)) return true;
+      if (!needsVerify) return true;
+      if (!hydratedRef.current || !userId) return false;
+      if (openedArticleIdsRef.current.includes(articleId)) return true;
 
-      if (openedArticleIds.length >= UNVERIFIED_ARTICLE_READ_LIMIT) {
+      if (openedArticleIdsRef.current.length >= UNVERIFIED_ARTICLE_READ_LIMIT) {
         showVerifyPrompt("article_limit");
         return false;
       }
 
-      const next = [...openedArticleIds, articleId];
+      const next = [...openedArticleIdsRef.current, articleId];
+      openedArticleIdsRef.current = next;
       setOpenedArticleIds(next);
       void persistOpenedArticleIds(userId, next);
       return true;
     },
-    [hydrated, needsVerify, openedArticleIds, showVerifyPrompt, userId],
+    [needsVerify, showVerifyPrompt, userId],
   );
 
   const requireVerifiedEmail = useCallback(
@@ -143,6 +165,7 @@ export function EmailVerificationGateProvider({ children }: PropsWithChildren) {
   const value = useMemo(
     () => ({
       needsVerify,
+      isGateHydrated: hydrated,
       openedArticleCount,
       remainingArticleReads,
       isLockedOut,
@@ -153,6 +176,7 @@ export function EmailVerificationGateProvider({ children }: PropsWithChildren) {
     }),
     [
       canOpenArticle,
+      hydrated,
       isLockedOut,
       needsVerify,
       openedArticleCount,

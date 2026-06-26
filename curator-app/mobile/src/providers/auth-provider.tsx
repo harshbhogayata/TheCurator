@@ -380,6 +380,10 @@ export function AuthProvider({ children }: PropsWithChildren) {
           applySession(mock);
           return;
         }
+        if (password.length < 8) {
+          throw new Error("Use at least 8 characters.");
+        }
+
         try {
           const auth = getFirebaseAuth();
           const credential = await createUserWithEmailAndPassword(auth, email.trim(), password);
@@ -389,13 +393,13 @@ export function AuthProvider({ children }: PropsWithChildren) {
             await credential.user.getIdToken(true);
           }
 
-          if (!credential.user.emailVerified) {
-            await exchangeSession(credential.user);
-            await deliverVerificationEmail();
-            return;
-          }
-
           await exchangeSession(credential.user);
+
+          if (!credential.user.emailVerified) {
+            void deliverVerificationEmail().catch(() => {
+              /* verification email is best-effort; sign-up should not hang */
+            });
+          }
         } catch (error) {
           throw new Error(getAuthErrorMessage(error, "sign-up"), { cause: error });
         }

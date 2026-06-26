@@ -20,7 +20,8 @@ import { UnverifiedTrialBanner } from "../../../src/ui/unverified-trial-banner";
 import { Header } from "../../../src/ui/header";
 import { ArticleCard } from "../../../src/ui/article-card";
 import type { Article } from "../../../src/data/articles";
-import { useArticles, useArticlesByIds } from "../../../src/hooks/use-articles";
+import { useArticlesByIds } from "../../../src/hooks/use-articles";
+import { flattenArticlePages, useInfiniteArticles } from "../../../src/hooks/use-infinite-articles";
 import { useCategories } from "../../../src/hooks/use-categories";
 import { type } from "../../../src/ui/tokens/typography";
 
@@ -41,7 +42,6 @@ export default function SearchScreen() {
   const { isArticleSaved, isHydrated } = useSavedArticles();
   const { recentArticleIds, refreshReadingStats } = useReadingStats();
   const { q } = useLocalSearchParams<{ q?: string }>();
-  const { data: articles = [], isError: isCatalogError, refetch: refetchCatalog } = useArticles();
   const { data: apiCategories = [] } = useCategories();
   const { data: recentArticlesRaw = [] } = useArticlesByIds(recentArticleIds);
   const recentArticles = useMemo(() => {
@@ -70,10 +70,25 @@ export default function SearchScreen() {
   }, [searchQuery]);
 
   const isServerSearch = debouncedQuery.length >= 2;
-  const { data: serverResults = [], isFetching: isSearching, isError: isSearchError, refetch: refetchSearch } = useArticles(
-    isServerSearch ? { q: debouncedQuery } : undefined,
+  const catalogInfinite = useInfiniteArticles(undefined, { enabled: !isServerSearch });
+  const searchInfinite = useInfiniteArticles(
+    { q: debouncedQuery },
+    { enabled: isServerSearch },
   );
-  const activeArticles = isServerSearch ? serverResults : articles;
+  const activeInfinite = isServerSearch ? searchInfinite : catalogInfinite;
+  const activeArticles = useMemo(
+    () => flattenArticlePages(activeInfinite.data),
+    [activeInfinite.data],
+  );
+  const isSearching = isServerSearch && searchInfinite.isFetching && !searchInfinite.isFetchingNextPage;
+  const isCatalogError = catalogInfinite.isError;
+  const isSearchError = searchInfinite.isError;
+  const refetchCatalog = catalogInfinite.refetch;
+  const refetchSearch = searchInfinite.refetch;
+  const catalogArticles = useMemo(
+    () => flattenArticlePages(catalogInfinite.data),
+    [catalogInfinite.data],
+  );
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [readingStatus, setReadingStatus] = useState<"all" | "saved" | "unsaved">("all");
   const [filtersExpanded, setFiltersExpanded] = useState(false);
@@ -86,12 +101,12 @@ export default function SearchScreen() {
       }));
     }
 
-    return Array.from(new Set(articles.map((article) => normalizeCategory(article.category)).filter(Boolean)))
+    return Array.from(new Set(catalogArticles.map((article) => normalizeCategory(article.category)).filter(Boolean)))
       .map((category) => ({
         key: category,
         label: formatCategoryLabel(category),
       }));
-  }, [apiCategories, articles]);
+  }, [apiCategories, catalogArticles]);
 
   const toggleCategory = (cat: string) => {
     setSelectedCategories((prev) =>
@@ -112,7 +127,7 @@ export default function SearchScreen() {
       }
       if (readingStatus === "saved" || readingStatus === "unsaved") {
         if (!isHydrated) {
-          return true;
+          return false;
         }
       }
       if (readingStatus === "saved") {
@@ -126,9 +141,9 @@ export default function SearchScreen() {
 
   const renderItem = useCallback(({ item }: { item: Article }) => (
     <View style={{ marginBottom: 16 }}>
-      <ArticleCard article={item} variant="compact" />
+      <ArticleCard article={item} variant="compact" showSaveButton={!filtersExpanded} />
     </View>
-  ), []);
+  ), [filtersExpanded]);
 
   const hasLoadError = isCatalogError || (isServerSearch && isSearchError);
 
@@ -221,7 +236,10 @@ export default function SearchScreen() {
 
         {/* Filters panel */}
         {filtersExpanded && (
-          <View style={{ marginHorizontal: 4, marginTop: 14, gap: 16 }}>
+          <View
+            style={{ marginHorizontal: 4, marginTop: 14, gap: 16 }}
+            onStartShouldSetResponder={() => true}
+          >
             {/* Categories */}
             <View>
               <Text style={[type.overline, { letterSpacing: 2, color: palette.onSurfaceVariant, marginBottom: 10, paddingHorizontal: 4 }]}>
@@ -342,10 +360,11 @@ export default function SearchScreen() {
     );
   }, [
     palette,
+    isHydrated,
+    readingStatus,
     searchQuery,
     filtersExpanded,
     selectedCategories,
-    readingStatus,
     recentArticles,
     filteredArticles.length,
     contentPadding,
@@ -387,6 +406,21 @@ export default function SearchScreen() {
     );
   }, [debouncedQuery, hasLoadError, isServerSearch, palette, refetchCatalog, refetchSearch, searchQuery]);
 
+  const loadMore = useCallback(() => {
+    if (activeInfinite.hasNextPage && !activeInfinite.isFetchingNextPage) {
+      void activeInfinite.fetchNextPage();
+    }
+  }, [activeInfinite]);
+
+  const listFooter = useMemo(() => {
+    if (!activeInfinite.isFetchingNextPage) return null;
+    return (
+      <View style={{ paddingVertical: 24, alignItems: "center" }}>
+        <Text style={[type.caption, { color: palette.onSurfaceVariant }]}>Loading more…</Text>
+      </View>
+    );
+  }, [activeInfinite.isFetchingNextPage, palette]);
+
   return (
     <View style={{ flex: 1, backgroundColor: palette.background }}>
       <Header title="Search" />
@@ -397,6 +431,9 @@ export default function SearchScreen() {
         renderItem={renderItem}
         ListHeaderComponent={listHeader}
         ListEmptyComponent={listEmpty}
+        ListFooterComponent={listFooter}
+        onEndReached={loadMore}
+        onEndReachedThreshold={0.4}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
         contentContainerStyle={{

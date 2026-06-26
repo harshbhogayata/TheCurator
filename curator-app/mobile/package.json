@@ -13,8 +13,9 @@
     "test:e2e": "maestro test .maestro/smoke.yaml",
     "test:e2e:auth": "maestro test .maestro/flows/auth.yaml",
     "test:e2e:audio": "maestro test .maestro/flows/brief-audio-paywall.yaml .maestro/flows/article-audio-paywall.yaml",
-    "eas:env:preview": "eas env:push preview --path .env --force",
-    "eas:build:preview": "eas build --profile preview --platform android",
+    "eas:env:preview": "eas-cli env:push preview --path .env --force",
+    "eas:update:preview": "eas-cli update --channel preview --environment preview --message",
+    "eas:build:preview": "eas-cli build --profile preview --platform android",
     "postinstall": "patch-package"
   },
   "dependencies": {
@@ -24,6 +25,7 @@
     "@gorhom/bottom-sheet": "^5.2.9",
     "@hookform/resolvers": "^3.9.0",
     "@react-native-async-storage/async-storage": "2.2.0",
+    "@react-native-community/netinfo": "11.4.1",
     "@react-navigation/bottom-tabs": "^7.4.0",
     "@sentry/react-native": "~7.2.0",
     "@shopify/flash-list": "^2.0.2",
@@ -34,7 +36,6 @@
     "axios-retry": "^4.5.0",
     "clsx": "^2.1.1",
     "expo": "~54.0.35",
-    "expo-apple-authentication": "~8.0.8",
     "expo-auth-session": "~7.0.11",
     "expo-av": "~16.0.8",
     "expo-blur": "~15.0.8",
@@ -81,6 +82,7 @@
     "@babel/core": "^7.28.0",
     "@types/react": "~19.1.0",
     "babel-preset-expo": "~54.0.10",
+    "eas-cli": "^20.4.0",
     "patch-package": "^8.0.1",
     "typescript": "~5.9.2"
   },

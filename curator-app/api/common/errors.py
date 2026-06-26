@@ -13,6 +13,7 @@ IDEMPOTENCY_CONFLICT = "idempotency_conflict"
 INVALID_CURSOR = "invalid_cursor"
 ENTITLEMENT_REQUIRED = "entitlement_required"
 REAUTH_REQUIRED = "reauth_required"
+EMAIL_VERIFICATION_REQUIRED = "email_verification_required"
 SERVER_ERROR = "server_error"
 SERVICE_UNAVAILABLE = "service_unavailable"
 
@@ -30,6 +31,15 @@ class ReauthRequired(exceptions.PermissionDenied):
 
     def __init__(self):
         super().__init__(detail="Re-authentication required. Please sign in again to continue.")
+
+
+class EmailVerificationRequired(exceptions.PermissionDenied):
+    default_code = EMAIL_VERIFICATION_REQUIRED
+
+    def __init__(self):
+        super().__init__(
+            detail="Verify your email to use this feature. Check your inbox for the verification link."
+        )
 
 
 class IdempotencyConflict(exceptions.APIException):

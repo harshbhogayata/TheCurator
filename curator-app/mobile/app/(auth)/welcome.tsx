@@ -1,12 +1,15 @@
 import { useRouter } from "expo-router";
+import { useState } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Image } from "expo-image";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { ArrowRight } from "lucide-react-native";
 
+import { useAndroidBackNavigation } from "../../src/hooks/use-android-back-navigation";
 import { useAuth } from "../../src/providers/auth-provider";
 import { useTheme } from "../../src/providers/theme-provider";
 import { PrimaryButton } from "../../src/ui/primary-button";
+import { OAuthSignInButtons } from "../../src/ui/oauth-sign-in-buttons";
 import { StatusBanner } from "../../src/ui/status-banner";
 import { IMAGES } from "../../src/data/images";
 import { type } from "../../src/ui/tokens/typography";
@@ -15,9 +18,12 @@ const TRUST_BADGE_TEXT = "12k+ Readers";
 
 export default function WelcomeScreen() {
   const router = useRouter();
-  const { errorMessage } = useAuth();
+  useAndroidBackNavigation();
+  const { errorMessage, clearError } = useAuth();
   const { palette } = useTheme();
   const { width } = useWindowDimensions();
+  const [oauthError, setOauthError] = useState<string | null>(null);
+  const [oauthBusy, setOauthBusy] = useState(false);
   // Scale mosaic to available width — caps at 320 on wide screens
   const mosaicScale = Math.min(width - 48, 320) / 300;
 
@@ -79,10 +85,12 @@ export default function WelcomeScreen() {
       {/* CTAs — always visible at bottom */}
       <View style={styles.ctaSection}>
         {errorMessage ? <StatusBanner tone="error" message={errorMessage} /> : null}
+        {oauthError ? <StatusBanner tone="error" message={oauthError} /> : null}
 
           <PrimaryButton
             label="Get Started"
             testID="welcome-get-started"
+          disabled={oauthBusy}
           onPress={() => router.push("/sign-up")}
           icon={<ArrowRight size={18} color={palette.inversePrimary} />}
         />
@@ -90,7 +98,23 @@ export default function WelcomeScreen() {
           label="I already have an account"
           testID="welcome-sign-in"
           variant="secondary"
+          disabled={oauthBusy}
           onPress={() => router.push("/sign-in")}
+        />
+
+        <View style={styles.divider}>
+          <View style={[styles.dividerLine, { backgroundColor: palette.outlineVariant + "40" }]} />
+          <Text style={[styles.dividerText, { color: palette.outline }]}>or continue with</Text>
+          <View style={[styles.dividerLine, { backgroundColor: palette.outlineVariant + "40" }]} />
+        </View>
+
+        <OAuthSignInButtons
+          disabled={oauthBusy}
+          onBusyChange={setOauthBusy}
+          onError={(message) => {
+            clearError();
+            setOauthError(message);
+          }}
         />
 
         {/* Trust badge */}
@@ -173,6 +197,17 @@ const styles = StyleSheet.create({
     paddingHorizontal: 24,
     paddingBottom: 20,
     gap: 12,
+  },
+  divider: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    paddingTop: 4,
+  },
+  dividerLine: { flex: 1, height: 1 },
+  dividerText: {
+    fontFamily: "Manrope_400Regular",
+    fontSize: 13,
   },
   trustRow: {
     flexDirection: "row",

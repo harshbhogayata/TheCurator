@@ -23,6 +23,7 @@ import { AppProviders } from "../src/providers/app-providers";
 import { useAuth } from "../src/providers/auth-provider";
 import { useTheme } from "../src/providers/theme-provider";
 import { BrandSplash } from "../src/ui/brand-splash";
+import { OfflineBanner } from "../src/ui/offline-banner";
 import { ToastDisplay } from "../src/ui/toast";
 
 const SPLASH_STARTED_AT = Date.now();
@@ -80,6 +81,7 @@ function RootNavigator() {
         <Stack.Screen name="(auth)" />
         <Stack.Screen name="(app)" />
       </Stack>
+      <OfflineBanner />
       <ToastDisplay />
     </>
   );

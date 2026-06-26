@@ -2,6 +2,7 @@ import { PersistQueryClientProvider } from "@tanstack/react-query-persist-client
 import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { type PropsWithChildren } from "react";
 
+import { AppErrorBoundary } from "../ui/error-boundary";
 import { asyncStoragePersister, queryClient } from "../lib/query-client";
 import { AudioProvider } from "./audio-provider";
 import { AuthProvider } from "./auth-provider";
@@ -17,10 +18,11 @@ import { ToastProvider } from "./toast-provider";
 
 export function AppProviders({ children }: PropsWithChildren) {
   return (
-    <PersistQueryClientProvider
-      client={queryClient}
-      persistOptions={{ persister: asyncStoragePersister }}
-    >
+    <AppErrorBoundary>
+      <PersistQueryClientProvider
+        client={queryClient}
+        persistOptions={{ persister: asyncStoragePersister }}
+      >
       <ThemeProvider>
         <AuthProvider>
           <ToastProvider>
@@ -44,7 +46,8 @@ export function AppProviders({ children }: PropsWithChildren) {
           </ToastProvider>
         </AuthProvider>
       </ThemeProvider>
-    </PersistQueryClientProvider>
+      </PersistQueryClientProvider>
+    </AppErrorBoundary>
   );
 }
 

@@ -1,6 +1,6 @@
 import { Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Check, Link2, Mail, Shield } from "lucide-react-native";
+import { Check, Link2, Mail } from "lucide-react-native";
 
 import { useTheme } from "../../src/providers/theme-provider";
 import { useAuth } from "../../src/providers/auth-provider";
@@ -18,12 +18,9 @@ const providerCopy = {
     description: "Keep your reading state and preferences aligned across Google sign-ins.",
     Icon: Link2,
   },
-  apple: {
-    title: "Apple",
-    description: "Use the same Curator account across your Apple devices.",
-    Icon: Shield,
-  },
 } as const;
+
+const VISIBLE_PROVIDERS = ["email", "google"] as const;
 
 export default function ConnectedAccountsScreen() {
   const { palette } = useTheme();
@@ -46,7 +43,7 @@ export default function ConnectedAccountsScreen() {
         </Text>
 
         <View style={styles.providerList}>
-          {(["email", "google", "apple"] as const).map((provider) => {
+          {VISIBLE_PROVIDERS.map((provider) => {
             const { title, description, Icon } = providerCopy[provider];
             const isConnected = provider === "email" ? true : connectedProviders.has(provider);
             const badgeLabel = provider === "email" ? "Primary" : isConnected ? "Connected" : "Coming Soon";

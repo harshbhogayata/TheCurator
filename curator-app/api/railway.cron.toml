@@ -1,0 +1,9 @@
+# Railway Cron service — content pipeline ingest (no Celery beat required).
+# Create a separate Railway service, point its config path here, and share env with the web API.
+[build]
+builder = "NIXPACKS"
+
+[deploy]
+startCommand = "python manage.py run_pipeline"
+cronSchedule = "5 * * * *"
+restartPolicyType = "NEVER"
